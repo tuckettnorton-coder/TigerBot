@@ -48,7 +48,6 @@ export function getTicketFromChannel(channel) {
   });
 
   if (!code || !categoryName || !openerOverwrite) return null;
-
   return { typeId, openerId: openerOverwrite.id, categoryName, claimedBy: null, code };
 }
 
@@ -93,28 +92,35 @@ function cleanChannelPart(value, fallback = 'ticket') {
 
 function ticketName(user, code, ticket, answers = {}) {
   if (ticket?.label === 'Buying/Selling Spawners') {
-    const spawnerType = cleanChannelPart(answers.spawner_type || answers['what_type_of_spawner'] || 'spawner');
+    const buySell = cleanChannelPart(answers.buy_or_sell || answers.buy_sell || 'buy');
     const amount = cleanChannelPart(answers.amount || 'amount');
-    const buySell = cleanChannelPart(answers.buy_or_sell || answers['buy_sell'] || 'trade');
-    return `${spawnerType}-${amount}-${buySell}-${code}`.slice(0, 100);
+    const spawnerType = cleanChannelPart(answers.spawner_type || answers.what_type_of_spawner || 'spawner');
+    return `${buySell}-${amount}-${spawnerType}-${code}`.slice(0, 100);
   }
+
   if (ticket?.label === 'Claim Giveaway') {
-    const host = cleanChannelPart(answers.hosted_by || 'giveaway');
+    const host = cleanChannelPart(answers.hosted_by || 'host');
     const amount = cleanChannelPart(answers.win_amount || 'amount');
-    return `giveaway-${host}-${amount}-${code}`.slice(0, 100);
+    return `${host}-gw-${amount}-${code}`.slice(0, 100);
   }
-  if (ticket?.label === 'Partner') {
-    const memberCount = cleanChannelPart(answers.server_member_count || 'members');
-    return `partner-${memberCount}-${code}`.slice(0, 100);
-  }
-  if (ticket?.label === 'Building services') return `building-${code}`;
-  if (ticket?.label === 'Digging services') return `digging-${code}`;
+
   if (ticket?.label === 'Support') return `support-${code}`;
-  if (ticket?.label === 'Middleman service') return `mm-${code}`;
+
   if (ticket?.label === 'Sponsor a giveaway') {
     const amount = cleanChannelPart(answers.sponsor_amount || 'amount');
-    return `sponsor-${amount}-${code}`.slice(0, 100);
+    return `${amount}-${code}`.slice(0, 100);
   }
+
+  if (ticket?.label === 'Report Staff') return `report-${code}`;
+
+  if (ticket?.label === 'Advertisement') return `ad-${code}`;
+
+  if (ticket?.label === 'Partner') return `partner-${code}`;
+
+  if (ticket?.label === 'Building services') return `building-${code}`;
+  if (ticket?.label === 'Digging services') return `digging-${code}`;
+  if (ticket?.label === 'Middleman service') return `mm-${code}`;
+
   const cleanUser = cleanChannelPart(user.username, 'user').slice(0, 18);
   return `ticket-${cleanUser}-${code}`;
 }
@@ -140,13 +146,14 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   const existing = await findExistingTicket(guild, user.id, ticket.categoryName);
   if (existing) return { existing };
   const category = categoryByName(guild, ticket.categoryName) || (await ensureTicketCategories(guild))[ticket.categoryName];
-  if (!category) throw new Error(`Could not create or find ticket category \"${ticket.categoryName}\".`);
+  if (!category) throw new Error(`Could not create or find ticket category "${ticket.categoryName}".`);
 
   const pingRoles = resolveRoles(guild, ticket.pingRoles);
   const accessRoles = resolveRoles(guild, ticket.accessRoles || []);
   const supportRoles = [...new Map([...pingRoles, ...accessRoles].map((role) => [role.id, role])).values()];
 
-  let code; let name;
+  let code;
+  let name;
   do {
     code = String(Math.floor(1000 + Math.random() * 9000));
     name = ticketName(user, code, ticket, answers);
@@ -208,16 +215,21 @@ export async function requestClose(channel, member) {
 
   const ownerMention = `<@${ticket.openerId}>`;
   const embed = new EmbedBuilder().setTitle('Close Request').setDescription(`Staff member ${member} has requested to close this ticket.\n\nTicket owner: ${ownerMention}\n\n**Confirmation**\n> Would you like to close this ticket?`);
-  const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary));
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+  );
   return channel.send({ content: ownerMention, embeds: [embed], components: [row] });
 }
 
 async function fetchAllMessages(channel) {
-  const all = []; let before;
+  const all = [];
+  let before;
   while (true) {
     const batch = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) });
     if (!batch.size) break;
-    all.push(...batch.values()); before = batch.last().id;
+    all.push(...batch.values());
+    before = batch.last().id;
     if (batch.size < 100) break;
   }
   return all.reverse();
@@ -230,11 +242,11 @@ function escapeHtml(value) {
 function buildTranscriptHtml(channel, actor, messages) {
   const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
   const body = messages.map((message) => {
-    const attachments = [...message.attachments.values()].map((attachment) => `<p>📎 <a href=\"${escapeHtml(attachment.url)}\">${escapeHtml(attachment.name || attachment.url)}</a></p>`).join('');
+    const attachments = [...message.attachments.values()].map((attachment) => `<p>📎 <a href="${escapeHtml(attachment.url)}">${escapeHtml(attachment.name || attachment.url)}</a></p>`).join('');
     const embeds = message.embeds?.length ? `<p><i>[${message.embeds.length} embed(s)]</i></p>` : '';
     return `<article><b>${escapeHtml(message.author.displayName || message.author.username)}</b> <small>${escapeHtml(message.createdAt.toISOString())}</small><pre>${escapeHtml(message.content || '')}</pre>${attachments}${embeds}</article>`;
   }).join('');
-  return `<!doctype html><html><head><meta charset=\"utf-8\"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
 }
 
 export async function closeTicket(channel, actor) {
@@ -249,7 +261,6 @@ export async function closeTicket(channel, actor) {
   const html = buildTranscriptHtml(channel, actor, messages);
   const transcriptBuffer = Buffer.from(html, 'utf8');
   const transcriptFileName = `${channel.name}-transcript.html`;
-  const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
   const ticketNumber = channel.name.match(/-(\d{4})$/)?.[1] || channel.id.slice(-4);
   const durationMinutes = Math.max(0, Math.floor((Date.now() - channel.createdTimestamp) / 60000));
   const creatorId = ticket.openerId;
@@ -272,8 +283,8 @@ export async function closeTicket(channel, actor) {
     const owner = await channel.guild.members.fetch(ticket.openerId);
     await owner.send({ content: `Your Tiger Market ticket **${channel.name}** has been closed. The transcript has been saved.` }).catch(() => {});
   } catch {}
-  await logChannel.send(`🔒 **Ticket closed** • ${channel.name} • ${actorName}`);
-  await channel.delete(`Ticket closed by ${actorName}`);
+  await logChannel.send(`🔒 **Ticket closed** • ${channel.name} • ${actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown'}`);
+  await channel.delete(`Ticket closed by ${actor?.tag || actor?.user?.tag || actor?.displayName || 'Unknown'}`);
 }
 
 export async function logTicket(guild, message) {
