@@ -189,11 +189,14 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
     : [];
 
   const ticketEmbed = new EmbedBuilder().setTitle(ticket.label).addFields({ name: 'Ticket Code', value: `\`${code}\``, inline: true }, ...answerFields).setFooter({ text: 'Tiger Market • Ticket Support' });
-  const closeOnlyRow = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger));
+  const ticketActionRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('calculate_ticket').setLabel('Calculate').setEmoji('🧮').setStyle(ButtonStyle.Primary),
+  );
   const welcomeRoleIds = [...welcomeText.matchAll(/<@&(\d+)>/g)].map((match) => match[1]);
   const allowedRoleIds = [...new Set([...pingRoles.map((role) => role.id), ...welcomeRoleIds])];
   await channel.send({ content: welcomeText, allowedMentions: { parse: ['users'], roles: allowedRoleIds } });
-  await channel.send({ embeds: [ticketEmbed], components: [closeOnlyRow] });
+  await channel.send({ embeds: [ticketEmbed], components: [ticketActionRow] });
 
   return { channel, metadata: { typeId, openerId: user.id, categoryName: ticket.categoryName, code } };
 }
@@ -287,8 +290,6 @@ export async function closeTicket(channel, actor) {
 
   await transcriptChannel.send({ embeds: [transcriptEmbed], files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
 
-  // Send the completed transcript directly to the ticket owner before deleting the ticket.
-  // If the user's DMs are closed, the ticket still closes normally and the transcript remains in #📝│transcripts.
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
     await owner.send({
