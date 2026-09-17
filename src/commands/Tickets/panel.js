@@ -28,7 +28,7 @@ export default {
 
       const menu = new StringSelectMenuBuilder()
         .setCustomId('ticket_select')
-        .setPlaceholder('Make a selection')
+        .setPlaceholder('Select what you need help with')
         .addOptions(
           Object.entries(TICKET_TYPES).map(([value, ticket]) => ({
             value,
@@ -38,10 +38,16 @@ export default {
           })),
         );
 
+      const ticketList = Object.values(TICKET_TYPES)
+        .map((ticket) => `${ticket.emoji} **${ticket.label}**`)
+        .join('\n');
+
       const embed = new EmbedBuilder()
-        .setTitle('Make a selection')
-        .setDescription('Please select the type of ticket you would like to open from the menu below.')
-        .setFooter({ text: 'Tiger Market Support' });
+        .setTitle('Support for')
+        .setDescription(
+          `Select the type of support you need from the dropdown below.\n\n${ticketList}`,
+        )
+        .setFooter({ text: 'Tiger Market Support • Select a category to open a ticket' });
 
       await interaction.channel.send({
         embeds: [embed],
