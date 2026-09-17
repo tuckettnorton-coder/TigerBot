@@ -10,15 +10,19 @@ export default {
     }
 
     await interaction.update({
-      content: '### ⛏️ Digging Service\n**Do you want a certain region?**\nSelect an option below.',
+      content: '### ⛏️ Digging Service\n**Do you want a certain region?**\nSelect a Donut SMP region below.',
       components: [
         new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder()
             .setCustomId(`digging_region:${area}:${goodCoords}`)
-            .setPlaceholder('Do you want a certain region?')
+            .setPlaceholder('Select a Donut SMP region')
             .addOptions(
-              new StringSelectMenuOptionBuilder().setLabel('Yes').setDescription('Add the custom region price').setValue('yes').setEmoji('🌎'),
-              new StringSelectMenuOptionBuilder().setLabel('No').setDescription('Do not add the custom region price').setValue('no').setEmoji('❌'),
+              new StringSelectMenuOptionBuilder().setLabel('West').setDescription('Donut SMP West').setValue('west').setEmoji('🌎'),
+              new StringSelectMenuOptionBuilder().setLabel('East').setDescription('Donut SMP East').setValue('east').setEmoji('🌎'),
+              new StringSelectMenuOptionBuilder().setLabel('Ocean').setDescription('Donut SMP Ocean').setValue('ocean').setEmoji('🌊'),
+              new StringSelectMenuOptionBuilder().setLabel('Asia').setDescription('Donut SMP Asia').setValue('asia').setEmoji('🌏'),
+              new StringSelectMenuOptionBuilder().setLabel('Europe').setDescription('Donut SMP Europe').setValue('europe').setEmoji('🌍'),
+              new StringSelectMenuOptionBuilder().setLabel('None').setDescription('No specific region').setValue('none').setEmoji('❌'),
             ),
         ),
       ],
