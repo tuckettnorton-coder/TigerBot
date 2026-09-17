@@ -33,7 +33,17 @@ export const TICKET_TYPES = {
     label: 'Partner', emoji: '🤝', description: 'Click this if you would like to Partner', categoryName: 'Partners',
     pingRoles: ['1536860331370877038', '1505252058591138004', '1517213956190638160', '1536860897509900389', 'Owner'],
     welcomeMessage: '{user} Welcome a <@&1517213956190638160> <@&1536860331370877038> <@&1505252058591138004> <@&1536860897509900389> will get to you shortly.',
-    form: [],
+    form: [
+      { id: 'server_member_count', label: 'How many members does your server have?', required: true, placeholder: 'Enter your server member count' },
+      { id: 'partnership_ping_tier', label: 'What partnership ping tier do you have?', required: true, placeholder: 'Enter your ping tier' },
+      { id: 'server_ad', label: 'Send your server advertisement', required: true, placeholder: 'Send your server ad here' },
+      { id: 'required_ping', label: 'What ping is required for the partnership?', required: true, placeholder: 'Enter the required ping' },
+      { id: 'donutsmp_relation', label: 'Is your server related to DonutSMP?', required: true, placeholder: 'Yes/No' },
+      { id: 'irl_trading', label: 'Does your server allow IRL trading?', required: true, placeholder: 'Yes/No' },
+      { id: 'go_first', label: 'Are you willing to go first for the partnership?', required: true, placeholder: 'Yes/No' },
+      { id: 'blacklist', label: 'Is your server blacklisted anywhere?', required: true, placeholder: 'Yes/No, explain if yes' },
+      { id: 'cooldown', label: 'Do you agree to the 3-day partnership cooldown?', required: true, placeholder: 'Yes/No' },
+    ],
   },
   support: {
     label: 'Support', emoji: '🆘', description: 'Click this for Support', categoryName: 'General support',
@@ -87,7 +97,7 @@ export const TICKET_TYPES = {
       { id: 'read_paid_ad', label: 'Have you read Paid-AD', required: true, placeholder: 'yes or no' },
       { id: 'ad_after', label: 'Send your ad in the ticket immediately after', required: true, placeholder: 'ok' },
       { id: 'ad_plan', label: 'What advertising plan?', required: true, placeholder: 'Enter here' },
-      { id: 'member_count', label: 'How many members does your server have?', required: true, placeholder: '' },
+      { id: 'member_count', label: 'How many members does your server have?', required: true, placeholder: 'Enter your server member count' },
     ],
   },
   sponsor_giveaway: {
