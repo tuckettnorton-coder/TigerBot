@@ -26,11 +26,8 @@ export const TICKET_TYPES = {
   middleman: {
     label:'Middleman service',emoji:'🏦',description:'Click this for Middleman service',categoryName:'Middleman',pingRoles:['1505252058591138004','Buyer/Seller'],welcomeMessage:'{user} Welcome a @Buyer/Seller <@&1505252058591138004> will get to you shortly.',
     form:[
-      {id:'your_ign',label:'Your IGN',required:true,placeholder:'Your IGN'},
-      {id:'person_ign',label:"Person's IGN",required:true,placeholder:"Person's IGN"},
-      {id:'spawners_involved',label:'Are spawners involved?',required:true,placeholder:'Yes or No'},
-      {id:'spawner_amount',label:'If yes, how many spawners?',required:true,placeholder:'Example: 100'},
-      {id:'spawner_trade',label:'If yes: spawner type + Buy/Sell',required:true,placeholder:'Example: Skeleton Sell. If no: enter total value, e.g. 100M'},
+      {id:'your_ign',label:'Your IGN',required:true,placeholder:'Your Minecraft username'},
+      {id:'person_ign',label:"Person's IGN",required:true,placeholder:"Other person's Minecraft username"},
     ],
   },
   advertisement: { label:'Advertisement',emoji:'💰',description:'Click this for Advertisement services',categoryName:'Advertisement',pingRoles:['1505252058591138004','1536860897509900389','Mod'],welcomeMessage:'{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> @Mod will get to you shortly.',form:[{id:'read_paid_ad',label:'Have you read Paid-AD',required:true,placeholder:'yes or no'},{id:'ad_after',label:'Send your ad in the ticket immediately after',required:true,placeholder:'ok'},{id:'ad_plan',label:'What advertising plan?',required:true,placeholder:'Enter here'}] },
