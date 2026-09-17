@@ -1,4 +1,13 @@
-import { ActionRowBuilder, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+
+const REGIONS = {
+  west: 'West',
+  east: 'East',
+  ocean: 'Ocean',
+  asia: 'Asia',
+  europe: 'Europe',
+  none: 'None',
+};
 
 export default {
   name: 'digging_region',
@@ -6,7 +15,7 @@ export default {
     const area = args?.[0];
     const goodCoords = args?.[1];
     const region = interaction.values?.[0];
-    if (!['yes', 'no'].includes(area) || !['yes', 'no'].includes(goodCoords) || !['yes', 'no'].includes(region)) {
+    if (!['yes', 'no'].includes(area) || !['yes', 'no'].includes(goodCoords) || !REGIONS[region]) {
       return interaction.reply({ content: '❌ Invalid digging selection.', ephemeral: true });
     }
 
@@ -19,9 +28,6 @@ export default {
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId('area_location').setLabel('Area / Location').setStyle(TextInputStyle.Short).setPlaceholder(area === 'yes' ? 'Enter your coordinates/location' : 'Enter where you want it').setRequired(true),
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('region_name').setLabel('Donut SMP Region').setStyle(TextInputStyle.Short).setPlaceholder(region === 'yes' ? 'West, East, Ocean, Asia, Europe' : 'None').setRequired(true),
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId('ign').setLabel('IGN').setStyle(TextInputStyle.Short).setPlaceholder('Your Minecraft username').setRequired(true),
