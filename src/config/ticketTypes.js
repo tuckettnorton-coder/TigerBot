@@ -1,6 +1,6 @@
 export const TICKET_TYPES = {
   buying_selling_spawners: {
-    label: 'Buying/Selling Spawners', emoji: '💸', description: 'Click this to buy/Sell Skeletons', categoryName: 'Buyer/Seller',
+    label: 'Buying/Selling Spawners', emoji: '💸', description: 'Click this to buy/Sell Skeletons', categoryName: 'Buyer/Sellar',
     pingRoles: ['Helper', 'Buyer/Seller', 'Owner'],
     welcomeMessage: '{user} Welcome a @Buyer/Seller @Helper will get to you shortly.',
     form: [
@@ -45,19 +45,19 @@ export const TICKET_TYPES = {
     ],
   },
   digging_services: {
-    label: 'Digging services', emoji: '⛏️', description: 'Click this for Digging services', categoryName: 'Building/Digging',
+    label: 'Digging services', emoji: '⛏️', description: 'Click this for Digging services', categoryName: 'Building/Diging',
     pingRoles: ['Helper', 'Trial | Builder/Digger', 'Trial | Helper', 'Builder/Digger', 'Owner'],
     welcomeMessage: '{user} Welcome a @Builder/Digger @Trial | Builder/Digger will get to you shortly.',
     form: [
       { id: 'area_size', label: 'What size of area? (width X length X height)', required: true, placeholder: 'Enter here' },
       { id: 'has_area', label: 'Do you have a area?', required: true, placeholder: 'Yes/No' },
-      { id: 'region', label: 'Do you want a certain region?', required: true, placeholder: 'No/Asia/East/Eu central/Eu west/Oceaniae/...' },
+      { id: 'region', label: 'Do you want a certain region?', required: true, placeholder: 'No/Asia/East/Eu central/Eu west/Oceaniae/...'},
       { id: 'good_chords', label: 'Do you want good chords?', required: true, placeholder: 'Yes/No' },
       { id: 'ign', label: 'IGN', required: true, placeholder: 'IGN' },
     ],
   },
   building_services: {
-    label: 'Building services', emoji: '🏠', description: 'Click this for Building services', categoryName: 'Building/Digging',
+    label: 'Building services', emoji: '🏠', description: 'Click this for Building services', categoryName: 'Building/Diging',
     pingRoles: ['Helper', 'Trial | Builder/Digger', 'Trial | Helper', 'Builder/Digger', 'Owner'],
     welcomeMessage: '{user} Welcome a @Builder/Digger @Trial | Builder/Digger will get to you shortly.',
     form: [
