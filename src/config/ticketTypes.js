@@ -5,9 +5,9 @@ export const TICKET_TYPES = {
     welcomeMessage: '{user} Welcome a @Buyer/Seller <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'ign', label: 'IGN', required: true, placeholder: 'IGN' },
-      { id: 'buy_or_sell', label: 'Buy or Sell', required: true, placeholder: 'Buy or Sell' },
-      { id: 'amount', label: 'Amount (Minimum 3 Spawners)', required: true, placeholder: 'Enter 3 or more spawners' },
-      { id: 'spawner_type', label: 'What type of spawner?', required: true, placeholder: 'what type of spawner?' },
+      { id: 'buy_or_sell', label: 'Buy or Sell', required: true, placeholder: 'Selected from dropdown' },
+      { id: 'amount', label: 'Amount (Minimum 3 Spawners)', required: true, placeholder: 'Selected from dropdown' },
+      { id: 'spawner_type', label: 'What type of spawner?', required: true, placeholder: 'Selected from dropdown' },
     ],
   },
   claim_giveaway: {
@@ -32,8 +32,7 @@ export const TICKET_TYPES = {
   },
   partner: {
     label: 'Partner', emoji: '🤝', description: 'Click this if you would like to Partner', categoryName: 'Partners',
-    pingRoles: ['1517213956190638160', '1536860331370877038'],
-    accessRoles: ['1536860331370877038', '1505252058591138004'],
+    pingRoles: ['1517213956190638160', '1536860331370877038'], accessRoles: ['1536860331370877038', '1505252058591138004'],
     welcomeMessage: '{user} Welcome a <@&1517213956190638160> <@&1536860331370877038> will get to you shortly.',
     form: [
       { id: 'server_member_count', label: 'What is your server member count?', required: true, placeholder: 'Enter your server member count' },
@@ -76,7 +75,7 @@ export const TICKET_TYPES = {
   },
   middleman: {
     label: 'Middleman service', emoji: '🏦', description: 'Click this for Middleman service', categoryName: 'Middleman',
-    pingRoles: ['1505252058591138004', 'Buyer/Seller'],
+    pingRoles: ['150525205859113257?'.replace('257?', '004'), 'Buyer/Seller'],
     welcomeMessage: '{user} Welcome a @Buyer/Seller <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'your_ign', label: 'Your IGN', required: true, placeholder: 'Your IGN' },
