@@ -1,8 +1,4 @@
-import {
-  SlashCommandBuilder,
-  PermissionFlagsBits,
-  EmbedBuilder,
-} from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -54,38 +50,20 @@ export function formatPriceMessage(prices) {
       {
         name: `${EMOJI_SKELETON} Skeleton Spawners`,
         inline: true,
-        value: [
-          '**3+ Buy:** ' + skeleton.buy3,
-          '**64+ Buy:** ' + skeleton.buy64,
-          '**3+ Sell:** ' + skeleton.sell3,
-          '**64+ Sell:** ' + skeleton.sell64,
-        ].join('\n'),
+        value: `**3+ Buy:** ${skeleton.buy3}\n**64+ Buy:** ${skeleton.buy64}\n**3+ Sell:** ${skeleton.sell3}\n**64+ Sell:** ${skeleton.sell64}`,
       },
       {
         name: `${EMOJI_CREEPER} Creeper Spawners`,
         inline: true,
-        value: [
-          '**3+ Buy:** ' + creeper.buy3,
-          '**64+ Buy:** ' + creeper.buy64,
-          '**3+ Sell:** ' + creeper.sell3,
-          '**64+ Sell:** ' + creeper.sell64,
-        ].join('\n'),
+        value: `**3+ Buy:** ${creeper.buy3}\n**64+ Buy:** ${creeper.buy64}\n**3+ Sell:** ${creeper.sell3}\n**64+ Sell:** ${creeper.sell64}`,
       },
       {
         name: `${EMOJI_IRONGOLEM} Iron Golem Spawners`,
         inline: true,
-        value: [
-          '**3+ Buy:** ' + irongolem.buy3,
-          '**64+ Buy:** ' + irongolem.buy64,
-          '**3+ Sell:** ' + irongolem.sell3,
-          '**64+ Sell:** ' + irongolem.sell64,
-        ].join('\n'),
+        value: `**3+ Buy:** ${irongolem.buy3}\n**64+ Buy:** ${irongolem.buy64}\n**3+ Sell:** ${irongolem.sell3}\n**64+ Sell:** ${irongolem.sell64}`,
       },
     )
-    .setDescription(
-      `### __NOTE__\nWE DON'T GO FIRST FOR BUYING/SELLING SPAWNERS. MAKE A <#${SPAWNER_PRICE_CHANNEL_ID}>\n# MINIMUM 3+\n**ALL messages** regarding your ticket / spawners will be IN THE TICKET ONLY!! Scammers can SEE your ticket but not the messages inside, **dont get fooled by this**! <@&${SPAWNER_UPDATE_ROLE_ID}> with the updates to the channel 💵│spawner-prices.`
-    );
-
+    .setDescription(`### __NOTE__\nWE DON'T GO FIRST FOR BUYING/SELLING SPAWNERS. MAKE A <#${SPAWNER_PRICE_CHANNEL_ID}>\n# MINIMUM 3+\n**ALL messages** regarding your ticket / spawners will be IN THE TICKET ONLY!! Scammers can SEE your ticket but not the messages inside, **dont get fooled by this**! <@&${SPAWNER_UPDATE_ROLE_ID}> with the updates to the channel 💵│spawner-prices.`);
   return { embeds: [embed] };
 }
 
@@ -95,11 +73,8 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
 export async function execute(interaction) {
-  const { startDraft } = await import('./spawnerEditor.js');
   const { buildSpawnerPriceModal } = await import('../../interactions/modals/spawner_update_modal.js');
-
-  startDraft(interaction);
-  await interaction.showModal(buildSpawnerPriceModal(1, loadPrices()));
+  await interaction.showModal(buildSpawnerPriceModal(loadPrices()));
 }
 
 export default { data, execute };
@@ -113,7 +88,6 @@ export async function postPrices(client, prices) {
   if (!channel || typeof channel.send !== 'function') {
     throw new Error(`Spawner price channel ${SPAWNER_PRICE_CHANNEL_ID} is not a sendable channel.`);
   }
-
   try {
     await channel.send(formatPriceMessage(prices));
   } catch (error) {
