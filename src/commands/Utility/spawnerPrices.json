@@ -1,0 +1,20 @@
+{
+  "skeleton": {
+    "buy3": "9M",
+    "buy64": "8.9M",
+    "sell3": "7.5M",
+    "sell64": "7.6M"
+  },
+  "creeper": {
+    "buy3": "13M",
+    "buy64": "12M",
+    "sell3": "8M",
+    "sell64": "7M"
+  },
+  "irongolem": {
+    "buy3": "18M",
+    "buy64": "17M",
+    "sell3": "8M",
+    "sell64": "9M"
+  }
+}
