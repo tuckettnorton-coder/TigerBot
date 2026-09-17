@@ -1,7 +1,7 @@
 import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { getPaidAdDraft, setPaidAdDraft } from '../../utils/paidAdDrafts.js';
 import { loadPaidAdPrices } from '../../utils/paidAdPricing.js';
-import { clearTicketEphemeral, registerTicketEphemeral } from '../../utils/ticketEphemeral.js';
+import { registerTicketEphemeral } from '../../utils/ticketEphemeral.js';
 
 function addonMenu() {
   const p = loadPaidAdPrices();
@@ -28,13 +28,11 @@ export default {
     if (!draft?.plan) return interaction.update({ content: '❌ Your advertisement session expired. Please start the ticket again.', components: [] });
     if (interaction.values?.[0] === 'yes') {
       await interaction.update({ content: '### ➕ Paid Advertisement Add-ons\n**Choose another add-on below.**', components: [addonMenu()] });
-      await clearTicketEphemeral(interaction.user.id);
       registerTicketEphemeral(interaction.user.id, interaction);
       return;
     }
     setPaidAdDraft(interaction.user.id, { addonsComplete: true });
     await interaction.update({ content: '### 💳 Paid Advertisement\n**Which payment method will you use?**', components: [paymentMenu()] });
-    await clearTicketEphemeral(interaction.user.id);
     registerTicketEphemeral(interaction.user.id, interaction);
   },
 };
