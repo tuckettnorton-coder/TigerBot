@@ -1,6 +1,5 @@
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 import { closeTicket, getTicketFromChannel, isStaffForTicket, requestClose } from '../../services/ticketService.js';
-import { addTicketUser } from '../../services/ticketParticipantService.js';
 import { ActionRowBuilder, UserSelectMenuBuilder } from 'discord.js';
 
 async function safeError(interaction, message) {
@@ -68,13 +67,15 @@ export default [
       try {
         const ticket = getTicketFromChannel(interaction.channel);
         if (!ticket) return safeError(interaction, 'This ticket is no longer active.');
-        const staff = isStaffForTicket(interaction.member, TICKET_TYPES[ticket.typeId]);
-        if (!staff) {
+
+        // Only configured support-team roles can use this button.
+        const definition = TICKET_TYPES[ticket.typeId];
+        if (!isStaffForTicket(interaction.member, definition)) {
           return safeError(interaction, 'Only members with a support team role for this ticket can add members.');
         }
 
         const userSelect = new UserSelectMenuBuilder()
-          .setCustomId('ticket_add_user_select')
+          .setCustomId('ticket_add_user_select_v2')
           .setPlaceholder('Select a member to add to this ticket')
           .setMinValues(1)
           .setMaxValues(1);
