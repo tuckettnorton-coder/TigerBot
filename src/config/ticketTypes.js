@@ -1,7 +1,7 @@
 export const TICKET_TYPES = {
   buying_selling_spawners: {
     label: 'Buying/Selling Spawners', emoji: '💸', description: 'Click this to buy/Sell Skeletons', categoryName: 'Buyer/Sellar',
-    pingRoles: ['Helper', 'Buyer/Seller', 'Owner'],
+    pingRoles: ['1505252058591138004', 'Buyer/Seller', 'Owner'],
     welcomeMessage: '{user} Welcome a @Buyer/Seller <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'ign', label: 'IGN', required: true, placeholder: 'IGN' },
@@ -12,7 +12,7 @@ export const TICKET_TYPES = {
   },
   claim_giveaway: {
     label: 'Claim Giveaway', emoji: '🎉', description: 'Click this to claim Giveaway', categoryName: 'Giveaway',
-    pingRoles: ['Helper', 'Trial | Helper', 'Owner'],
+    pingRoles: ['1505252058591138004', '1536860897509900389', 'Owner'],
     welcomeMessage: '{user} Welcome a @Trial | Helper <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'hosted_by', label: 'Who hosted the giveaway?', required: true, placeholder: 'Enter here' },
@@ -31,13 +31,13 @@ export const TICKET_TYPES = {
   },
   partner: {
     label: 'Partner', emoji: '🤝', description: 'Click this if you would like to Partner', categoryName: 'Partners',
-    pingRoles: ['Trial | PM', 'Helper', 'Partner | Manager', 'Trial | Helper', 'Owner'],
+    pingRoles: ['1536860331370877038', '1505252058591138004', '1517213956190638160', '1536860897509900389', 'Owner'],
     welcomeMessage: '{user} Welcome a @Partner | Manager @Trial | PM <@&1505252058591138004> @Trial | Helper will get to you shortly.',
     form: [],
   },
   support: {
     label: 'Support', emoji: '🆘', description: 'Click this for Support', categoryName: 'General support',
-    pingRoles: ['Helper', 'Trial | Helper', 'Owner'],
+    pingRoles: ['1505252058591138004', '1536860897509900389', 'Owner'],
     welcomeMessage: '{user} Welcome a @Trial | Helper <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'support_topic', label: 'What do you need support with?', required: true, placeholder: 'Enter your reason' },
@@ -46,7 +46,7 @@ export const TICKET_TYPES = {
   },
   digging_services: {
     label: 'Digging services', emoji: '⛏️', description: 'Click this for Digging services', categoryName: 'Building/Diging',
-    pingRoles: ['Helper', 'Trial | Builder/Digger', 'Trial | Helper', 'Builder/Digger', 'Owner'],
+    pingRoles: ['1505252058591138004', '1536861272610709534', '1536860897509900389', '1517213500655796265', 'Owner'],
     welcomeMessage: '{user} Welcome a @Builder/Digger @Trial | Builder/Digger will get to you shortly.',
     form: [
       { id: 'area_size', label: 'What size of area? (width X length X height)', required: true, placeholder: 'Enter here' },
@@ -58,7 +58,7 @@ export const TICKET_TYPES = {
   },
   building_services: {
     label: 'Building services', emoji: '🏠', description: 'Click this for Building services', categoryName: 'Building/Diging',
-    pingRoles: ['Helper', 'Trial | Builder/Digger', 'Trial | Helper', 'Builder/Digger', 'Owner'],
+    pingRoles: ['1505252058591138004', '1536861272610709534', '1536860897509900389', '1517213500655796265', 'Owner'],
     welcomeMessage: '{user} Welcome a @Builder/Digger @Trial | Builder/Digger will get to you shortly.',
     form: [
       { id: 'what_built', label: 'What do you need built?', required: true, placeholder: 'Enter here' },
@@ -70,7 +70,7 @@ export const TICKET_TYPES = {
   },
   middleman: {
     label: 'Middleman service', emoji: '🏦', description: 'Click this for Middleman service', categoryName: 'Middleman',
-    pingRoles: ['Helper', 'Buyer/Seller', 'Owner'],
+    pingRoles: ['1505252058591138004', 'Buyer/Seller', 'Owner'],
     welcomeMessage: '{user} Welcome a @Buyer/Seller <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'your_ign', label: 'Your IGN', required: true, placeholder: 'Your IGN' },
@@ -81,7 +81,7 @@ export const TICKET_TYPES = {
   },
   advertisement: {
     label: 'Advertisement', emoji: '💰', description: 'Click this for Advertisement services', categoryName: 'Advertisement',
-    pingRoles: ['Helper', 'Trial | Helper', 'Mod', 'Owner'],
+    pingRoles: ['1505252058591138004', '1536860897509900389', 'Mod', 'Owner'],
     welcomeMessage: '{user} Welcome a @Trial | Helper <@&1505252058591138004> @Mod will get to you shortly.',
     form: [
       { id: 'read_paid_ad', label: 'Have you read Paid-AD', required: true, placeholder: 'yes or no' },
@@ -92,7 +92,7 @@ export const TICKET_TYPES = {
   },
   sponsor_giveaway: {
     label: 'Sponsor a giveaway', emoji: '😽', description: 'Click this for to Sponsor a giveaway', categoryName: 'Sponsor a giveaway',
-    pingRoles: ['Helper'],
+    pingRoles: ['1505252058591138004'],
     welcomeMessage: '{user} Welcome a <@&1505252058591138004> will get to you shortly.',
     form: [{ id: 'sponsor_amount', label: 'How much are you looking to sponsor?', required: true, placeholder: 'Enter your Here' }],
   },
