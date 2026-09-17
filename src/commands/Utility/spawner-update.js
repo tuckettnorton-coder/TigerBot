@@ -6,10 +6,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Public spawner price channel: 💵│spawner-prices
 const SPAWNER_PRICE_CHANNEL_ID = '1504948495948452001';
 const SPAWNER_UPDATE_ROLE_ID = '1509955955063001218';
 const DATA_FILE = path.join(__dirname, 'spawnerPrices.json');
+const MESSAGE_FILE = path.join(__dirname, 'spawnerPriceMessage.json');
 
 const EMOJI_SKELETON = '<:download:1517708652981780682>';
 const EMOJI_CREEPER = '<:MinecraftCreeperHead:1517707887068315839>';
@@ -38,6 +38,17 @@ function savePrices(prices) {
   fs.writeFileSync(DATA_FILE, `${JSON.stringify(prices, null, 2)}\n`, 'utf8');
 }
 
+function loadMessageId() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(MESSAGE_FILE, 'utf8'));
+    return parsed.messageId || null;
+  } catch { return null; }
+}
+
+function saveMessageId(messageId) {
+  fs.writeFileSync(MESSAGE_FILE, `${JSON.stringify({ messageId }, null, 2)}\n`, 'utf8');
+}
+
 export function formatPriceMessage(prices) {
   const { skeleton, creeper, irongolem } = prices;
   return `${EMOJI_SKELETON} **Skeleton Spawners**\n**(You buy from us)**\n**3+ Buy:** ${skeleton.buy3}  **64+ Buy:** ${skeleton.buy64}\n**(You sell to us)**\n**3+ Sell:** ${skeleton.sell3}  **64+ Sell:** ${skeleton.sell64}\n\n${EMOJI_CREEPER} **Creeper Spawners**\n**(You buy from us)**\n**3+ Buy:** ${creeper.buy3}  **64+ Buy:** ${creeper.buy64}\n**(You sell to us)**\n**3+ Sell:** ${creeper.sell3}  **64+ Sell:** ${creeper.sell64}\n\n${EMOJI_IRONGOLEM} **Iron Golem Spawners**\n**(You buy from us)**\n**3+ Buy:** ${irongolem.buy3}  **64+ Buy:** ${irongolem.buy64}\n**(You sell to us)**\n**3+ Sell:** ${irongolem.sell3}  **64+ Sell:** ${irongolem.sell64}\n\n### __NOTE__- WE DON'T GO FIRST FOR BUYING/SELLING SPAWNERS MAKE A <#${SPAWNER_PRICE_CHANNEL_ID}> \n# MINIMUM 3+\n**ALL messages** regarding your ticket / spawners will be IN THE TICKET ONLY!! Scammers can SEE your ticket but not the messages inside, **dont get fooled by this**! <@&${SPAWNER_UPDATE_ROLE_ID}>`;
@@ -62,8 +73,21 @@ export async function postPrices(client, prices) {
   if (!channel || typeof channel.send !== 'function') {
     throw new Error(`Spawner price channel ${SPAWNER_PRICE_CHANNEL_ID} is not a sendable channel.`);
   }
+
+  // Delete the previous message sent by /spawner-update, then send the replacement.
+  const previousMessageId = loadMessageId();
+  if (previousMessageId) {
+    try {
+      const previousMessage = await channel.messages.fetch(previousMessageId);
+      if (previousMessage) await previousMessage.delete();
+    } catch {
+      // The old message may already have been deleted. Continue and create the new one.
+    }
+  }
+
   try {
-    await channel.send({ content: formatPriceMessage(prices) });
+    const newMessage = await channel.send({ content: formatPriceMessage(prices) });
+    saveMessageId(newMessage.id);
   } catch (error) {
     const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
     throw new Error(`Could not post the 12 spawner prices: ${apiMessage}`);
