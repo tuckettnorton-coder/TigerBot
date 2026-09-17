@@ -23,7 +23,8 @@ export default {
         await interaction.deferReply({ ephemeral: true });
         const result = await createTicketChannel({ guild: interaction.guild, user: interaction.user, typeId });
         if (result.existing) return interaction.editReply(`You already have an open ticket: ${result.existing}`);
-        await logTicket(interaction.guild, `🎫 **Ticket opened** • ${ticket.label} • ${interaction.user} • ${result.channel}`);
+        const displayName = interaction.member?.displayName || interaction.user.globalName || interaction.user.username;
+        await logTicket(interaction.guild, `🎫 **Ticket opened** • ${ticket.label} • ${displayName} • ${result.channel}`);
         await interaction.editReply(`✅ Ticket created: ${result.channel}`);
         return;
       }
