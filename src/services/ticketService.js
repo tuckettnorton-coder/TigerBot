@@ -187,6 +187,7 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   const ticketActionRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('calculate_ticket').setLabel('Calculate').setEmoji('🧮').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('ticket_add_user').setLabel('Add User').setEmoji('👤').setStyle(ButtonStyle.Secondary),
   );
   const welcomeRoleIds = [...welcomeText.matchAll(/<@&(\d+)>/g)].map((match) => match[1]);
   const allowedRoleIds = [...new Set([...pingRoles.map((role) => role.id), ...welcomeRoleIds])];
