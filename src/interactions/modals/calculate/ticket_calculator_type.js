@@ -1,6 +1,6 @@
-import { calculatorRows, calculatorEmbed, calculate } from '../../../buttons/ticket_calculator_panel.js';
-import { getTicketFromChannel, isStaffForTicket } from '../../../../services/ticketService.js';
-import { TICKET_TYPES } from '../../../../config/ticketTypes.js';
+import { calculatorRows, calculatorEmbed, calculate } from '../../buttons/ticket_calculator_panel.js';
+import { getTicketFromChannel, isStaffForTicket } from '../../../services/ticketService.js';
+import { TICKET_TYPES } from '../../../config/ticketTypes.js';
 
 export default {
   name: 'ticket_calc_type_modal',
@@ -14,11 +14,21 @@ export default {
     }
 
     const expression = interaction.fields.getTextInputValue('expression').trim();
+
     try {
       const result = calculate(expression);
-      await interaction.reply({ ephemeral: true, embeds: [calculatorEmbed(expression, result)], components: calculatorRows() });
+      await interaction.reply({
+        ephemeral: true,
+        embeds: [calculatorEmbed(expression, result)],
+        components: calculatorRows(),
+      });
     } catch (error) {
-      await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true });
+      await interaction.reply({
+        content: `❌ ${error.message}`,
+        ephemeral: true,
+        embeds: [calculatorEmbed(expression)],
+        components: calculatorRows(),
+      });
     }
   },
 };
