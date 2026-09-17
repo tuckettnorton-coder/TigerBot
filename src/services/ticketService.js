@@ -208,20 +208,26 @@ function escapeHtml(value) {
 function buildTranscriptHtml(channel, actor, messages) {
   const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
   const body = messages.map((message) => {
-    const attachments = [...message.attachments.values()].map((attachment) => `<p>📎 <a href="${escapeHtml(attachment.url)}">${escapeHtml(attachment.name || attachment.url)}</a></p>`).join('');
-    const embeds = message.embeds?.length ? `<p><i>[${message.embeds.length} embed(s)]</i></p>` : '';
-    return `<article><b>${escapeHtml(message.author.displayName || message.author.username)}</b> <small>${escapeHtml(message.createdAt.toISOString())}</small><pre>${escapeHtml(message.content || '')}</pre>${attachments}${embeds}</article>`;
+    const attachments = [...message.attachments.values()]
+      .map((attachment) => `<p>📎 <a href="${escapeHtml(attachment.url)}">${escapeHtml(attachment.name || attachment.url)}</a></p>`)
+      .join('');
+    const embeds = message.embeds?.length
+      ? `<p><i>[${message.embeds.length} embed(s)]</i></p>`
+      : '';
+    const content = message.content || (message.attachments.size || message.embeds.length ? '' : '[no text content]');
+    return `<article><b>${escapeHtml(message.author.displayName || message.author.username)}</b> <small>${escapeHtml(message.createdAt.toISOString())}</small><pre>${escapeHtml(content)}</pre>${attachments}${embeds}</article>`;
   }).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p><p>Total messages: ${messages.length}</p>${body}</body></html>`;
 }
 
 export async function closeTicket(channel, actor) {
   const ticket = getTicketFromChannel(channel);
   if (!ticket) throw new Error('This channel is not a managed ticket.');
+
+  const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
   const transcriptChannel = await findUtilityChannel(channel.guild, TRANSCRIPT_CHANNEL_NAME);
   const logChannel = await findUtilityChannel(channel.guild, LOG_CHANNEL_NAME);
-  if (!transcriptChannel) throw new Error(`The #${TRANSCRIPT_CHANNEL_NAME} channel was not found. Please create it first.`);
-  if (!logChannel) throw new Error(`The #${LOG_CHANNEL_NAME} channel was not found. Please create it first.`);
+
   const messages = await fetchAllMessages(channel);
   const html = buildTranscriptHtml(channel, actor, messages);
   const transcriptBuffer = Buffer.from(html, 'utf8');
@@ -230,30 +236,49 @@ export async function closeTicket(channel, actor) {
   const durationMinutes = Math.max(0, Math.floor((Date.now() - channel.createdTimestamp) / 60000));
   const creatorId = ticket.openerId;
   const subject = TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Support Ticket';
-  const transcriptEmbed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle('Auto-Generated Transcript')
-    .setDescription(`Transcript automatically generated for ticket #${ticketNumber}`)
-    .addFields(
-      { name: 'Ticket', value: [`Ticket #${ticketNumber}`, `Created by <@${creatorId}>`, `${messages.length} message${messages.length === 1 ? '' : 's'}`].join('\n') },
-      { name: 'Generation', value: [`Duration: ${durationMinutes} minute${durationMinutes === 1 ? '' : 's'}`, 'Status: Closed (Auto-transcript)'].join('\n') },
-      { name: 'Subject', value: subject.slice(0, 1024) },
-    )
-    .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
-    .setTimestamp();
-  const transcriptMessage = await transcriptChannel.send({ embeds: [transcriptEmbed], files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
-  const transcriptAttachment = transcriptMessage.attachments.first();
-  if (transcriptAttachment) {
-    const transcriptLinkRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
-    );
-    await transcriptMessage.edit({ components: [transcriptLinkRow] });
+
+  let transcriptMessage = null;
+
+  if (transcriptChannel) {
+    const transcriptEmbed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle('Auto-Generated Transcript')
+      .setDescription(`Transcript automatically generated for ticket #${ticketNumber}`)
+      .addFields(
+        { name: 'Ticket', value: [`Ticket #${ticketNumber}`, `Created by <@${creatorId}>`, `${messages.length} message${messages.length === 1 ? '' : 's'}`].join('\n') },
+        { name: 'Generation', value: [`Duration: ${durationMinutes} minute${durationMinutes === 1 ? '' : 's'}`, 'Status: Closed (Auto-transcript)'].join('\n') },
+        { name: 'Subject', value: subject.slice(0, 1024) },
+      )
+      .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
+      .setTimestamp();
+
+    transcriptMessage = await transcriptChannel.send({
+      embeds: [transcriptEmbed],
+      files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
+    });
+
+    const transcriptAttachment = transcriptMessage.attachments.first();
+    if (transcriptAttachment) {
+      const transcriptLinkRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
+      );
+      await transcriptMessage.edit({ components: [transcriptLinkRow] });
+    }
   }
+
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
-    await owner.send({ content: `Your Tiger Market ticket **${channel.name}** has been closed. The transcript has been saved in the transcript panel: ${transcriptMessage.url}`, files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] }).catch(() => {});
+    const panelLink = transcriptMessage?.url ? ` ${transcriptMessage.url}` : '';
+    await owner.send({
+      content: `Your Tiger Market ticket **${channel.name}** has been closed. The full transcript file is attached.${panelLink ? ` It is also saved in the transcript panel: ${panelLink}` : ''}`,
+      files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
+    });
   } catch {}
-  await logChannel.send(`🔒 **Ticket closed** • ${channel.name} • ${actorName}`);
+
+  if (logChannel) {
+    await logChannel.send(`🔒 **Ticket closed** • ${channel.name} • ${actorName}`).catch(() => {});
+  }
+
   await channel.delete(`Ticket closed by ${actorName}`);
 }
 
