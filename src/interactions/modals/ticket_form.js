@@ -53,16 +53,15 @@ export default {
         const validSpawner = ['skeleton', 'creeper', 'irongolem'].includes(spawnerType);
         if (!validTrade || !validSpawner) { await interaction.reply({ content: '❌ Invalid spawner ticket selection.', ephemeral: true }); return; }
 
-        let amount;
         let amountDisplay;
-        if (selectedAmount) {
-          amount = parseSpawnerAmount(selectedAmount);
+        if (selectedAmount === 'custom') {
+          amountDisplay = interaction.fields.getTextInputValue('amount').trim();
+        } else if (selectedAmount) {
           amountDisplay = selectedAmount;
         } else {
           amountDisplay = interaction.fields.getTextInputValue('amount').trim();
-          amount = parseSpawnerAmount(amountDisplay);
         }
-
+        const amount = parseSpawnerAmount(amountDisplay);
         const answers = {
           ign: interaction.fields.getTextInputValue('ign').trim(),
           buy_or_sell: trade,
