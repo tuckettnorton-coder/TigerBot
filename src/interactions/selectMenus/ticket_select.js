@@ -1,6 +1,18 @@
-import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 import { createTicketChannel, logTicket, findExistingTicket } from '../../services/ticketService.js';
+
+function buildSpawnerTradeMenu() {
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('spawner_trade_type')
+      .setPlaceholder('Select Buy or Sell...')
+      .addOptions(
+        new StringSelectMenuOptionBuilder().setLabel('Buy').setDescription('I want to buy spawners').setValue('buy').setEmoji('💰'),
+        new StringSelectMenuOptionBuilder().setLabel('Sell').setDescription('I want to sell spawners').setValue('sell').setEmoji('💵'),
+      ),
+  );
+}
 
 export default {
   name: 'ticket_select',
@@ -16,6 +28,16 @@ export default {
       const existing = await findExistingTicket(interaction.guild, interaction.user.id, ticket.categoryName);
       if (existing) {
         await interaction.reply({ content: `You already have an open ${ticket.label} ticket: ${existing}`, ephemeral: true });
+        return;
+      }
+
+      // Spawner tickets use click-only Buy/Sell and spawner-type dropdowns.
+      if (typeId === 'buying_selling_spawners') {
+        await interaction.reply({
+          content: '### 💸 Buying/Selling Spawners\nFirst, select whether you want to **Buy** or **Sell**.',
+          components: [buildSpawnerTradeMenu()],
+          ephemeral: true,
+        });
         return;
       }
 
