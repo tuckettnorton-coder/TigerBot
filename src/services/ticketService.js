@@ -247,9 +247,23 @@ export async function closeTicket(channel, actor) {
   if (!logChannel) throw new Error(`The #${LOG_CHANNEL_NAME} channel was not found. Please create it first.`);
   const messages = await fetchAllMessages(channel);
   const html = buildTranscriptHtml(channel, actor, messages);
-  const transcript = new AttachmentBuilder(Buffer.from(html, 'utf8'), { name: `${channel.name}.html` });
+  const transcriptBuffer = Buffer.from(html, 'utf8');
+  const transcriptFileName = `${channel.name}.html`;
+  const transcript = new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName });
   const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
-  await transcriptChannel.send({ content: `📜 Transcript for **${channel.name}** • closed by ${actorName}`, files: [transcript] });
+
+  await transcriptChannel.send({ content: `📜 Transcript for **${channel.name}** • closed by ${actorName}`, files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
+
+  // Send the completed transcript directly to the ticket owner before deleting the ticket.
+  // If the user's DMs are closed, the ticket still closes normally and the transcript remains in #📝│transcripts.
+  try {
+    const owner = await channel.guild.members.fetch(ticket.openerId);
+    await owner.send({
+      content: `📜 Your ticket **#${channel.name}** has been closed. Here is your transcript.`,
+      files: [transcript],
+    });
+  } catch {}
+
   await logChannel.send(`🔒 **Ticket closed** • ${TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Ticket'} • ${actorName} • #${channel.name}`).catch(() => {});
   await channel.delete(`Ticket closed by ${actor.tag}`);
   return true;
