@@ -14,7 +14,8 @@ const LOG_CHANNEL_NAME = '📝│logs';
 const TRANSCRIPT_CHANNEL_NAME = '📝│transcripts';
 
 function roleByName(guild, name) {
-  return guild.roles.cache.find((role) => role.name.toLowerCase() === String(name).toLowerCase()) || null;
+  const value = String(name).trim();
+  return guild.roles.cache.get(value) || guild.roles.cache.find((role) => role.name.toLowerCase() === value.toLowerCase()) || null;
 }
 
 export function resolveRoles(guild, names = []) {
