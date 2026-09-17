@@ -10,8 +10,8 @@ import {
 import { TICKET_TYPES } from '../config/ticketTypes.js';
 
 const OPEN_MARKER = 'tiger-ticket:';
-const LOG_CHANNEL_NAME = 'logs';
-const TRANSCRIPT_CHANNEL_NAME = 'transcripts';
+const LOG_CHANNEL_NAME = '📝│logs';
+const TRANSCRIPT_CHANNEL_NAME = '📝│transcripts';
 
 function roleByName(guild, name) {
   return guild.roles.cache.find((role) => role.name.toLowerCase() === String(name).toLowerCase()) || null;
