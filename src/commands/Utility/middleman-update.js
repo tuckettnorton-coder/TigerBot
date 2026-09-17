@@ -26,20 +26,40 @@ function saveMiddlemanMessage(message) {
   fs.writeFileSync(DATA_FILE, `${JSON.stringify({ message }, null, 2)}\n`, 'utf8');
 }
 
-function loadMessageId() {
+function loadMessageIds() {
   try {
-    return JSON.parse(fs.readFileSync(MESSAGE_FILE, 'utf8')).messageId || null;
+    const parsed = JSON.parse(fs.readFileSync(MESSAGE_FILE, 'utf8'));
+    if (Array.isArray(parsed.messageIds)) return parsed.messageIds.filter(Boolean);
+    if (parsed.messageId) return [parsed.messageId];
   } catch {
-    return null;
+    // No previous message has been saved yet.
   }
+  return [];
 }
 
-function saveMessageId(messageId) {
-  fs.writeFileSync(MESSAGE_FILE, `${JSON.stringify({ messageId }, null, 2)}\n`, 'utf8');
+function saveMessageIds(messageIds) {
+  fs.writeFileSync(MESSAGE_FILE, `${JSON.stringify({ messageIds }, null, 2)}\n`, 'utf8');
 }
 
 export function persistMiddlemanMessage(message) {
   saveMiddlemanMessage(message);
+}
+
+function splitDiscordMessage(content, maxLength = 2000) {
+  const text = String(content ?? '');
+  if (text.length <= maxLength) return [text];
+
+  const chunks = [];
+  let remaining = text;
+  while (remaining.length > maxLength) {
+    let splitAt = remaining.lastIndexOf('\n', maxLength);
+    if (splitAt < 500) splitAt = remaining.lastIndexOf(' ', maxLength);
+    if (splitAt < 1) splitAt = maxLength;
+    chunks.push(remaining.slice(0, splitAt).trimEnd());
+    remaining = remaining.slice(splitAt).trimStart();
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
 }
 
 export async function postMiddlemanMessage(client, message) {
@@ -48,19 +68,25 @@ export async function postMiddlemanMessage(client, message) {
     throw new Error(`Middleman update channel ${MIDDLEMAN_UPDATE_CHANNEL_ID} is not a sendable channel.`);
   }
 
-  const previousMessageId = loadMessageId();
-  if (previousMessageId) {
+  const previousMessageIds = loadMessageIds();
+  for (const messageId of previousMessageIds) {
     try {
-      const previousMessage = await channel.messages.fetch(previousMessageId);
+      const previousMessage = await channel.messages.fetch(messageId);
       if (previousMessage) await previousMessage.delete();
     } catch {
       // Previous message may already be deleted. Continue with the replacement.
     }
   }
 
-  const newMessage = await channel.send({ content: message });
-  saveMessageId(newMessage.id);
-  return newMessage;
+  const chunks = splitDiscordMessage(message, 2000);
+  const newMessageIds = [];
+  for (const chunk of chunks) {
+    const newMessage = await channel.send({ content: chunk });
+    newMessageIds.push(newMessage.id);
+  }
+
+  saveMessageIds(newMessageIds);
+  return newMessageIds;
 }
 
 export const data = new SlashCommandBuilder()
