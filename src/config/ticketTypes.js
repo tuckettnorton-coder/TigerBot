@@ -16,6 +16,7 @@ export const TICKET_TYPES = {
     welcomeMessage: '{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'hosted_by', label: 'Who hosted the giveaway?', required: true, placeholder: 'Enter here' },
+      { id: 'win_amount', label: 'How much did you win?', required: true, placeholder: 'Enter the amount you won' },
       { id: 'win_ss', label: 'Send a SS of the win in ticket', required: true, placeholder: 'Yes/Ok' },
       { id: 'ign', label: 'IGN', required: true, placeholder: 'IGN' },
     ],
