@@ -14,29 +14,23 @@ export default {
 
     const commandName = args[0];
     if (!commandName) {
-      await interaction.reply({
-        content: '❌ No update command was specified.',
-        flags: MessageFlags.Ephemeral,
-      }).catch(() => {});
+      await interaction.reply({ content: '❌ No update command was specified.', flags: MessageFlags.Ephemeral }).catch(() => {});
       return;
     }
 
     const command = client.commands?.get(commandName);
     if (!command?.execute) {
       await interaction.reply({
-        content: `❌ The update command **/${commandName}** is not available right now.`,
+        content: `❌ The update command **/${commandName}** is not loaded. Restart/redeploy TigerBot and try again.`,
         flags: MessageFlags.Ephemeral,
       }).catch(() => {});
       return;
     }
 
     try {
-      // The button deliberately calls the same command execute function as the
-      // slash command, so both entry points use the exact same update workflow.
       await command.execute(interaction, null, client);
     } catch (error) {
       const message = `❌ **${commandName} failed:** ${error?.message || 'Unknown error.'}`;
-
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply({ content: message }).catch(() => {});
       } else {
