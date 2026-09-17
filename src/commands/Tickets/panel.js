@@ -38,6 +38,7 @@ export default {
           })),
         );
 
+      // Use the exact same emoji configured for each ticket type in the dropdown.
       const ticketList = Object.values(TICKET_TYPES)
         .map((ticket) => `${ticket.emoji} **${ticket.label}**`)
         .join('\n');
