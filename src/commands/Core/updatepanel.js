@@ -21,7 +21,7 @@ function saveMessageId(messageId, channelId) {
   fs.writeFileSync(MESSAGE_FILE, `${JSON.stringify({ messageId, channelId }, null, 2)}\n`, 'utf8');
 }
 
-async function deletePreviousPanel(channel) {
+async function deletePreviousPanel(channel, client) {
   let saved = null;
   try { saved = JSON.parse(fs.readFileSync(MESSAGE_FILE, 'utf8')); } catch {}
 
@@ -81,10 +81,11 @@ export async function execute(interaction, guildConfig, client) {
 
   await interaction.deferReply({ ephemeral: true });
   try {
-    await deletePreviousPanel(interaction.channel);
+    await deletePreviousPanel(interaction.channel, client);
     const panel = buildUpdatePanel(client);
     const message = await interaction.channel.send(panel);
     saveMessageId(message.id, interaction.channel.id);
+    await setUpdateState(client, interaction.guildId, { updatePanel: { messageId: message.id, channelId: interaction.channel.id } });
     await interaction.editReply('✅ **Update panel posted.** The previous update panel in this channel was replaced.');
   } catch (error) {
     await interaction.editReply(`❌ **Update panel failed:** ${error?.message || 'Unknown error.'}`);
