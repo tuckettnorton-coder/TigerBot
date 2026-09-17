@@ -104,7 +104,7 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   const displayName = user.displayName || user.username;
   const welcomeText = ticket.welcomeMessage
     ? ticket.welcomeMessage
-      .replaceAll('{user}', displayName)
+      .replaceAll('{user}', `<@${user.id}>`)
       .replaceAll(/@([A-Za-z |/]+?)(?= @|$)/g, (match, roleName) => {
         const role = roleByName(guild, roleName.trim());
         return role ? `<@&${role.id}>` : match;
@@ -165,7 +165,7 @@ function buildTranscriptHtml(channel, actor, messages) {
     const embeds = message.embeds?.length ? `<p><i>[${message.embeds.length} embed(s)]</i></p>` : '';
     return `<article><b>${escapeHtml(message.author.displayName || message.author.username)}</b> <small>${escapeHtml(message.createdAt.toISOString())}</small><pre>${escapeHtml(message.content || '')}</pre>${attachments}${embeds}</article>`;
   }).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</a></style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
 }
 
 export async function closeTicket(channel, actor) {
