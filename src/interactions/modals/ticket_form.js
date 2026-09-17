@@ -74,23 +74,24 @@ export default {
       if (typeId === 'digging_services') {
         const area = args?.[1];
         const goodCoords = args?.[2];
-        const region = args?.[3];
+        const region = args?.[3] || 'none';
         if (!['yes', 'no'].includes(area) || !['yes', 'no'].includes(goodCoords) || !REGION_LABELS[region]) {
           return interaction.reply({ content: '❌ Invalid digging ticket selection.', ephemeral: true });
         }
         const areaSize = interaction.fields.getTextInputValue('area_size').trim();
-        const areaLocation = interaction.fields.getTextInputValue('area_location').trim();
         const ign = interaction.fields.getTextInputValue('ign').trim();
-        if (!areaSize || !areaLocation || !ign) return interaction.reply({ content: '❌ Please complete all digging service fields.', ephemeral: true });
+        if (!areaSize || !ign) return interaction.reply({ content: '❌ Please complete all digging service fields.', ephemeral: true });
 
-        const calculation = calculateDiggingPrice({ areaSize, goodCoords: goodCoords === 'yes', customRegion: region !== 'none' });
+        // Having an area means good coords and region are not requested or charged.
+        const hasArea = area === 'yes';
+        const useGoodCoords = !hasArea && goodCoords === 'yes';
+        const useCustomRegion = !hasArea && region !== 'none';
+        const calculation = calculateDiggingPrice({ areaSize, goodCoords: useGoodCoords, customRegion: useCustomRegion });
         const answers = {
           area_size: areaSize,
-          has_area: area === 'yes' ? 'Yes' : 'No',
-          area_location: areaLocation,
-          good_chords: goodCoords === 'yes' ? 'Yes' : 'No',
-          region: region !== 'none' ? 'Yes' : 'No',
-          region_name: REGION_LABELS[region],
+          has_area: hasArea ? 'Yes' : 'No',
+          good_chords: hasArea ? '—' : (useGoodCoords ? 'Yes' : 'No'),
+          region: hasArea ? '—' : REGION_LABELS[region],
           ign,
         };
         await interaction.deferReply({ ephemeral: true });
