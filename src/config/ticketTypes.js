@@ -75,7 +75,7 @@ export const TICKET_TYPES = {
   },
   middleman: {
     label: 'Middleman service', emoji: '🏦', description: 'Click this for Middleman service', categoryName: 'Middleman',
-    pingRoles: ['150525205859113257?'.replace('257?', '004'), 'Buyer/Seller'],
+    pingRoles: ['1505252058591138004', 'Buyer/Seller'],
     welcomeMessage: '{user} Welcome a @Buyer/Seller <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'your_ign', label: 'Your IGN', required: true, placeholder: 'Your IGN' },
