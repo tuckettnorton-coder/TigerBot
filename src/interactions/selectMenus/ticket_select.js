@@ -1,0 +1,31 @@
+import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { TICKET_TYPES } from '../../config/ticketTypes.js';
+import { createTicketChannel, logTicket, findExistingTicket } from '../../services/ticketService.js';
+
+export default {
+  name: 'ticket_select',
+  async execute(interaction, client) {
+    const typeId = interaction.values[0];
+    const ticket = TICKET_TYPES[typeId];
+    if (!ticket) return interaction.reply({ content: 'That ticket type is unavailable.', ephemeral: true });
+
+    const existing = await findExistingTicket(interaction.guild, interaction.user.id, ticket.categoryName);
+    if (existing) return interaction.reply({ content: `You already have an open ${ticket.label} ticket: ${existing}`, ephemeral: true });
+
+    if (!ticket.form.length) {
+      await interaction.deferReply({ ephemeral: true });
+      const result = await createTicketChannel({ guild: interaction.guild, user: interaction.user, typeId });
+      if (result.existing) return interaction.editReply(`You already have an open ticket: ${result.existing}`);
+      await logTicket(interaction.guild, `🎫 **Ticket opened** • ${ticket.label} • ${interaction.user} • ${result.channel}`, client.config.ticket?.logChannelId || process.env.LOG_CHANNEL_ID);
+      return interaction.editReply(`Ticket created: ${result.channel}`);
+    }
+
+    const modal = new ModalBuilder().setCustomId(`ticket_form:${typeId}`).setTitle(ticket.label.slice(0, 45));
+    for (const field of ticket.form.slice(0, 5)) {
+      const input = new TextInputBuilder().setCustomId(field.id).setLabel(field.label.slice(0, 45)).setStyle(TextInputStyle.Short).setRequired(field.required !== false);
+      if (field.placeholder) input.setPlaceholder(field.placeholder.slice(0, 100));
+      modal.addComponents(new ActionRowBuilder().addComponents(input));
+    }
+    await interaction.showModal(modal);
+  },
+};
