@@ -9,7 +9,6 @@ import {
 } from 'discord.js';
 import { TICKET_TYPES } from '../config/ticketTypes.js';
 
-const OPEN_MARKER = 'tiger-ticket:';
 const LOG_CHANNEL_NAME = '📝│logs';
 const TRANSCRIPT_CHANNEL_NAME = '📝│transcripts';
 
@@ -22,15 +21,44 @@ export function resolveRoles(guild, names = []) {
   return [...new Set(names)].map((name) => roleByName(guild, name)).filter(Boolean);
 }
 
+function ticketDefinitionFromCategory(categoryName) {
+  return Object.entries(TICKET_TYPES).find(([, ticket]) => ticket.categoryName.toLowerCase() === String(categoryName || '').toLowerCase())?.[0] || null;
+}
+
 export function isStaffForTicket(member, ticket) {
   if (!member || !ticket) return false;
   if (member.permissions?.has(PermissionFlagsBits.Administrator)) return true;
-  return resolveRoles(member.guild, ticket.pingRoles).some((role) => member.roles.cache.has(role.id));
+  const staffRoles = resolveRoles(member.guild, [
+    ...(ticket.pingRoles || []),
+    ...(ticket.accessRoles || []),
+  ]);
+  return staffRoles.some((role) => member.roles.cache.has(role.id));
 }
 
 export function getTicketFromChannel(channel) {
-  if (!channel?.topic?.startsWith(OPEN_MARKER)) return null;
-  try { return JSON.parse(channel.topic.slice(OPEN_MARKER.length)); } catch { return null; }
+  if (!channel || channel.type !== ChannelType.GuildText) return null;
+
+  // Ticket topics intentionally contain only the user-facing text. Ticket metadata
+  // is recovered from the channel category, name, and permission overwrites instead.
+  const codeMatch = channel.name.match(/-(\d{4})$/);
+  const code = codeMatch?.[1] || null;
+  const categoryName = channel.parent?.name || null;
+  const typeId = ticketDefinitionFromCategory(categoryName);
+  const openerOverwrite = channel.permissionOverwrites?.cache.find((overwrite) => {
+    if (overwrite.type !== 1) return false;
+    if (!overwrite.allow?.has(PermissionFlagsBits.ViewChannel)) return false;
+    return channel.guild.members.cache.has(overwrite.id) || /^\d+$/.test(overwrite.id);
+  });
+
+  if (!code || !categoryName || !openerOverwrite) return null;
+
+  return {
+    typeId,
+    openerId: openerOverwrite.id,
+    categoryName,
+    claimedBy: null,
+    code,
+  };
 }
 
 function categoryByName(guild, name) {
@@ -80,15 +108,10 @@ export async function findExistingTicket(guild, userId, categoryName) {
 
 function buildWelcomeText(guild, template, user, fallback) {
   let text = String(template || fallback).replaceAll('{user}', `<@${user.id}>`);
-
-  // Ticket configs may contain either literal Discord role mentions (<@&ID>)
-  // or readable @Role Name tokens. Resolve the latter against the guild so
-  // every category produces real Discord role mentions instead of plain text.
   const guildRoles = [...guild.roles.cache.values()].sort((a, b) => b.name.length - a.name.length);
   for (const role of guildRoles) {
     text = text.replaceAll(`@${role.name}`, `<@&${role.id}>`);
   }
-
   return text;
 }
 
@@ -99,23 +122,65 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   if (existing) return { existing };
   const category = categoryByName(guild, ticket.categoryName) || (await ensureTicketCategories(guild))[ticket.categoryName];
   if (!category) throw new Error(`Could not create or find ticket category "${ticket.categoryName}".`);
-  const roles = resolveRoles(guild, ticket.pingRoles);
+
+  const pingRoles = resolveRoles(guild, ticket.pingRoles);
+  const accessRoles = resolveRoles(guild, ticket.accessRoles || []);
+  const supportRoles = [...new Map([...pingRoles, ...accessRoles].map((role) => [role.id, role])).values()];
+
   let code; let name;
   do {
     code = String(Math.floor(1000 + Math.random() * 9000));
     name = ticketName(user, code);
   } while (guild.channels.cache.some((channel) => channel.name === name));
 
-  const metadata = { typeId, openerId: user.id, categoryName: ticket.categoryName, claimedBy: null, code, createdAt: new Date().toISOString() };
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-    { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
-    ...roles.map((role) => ({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] })),
+    {
+      id: user.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+      ],
+    },
+    ...supportRoles.map((role) => ({
+      id: role.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.UseApplicationCommands,
+      ],
+    })),
   ];
-  if (guild.members.me) overwrites.push({ id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages] });
 
-  const channel = await guild.channels.create({ name, type: ChannelType.GuildText, parent: category.id, topic: `${OPEN_MARKER}${JSON.stringify(metadata)}`, permissionOverwrites: overwrites, reason: `TigerBot ticket opened by ${user.tag} (${ticket.label})` });
-  const mentions = roles.map((role) => `<@&${role.id}>`).join(' ');
+  if (guild.members.me) overwrites.push({
+    id: guild.members.me.id,
+    allow: [
+      PermissionFlagsBits.ViewChannel,
+      PermissionFlagsBits.SendMessages,
+      PermissionFlagsBits.ReadMessageHistory,
+      PermissionFlagsBits.AttachFiles,
+      PermissionFlagsBits.EmbedLinks,
+      PermissionFlagsBits.ManageMessages,
+      PermissionFlagsBits.UseApplicationCommands,
+    ],
+  });
+
+  const channel = await guild.channels.create({
+    name,
+    type: ChannelType.GuildText,
+    parent: category.id,
+    topic: `This is the start of the #${name} private channel.`,
+    permissionOverwrites: overwrites,
+    reason: `TigerBot ticket opened by ${user.tag} (${ticket.label})`,
+  });
+
+  const mentions = pingRoles.map((role) => `<@&${role.id}>`).join(' ');
   const displayName = user.displayName || user.username;
   const welcomeText = buildWelcomeText(
     guild,
@@ -144,18 +209,19 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   );
 
   const welcomeRoleIds = [...welcomeText.matchAll(/<@&(\d+)>/g)].map((match) => match[1]);
-  const allowedRoleIds = [...new Set([...roles.map((role) => role.id), ...welcomeRoleIds])];
+  const allowedRoleIds = [...new Set([...pingRoles.map((role) => role.id), ...welcomeRoleIds])];
   await channel.send({ content: welcomeText, allowedMentions: { parse: ['users'], roles: allowedRoleIds } });
   await channel.send({ embeds: [ticketEmbed], components: [closeOnlyRow] });
 
-  return { channel, metadata };
+  return { channel, metadata: { typeId, openerId: user.id, categoryName: ticket.categoryName, code } };
 }
 
 export async function requestClose(channel, member) {
   const ticket = getTicketFromChannel(channel);
   if (!ticket) throw new Error('This channel is not a managed ticket.');
-  const definition = TICKET_TYPES[ticket.typeId];
-  if (!isStaffForTicket(member, definition)) throw new Error('Only the ticket staff team can request a close.');
+  const definition = ticket.typeId ? TICKET_TYPES[ticket.typeId] : null;
+  const staffDefinition = definition || { pingRoles: [], accessRoles: [] };
+  if (!isStaffForTicket(member, staffDefinition)) throw new Error('Only the ticket staff team can request a close.');
   const recent = await channel.messages.fetch({ limit: 25 }).catch(() => null);
   if (recent?.some((message) => message.embeds?.some((embed) => embed.title === 'Close Request'))) return null;
 
@@ -207,7 +273,7 @@ export async function closeTicket(channel, actor) {
   const transcript = new AttachmentBuilder(Buffer.from(html, 'utf8'), { name: `${channel.name}.html` });
   const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
   await transcriptChannel.send({ content: `📜 Transcript for **${channel.name}** • closed by ${actorName}`, files: [transcript] });
-  await logChannel.send(`🔒 **Ticket closed** • ${TICKET_TYPES[ticket.typeId]?.label || ticket.typeId} • ${actorName} • #${channel.name}`).catch(() => {});
+  await logChannel.send(`🔒 **Ticket closed** • ${TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Ticket'} • ${actorName} • #${channel.name}`).catch(() => {});
   await channel.delete(`Ticket closed by ${actor.tag}`);
   return true;
 }
