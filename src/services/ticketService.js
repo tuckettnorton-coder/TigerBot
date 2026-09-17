@@ -7,6 +7,8 @@ import {
   EmbedBuilder,
   PermissionFlagsBits,
 } from 'discord.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { TICKET_TYPES } from '../config/ticketTypes.js';
 
 const LOG_CHANNEL_NAME = '📝│logs';
@@ -220,6 +222,19 @@ function buildTranscriptHtml(channel, actor, messages) {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p><p>Total messages: ${messages.length}</p>${body}</body></html>`;
 }
 
+async function saveHostedTranscript(transcriptFileName, transcriptBuffer) {
+  const transcriptDir = path.join(process.cwd(), 'data', 'transcripts');
+  await fs.mkdir(transcriptDir, { recursive: true });
+  await fs.writeFile(path.join(transcriptDir, transcriptFileName), transcriptBuffer);
+  const baseUrl = String(
+    process.env.TRANSCRIPT_BASE_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '')
+  ).replace(/\/$/, '');
+  if (!baseUrl) return null;
+  return `${baseUrl}/transcripts/${encodeURIComponent(transcriptFileName)}`;
+}
+
 export async function closeTicket(channel, actor) {
   const ticket = getTicketFromChannel(channel);
   if (!ticket) throw new Error('This channel is not a managed ticket.');
@@ -233,13 +248,17 @@ export async function closeTicket(channel, actor) {
   const transcriptBuffer = Buffer.from(html, 'utf8');
   const transcriptFileName = `${channel.name}-transcript.html`;
   const ticketNumber = channel.name.match(/-(\d{4})$/)?.[1] || channel.id.slice(-4);
-  const durationMinutes = Math.max(0, Math.floor((Date.now() - channel.createdTimestamp) / 60000));
   const creatorId = ticket.openerId;
   const subject = TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Support Ticket';
   const closedAt = Math.floor(Date.now() / 1000);
 
   let transcriptMessage = null;
   let transcriptAttachment = null;
+  let transcriptUrl = null;
+
+  try {
+    transcriptUrl = await saveHostedTranscript(transcriptFileName, transcriptBuffer);
+  } catch {}
 
   if (transcriptChannel) {
     const transcriptEmbed = new EmbedBuilder()
@@ -254,17 +273,22 @@ export async function closeTicket(channel, actor) {
       .setFooter({ text: 'Powered by TigerBot • Transcript Log' })
       .setTimestamp();
 
+    const transcriptPanelRow = transcriptUrl
+      ? new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setLabel('Download Transcript').setStyle(ButtonStyle.Link).setURL(transcriptUrl),
+        )
+      : null;
+
     transcriptMessage = await transcriptChannel.send({
       embeds: [transcriptEmbed],
-      files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
+      ...(transcriptPanelRow ? { components: [transcriptPanelRow] } : {}),
     });
 
-    transcriptAttachment = transcriptMessage.attachments.first() || null;
-    if (transcriptAttachment) {
-      const transcriptLinkRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
-      );
-      await transcriptMessage.edit({ components: [transcriptLinkRow] });
+    if (!transcriptUrl) {
+      transcriptMessage = await transcriptChannel.send({
+        files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
+      });
+      transcriptAttachment = transcriptMessage.attachments.first() || null;
     }
   }
 
@@ -285,16 +309,20 @@ export async function closeTicket(channel, actor) {
       .setFooter({ text: 'Powered by TigerBot • Ticket Transcript' })
       .setTimestamp();
 
-    const dmComponents = transcriptAttachment
+    const dmComponents = transcriptUrl
       ? [new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
+          new ButtonBuilder().setLabel('Download Transcript').setStyle(ButtonStyle.Link).setURL(transcriptUrl),
         )]
-      : [];
+      : transcriptAttachment
+        ? [new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
+          )]
+        : [];
 
     await owner.send({
       embeds: [dmEmbed],
       components: dmComponents,
-      files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
+      ...(transcriptUrl ? {} : { files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] }),
     });
   } catch {}
 
@@ -302,7 +330,7 @@ export async function closeTicket(channel, actor) {
     const logEmbed = new EmbedBuilder()
       .setColor(0x5865f2)
       .setTitle('Ticket Closed')
-      .setDescription(`A ticket has been closed and its transcript has been saved.`)
+      .setDescription('A ticket has been closed and its transcript has been saved.')
       .addFields(
         { name: 'Ticket', value: [`#${ticketNumber}`, `#${channel.name}`].join('\n'), inline: true },
         { name: 'Server', value: channel.guild.name, inline: true },
@@ -316,11 +344,15 @@ export async function closeTicket(channel, actor) {
 
     await logChannel.send({
       embeds: [logEmbed],
-      components: transcriptAttachment
+      components: transcriptUrl
         ? [new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
+            new ButtonBuilder().setLabel('Download Transcript').setStyle(ButtonStyle.Link).setURL(transcriptUrl),
           )]
-        : [],
+        : transcriptAttachment
+          ? [new ActionRowBuilder().addComponents(
+              new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
+            )]
+          : [],
     }).catch(() => {});
   }
 
