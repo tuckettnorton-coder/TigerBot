@@ -51,7 +51,7 @@ export const TICKET_TYPES = {
     form: [
       { id: 'area_size', label: 'What size of area? (width X length X height)', required: true, placeholder: 'Enter here' },
       { id: 'has_area', label: 'Do you have a area?', required: true, placeholder: 'Yes/No' },
-      { id: 'region', label: 'Do you want a certain region?', required: true, placeholder: 'No/Asia/East/Eu central/Eu west/Oceaniae/...'},
+      { id: 'region', label: 'Do you want a certain region?', required: true, placeholder: 'No/Asia/East/Eu central/Eu west/Oceaniae/...' },
       { id: 'good_chords', label: 'Do you want good chords?', required: true, placeholder: 'Yes/No' },
       { id: 'ign', label: 'IGN', required: true, placeholder: 'IGN' },
     ],
