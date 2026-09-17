@@ -28,21 +28,25 @@ export default {
       }
 
       const rawName = interaction.options.getString('name', true).trim();
-      const cleanName = rawName
+      const cleanBaseName = rawName
         .toLowerCase()
         .replace(/[^a-z0-9-_ ]/g, '')
         .replace(/\s+/g, '-')
         .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '')
-        .slice(0, 90);
+        .replace(/^-|-$/g, '');
 
-      if (!cleanName) {
+      if (!cleanBaseName) {
         return interaction.reply({ content: '❌ Please provide a valid ticket name.', ephemeral: true });
       }
 
+      const code = String(ticket.code || '').trim();
+      const suffix = code ? `-${code}` : '';
+      const maxBaseLength = Math.max(1, 90 - suffix.length);
+      const cleanName = `${cleanBaseName.slice(0, maxBaseLength)}${suffix}`;
+
       await interaction.deferReply({ ephemeral: true });
       await interaction.channel.setName(cleanName, `Ticket renamed by ${interaction.user.tag}`);
-      await interaction.editReply(`✅ Ticket renamed to **#${cleanName}**.`);
+      await interaction.editReply(`✅ Ticket renamed to **#${cleanName}**. The ticket code **${code || 'was preserved from the channel'}** was kept automatically.`);
     } catch (error) {
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply(`❌ ${error.message || 'Unable to rename this ticket.'}`).catch(() => {});
