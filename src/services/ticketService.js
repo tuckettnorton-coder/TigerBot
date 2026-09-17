@@ -104,12 +104,7 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   const mentions = roles.map((role) => `<@&${role.id}>`).join(' ');
   const displayName = user.displayName || user.username;
   const welcomeText = ticket.welcomeMessage
-    ? ticket.welcomeMessage
-      .replaceAll('{user}', `<@${user.id}>`)
-      .replaceAll(/@([A-Za-z |/]+?)(?= @|$)/g, (match, roleName) => {
-        const role = roleByName(guild, roleName.trim());
-        return role ? `<@&${role.id}>` : match;
-      })
+    ? ticket.welcomeMessage.replaceAll('{user}', `<@${user.id}>`)
     : `${displayName} Welcome! ${mentions || 'Staff'} will get to you shortly.`;
 
   const answerFields = Object.keys(answers).length && ticket.form?.length
@@ -131,7 +126,9 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
     new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
   );
 
-  await channel.send(welcomeText);
+  const welcomeRoleIds = [...welcomeText.matchAll(/<@&(\d+)>/g)].map((match) => match[1]);
+  const allowedRoleIds = [...new Set([...roles.map((role) => role.id), ...welcomeRoleIds])];
+  await channel.send({ content: welcomeText, allowedMentions: { parse: ['users'], roles: allowedRoleIds } });
   await channel.send({ embeds: [ticketEmbed], components: [closeOnlyRow] });
 
   return { channel, metadata };
