@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 const LABELS = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem' };
 
@@ -13,7 +13,7 @@ function buildIgnModal(trade, spawnerType, amount) {
 
 function buildCustomAmountModal(trade, spawnerType) {
   return new ModalBuilder()
-    .setCustomId(`ticket_custom_amount:${trade}:${spawnerType}`)
+    .setCustomId(`ticket_form:buying_selling_spawners:${trade}:${spawnerType}:custom`)
     .setTitle('Custom Spawner Amount')
     .addComponents(
       new ActionRowBuilder().addComponents(
@@ -31,17 +31,14 @@ export default {
     const trade = args?.[0];
     const spawnerType = args?.[1];
     const amount = interaction.values?.[0];
-
     if (!['buy', 'sell'].includes(trade) || !LABELS[spawnerType] || !amount) {
       await interaction.reply({ content: '❌ Invalid amount selection.', ephemeral: true });
       return;
     }
-
     if (amount === 'custom') {
       await interaction.showModal(buildCustomAmountModal(trade, spawnerType));
       return;
     }
-
     await interaction.showModal(buildIgnModal(trade, spawnerType, amount));
   },
 };
