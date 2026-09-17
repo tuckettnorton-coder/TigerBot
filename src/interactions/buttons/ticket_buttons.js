@@ -52,7 +52,7 @@ export default [
         if (!ticket) return safeError(interaction, 'This ticket is no longer active.');
         const staff = isStaffForTicket(interaction.member, TICKET_TYPES[ticket.typeId]);
         if (interaction.user.id !== ticket.openerId && !staff) {
-          return safeError(interaction, 'Only ticket staff can cancel the close request.');
+          return safeError(interaction, 'Only the ticket owner or ticket staff can cancel the close request.');
         }
         await interaction.update({ content: 'Close request cancelled.', embeds: [], components: [] });
       } catch (error) {
