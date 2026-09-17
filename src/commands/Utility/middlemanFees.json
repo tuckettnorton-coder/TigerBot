@@ -1,0 +1,6 @@
+{
+  "spawnerFee": 50000,
+  "bulkSpawnerFee": 25000,
+  "bulkThreshold": 64,
+  "otherServicePercent": 10
+}
