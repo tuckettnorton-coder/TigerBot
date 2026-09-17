@@ -16,6 +16,21 @@ export default {
         ticket.form.map((field) => [field.id, interaction.fields.getTextInputValue(field.id)]),
       );
 
+      // Buying/Selling Spawners requires a minimum of 3 spawners.
+      // Validate this before creating the ticket so amounts like 1 or 2 are rejected.
+      if (typeId === 'buying_selling_spawners') {
+        const rawAmount = String(answers.amount ?? '').trim();
+        const amount = Number(rawAmount.replace(/,/g, ''));
+
+        if (!/^\d+(?:\.\d+)?$/.test(rawAmount) || !Number.isFinite(amount) || amount < 3) {
+          await interaction.reply({
+            content: '❌ **Minimum is 3 spawners.** Please enter an amount of **3 or more**.',
+            ephemeral: true,
+          });
+          return;
+        }
+      }
+
       await interaction.deferReply({ ephemeral: true });
       const result = await createTicketChannel({ guild: interaction.guild, user: interaction.user, typeId, answers });
       if (result.existing) return interaction.editReply(`You already have an open ticket: ${result.existing}`);
