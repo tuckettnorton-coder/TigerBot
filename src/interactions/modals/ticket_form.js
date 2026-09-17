@@ -5,6 +5,7 @@ import { calculateSpawnerPrice, buildSpawnerCalculationMessage } from '../../uti
 import { calculateDiggingPrice, buildDiggingCalculationMessage } from '../../utils/diggingPricing.js';
 import { calculateBuildingPrice, buildBuildingCalculationMessage } from '../../utils/buildingPricing.js';
 import { parseAmount } from '../../utils/calculator.js';
+import { loadPaidAdPrices } from '../../utils/paidAdPricing.js';
 import { setBuildingDraft, getBuildingDraft, clearBuildingDraft } from '../../utils/buildingDrafts.js';
 import { setMiddlemanDraft } from '../../utils/middlemanDrafts.js';
 import { setPaidAdDraft } from '../../utils/paidAdDrafts.js';
@@ -17,6 +18,7 @@ function parseSpawnerAmount(value){const raw=String(value??'').trim().toLowerCas
 async function addCalculationToPanel(channel,ticketLabel,name,text){const messages=await channel.messages.fetch({limit:20});const panelMessage=messages.find(message=>message.embeds?.some(embed=>embed.title===ticketLabel));if(!panelMessage?.embeds?.[0])throw new Error('Could not find the ticket panel message to add the calculation.');const panelEmbed=EmbedBuilder.from(panelMessage.embeds[0]);panelEmbed.addFields({name,value:text.slice(0,1024),inline:false});await panelMessage.edit({embeds:[panelEmbed]});}
 const REGION_LABELS={west:'West',east:'East',ocean:'Ocean',asia:'Asia',europe:'Europe',none:'None'};
 function yesNoMenu(customId,placeholder){return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(customId).setPlaceholder(placeholder).addOptions(new StringSelectMenuOptionBuilder().setLabel('Yes').setDescription('Yes').setValue('yes').setEmoji('✅'),new StringSelectMenuOptionBuilder().setLabel('No').setDescription('No').setValue('no').setEmoji('❌')));}
+function money(value){return `$${Number(value).toFixed(2)}`;}
 
 export default { name:'ticket_form', async execute(interaction,client,args){try{
  const typeId=args?.[0],ticket=TICKET_TYPES[typeId]; if(!ticket)return interaction.reply({content:'That ticket type is unavailable.',ephemeral:true});
@@ -37,10 +39,11 @@ export default { name:'ticket_form', async execute(interaction,client,args){try{
    const adContent=interaction.fields.getTextInputValue('ad_content').trim();
    if(!adName||!adLink||!adContent)return interaction.reply({content:'❌ Please complete the advertisement name, invite link, and ad content.',ephemeral:true});
    setPaidAdDraft(interaction.user.id,{adName,adLink,adContent});
+   const p=loadPaidAdPrices();
    await interaction.reply({content:'### 💰 Paid Advertisement\n**Which advertisement plan are you choosing?**',components:[new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('paid_ad_plan').setPlaceholder('Choose a plan').addOptions(
-     new StringSelectMenuOptionBuilder().setLabel('Premium Bundle — $3').setDescription('@everyone • Private Channel • Scheduled • +7 Days').setValue('premium'),
-     new StringSelectMenuOptionBuilder().setLabel('Standard Bundle — $2').setDescription('Partner Ping • Private Channel • +3 Days').setValue('standard'),
-     new StringSelectMenuOptionBuilder().setLabel('Basic Bundle — $1').setDescription('@here Ping').setValue('basic'),
+     new StringSelectMenuOptionBuilder().setLabel(`Premium Bundle — ${money(p.premium)}`).setDescription('@everyone • Private Channel • Scheduled • +7 Days').setValue('premium'),
+     new StringSelectMenuOptionBuilder().setLabel(`Standard Bundle — ${money(p.standard)}`).setDescription('Partner Ping • Private Channel • +3 Days').setValue('standard'),
+     new StringSelectMenuOptionBuilder().setLabel(`Basic Bundle — ${money(p.basic)}`).setDescription('@here Ping').setValue('basic'),
    ))],ephemeral:true});
    registerTicketEphemeral(interaction.user.id,interaction);
    return;
