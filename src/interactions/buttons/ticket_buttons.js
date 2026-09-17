@@ -1,6 +1,6 @@
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 import { closeTicket, getTicketFromChannel, isStaffForTicket, requestClose } from '../../services/ticketService.js';
-import { ActionRowBuilder, UserSelectMenuBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 async function safeError(interaction, message) {
   if (interaction.deferred || interaction.replied) {
@@ -67,24 +67,24 @@ export default [
       try {
         const ticket = getTicketFromChannel(interaction.channel);
         if (!ticket) return safeError(interaction, 'This ticket is no longer active.');
-
-        // Only configured support-team roles can use this button.
-        const definition = TICKET_TYPES[ticket.typeId];
-        if (!isStaffForTicket(interaction.member, definition)) {
+        if (!isStaffForTicket(interaction.member, TICKET_TYPES[ticket.typeId])) {
           return safeError(interaction, 'Only members with a support team role for this ticket can add members.');
         }
 
-        const userSelect = new UserSelectMenuBuilder()
-          .setCustomId('ticket_add_user_select_v2')
-          .setPlaceholder('Select a member to add to this ticket')
-          .setMinValues(1)
-          .setMaxValues(1);
+        const modal = new ModalBuilder()
+          .setCustomId('ticket_add_user_modal')
+          .setTitle('Add User to Ticket');
 
-        await interaction.reply({
-          content: '👤 **Add a member to this ticket**\nSelect the member below. They will receive the same channel access as the ticket creator.',
-          components: [new ActionRowBuilder().addComponents(userSelect)],
-          ephemeral: true,
-        });
+        const userInput = new TextInputBuilder()
+          .setCustomId('ticket_add_user_input')
+          .setLabel('User ID or @mention')
+          .setPlaceholder('Example: 123456789012345678 or @username')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(30);
+
+        modal.addComponents(new ActionRowBuilder().addComponents(userInput));
+        await interaction.showModal(modal);
       } catch (error) {
         await safeError(interaction, error.message);
       }
