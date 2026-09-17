@@ -12,18 +12,10 @@ const UPDATE_BUTTONS = [
   { command: 'spawnerupdate', label: 'Spawners', emoji: '🕷️', style: ButtonStyle.Primary },
   { command: 'diggingupdate', label: 'Digging', emoji: '⛏️', style: ButtonStyle.Secondary },
   { command: 'buildingupdate', label: 'Building', emoji: '🏗️', style: ButtonStyle.Secondary },
-  { command: 'advertisementupdate', label: 'Advertisement', emoji: '📢', style: ButtonStyle.Primary },
+  { command: 'advertisementupdate', label: 'Paid Ads', emoji: '💰', style: ButtonStyle.Primary },
   { command: 'giveawayrulesupdate', label: 'Giveaways', emoji: '🎉', style: ButtonStyle.Success },
   { command: 'partnerupdate', label: 'Partners', emoji: '🤝', style: ButtonStyle.Success },
 ];
-
-function loadMessageId() {
-  try {
-    return JSON.parse(fs.readFileSync(MESSAGE_FILE, 'utf8')).messageId || null;
-  } catch {
-    return null;
-  }
-}
 
 function saveMessageId(messageId, channelId) {
   fs.writeFileSync(
@@ -48,7 +40,7 @@ async function deletePreviousPanel(channel) {
       await message.delete();
       return;
     } catch {
-      // Continue with a small migration search below.
+      // Continue with migration search.
     }
   }
 
