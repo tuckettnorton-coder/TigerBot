@@ -33,9 +33,8 @@ export default {
       const extensionLabel = draft.extension === 'extend3' ? '+3 days' : draft.extension === 'extend7' ? '+7 days' : 'None';
 
       setPaidAdDraft(interaction.user.id, { payment, total, totalDays });
-      await interaction.update({ content: `### ✅ Paid Advertisement Order Ready\n\n**Plan:** ${plan.label} — $${planPrice.toFixed(2)}\n**Scheduled Posting:** ${draft.scheduled ? `Yes — ${draft.scheduledTime} (+$${scheduledPrice.toFixed(2)})` : 'No'}\n**Giveaway:** ${giveawayLabel}${giveawayPrice ? ` (+$${giveawayPrice.toFixed(2)})` : ''}\n**Extension:** ${extensionLabel}${extensionPrice ? ` (+$${extensionPrice.toFixed(2)})` : ''}\n**Payment Method:** ${payment}\n**Duration:** ${totalDays} days\n\n### 💵 **Total Due: $${total.toFixed(2)}**\n\nCreating your advertisement ticket...`, components: [] });
-      await clearTicketEphemeral(interaction.user.id);
       await interaction.deferUpdate();
+      await clearTicketEphemeral(interaction.user.id);
 
       const result = await createTicketChannel({ guild: interaction.guild, user: interaction.user, typeId: 'advertisement', answers: {} });
       if (result.existing) {
