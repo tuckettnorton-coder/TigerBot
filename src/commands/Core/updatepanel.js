@@ -2,6 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuild
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +24,8 @@ function saveMessageId(messageId, channelId) {
 
 async function deletePreviousPanel(channel, client) {
   let saved = null;
+  const state = await getUpdateState(client, channel.guild.id);
+  if (state.updatePanel?.channelId === channel.id && state.updatePanel?.messageId) saved = state.updatePanel;
   try { saved = JSON.parse(fs.readFileSync(MESSAGE_FILE, 'utf8')); } catch {}
 
   if (saved?.messageId && saved.channelId === channel.id) {
@@ -85,6 +88,7 @@ export async function execute(interaction, guildConfig, client) {
     const panel = buildUpdatePanel(client);
     const message = await interaction.channel.send(panel);
     saveMessageId(message.id, interaction.channel.id);
+    await setUpdateState(client, interaction.guildId, { updatePanel: { messageId: message.id, channelId: interaction.channel.id } });
     await setUpdateState(client, interaction.guildId, { updatePanel: { messageId: message.id, channelId: interaction.channel.id } });
     await interaction.editReply('✅ **Update panel posted.** The previous update panel in this channel was replaced.');
   } catch (error) {
