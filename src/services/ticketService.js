@@ -78,6 +78,20 @@ export async function findExistingTicket(guild, userId, categoryName) {
   }) || null;
 }
 
+function buildWelcomeText(guild, template, user, fallback) {
+  let text = String(template || fallback).replaceAll('{user}', `<@${user.id}>`);
+
+  // Ticket configs may contain either literal Discord role mentions (<@&ID>)
+  // or readable @Role Name tokens. Resolve the latter against the guild so
+  // every category produces real Discord role mentions instead of plain text.
+  const guildRoles = [...guild.roles.cache.values()].sort((a, b) => b.name.length - a.name.length);
+  for (const role of guildRoles) {
+    text = text.replaceAll(`@${role.name}`, `<@&${role.id}>`);
+  }
+
+  return text;
+}
+
 export async function createTicketChannel({ guild, user, typeId, answers = {} }) {
   const ticket = TICKET_TYPES[typeId];
   if (!ticket) throw new Error('Unknown ticket type.');
@@ -103,9 +117,12 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   const channel = await guild.channels.create({ name, type: ChannelType.GuildText, parent: category.id, topic: `${OPEN_MARKER}${JSON.stringify(metadata)}`, permissionOverwrites: overwrites, reason: `TigerBot ticket opened by ${user.tag} (${ticket.label})` });
   const mentions = roles.map((role) => `<@&${role.id}>`).join(' ');
   const displayName = user.displayName || user.username;
-  const welcomeText = ticket.welcomeMessage
-    ? ticket.welcomeMessage.replaceAll('{user}', `<@${user.id}>`)
-    : `${displayName} Welcome! ${mentions || 'Staff'} will get to you shortly.`;
+  const welcomeText = buildWelcomeText(
+    guild,
+    ticket.welcomeMessage,
+    user,
+    `${displayName} Welcome! ${mentions || 'Staff'} will get to you shortly.`,
+  );
 
   const answerFields = Object.keys(answers).length && ticket.form?.length
     ? ticket.form.map((field) => ({
