@@ -31,8 +31,9 @@ export const TICKET_TYPES = {
   },
   partner: {
     label: 'Partner', emoji: '🤝', description: 'Click this if you would like to Partner', categoryName: 'Partners',
-    pingRoles: ['1536860331370877038', '1505252058591138004', '1517213956190638160', '1536860897509900389', 'Owner'],
-    welcomeMessage: '{user} Welcome a <@&1517213956190638160> <@&1536860331370877038> <@&1505252058591138004> <@&1536860897509900389> will get to you shortly.',
+    pingRoles: ['1517213956190638160', 'Owner'],
+    accessRoles: ['1536860331370877038', '1505252058591138004'],
+    welcomeMessage: '{user} Welcome a <@&1517213956190638160> will get to you shortly.',
     form: [
       { id: 'server_member_count', label: 'What is your server member count?', required: true, placeholder: 'Enter your server member count' },
       { id: 'donutsmp_relation', label: 'Is it Donut SMP related?', required: true, placeholder: 'Yes/No' },
