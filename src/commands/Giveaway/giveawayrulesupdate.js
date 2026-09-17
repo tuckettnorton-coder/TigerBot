@@ -4,19 +4,29 @@ import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logger } from '../../utils/logger.js';
 
 const GIVEAWAY_RULES_CHANNEL_ID = '1513947221815590932';
+const RULES_TITLE = '🎉 Giveaway Information';
+const CLAIM_ROLE_ID = '1513948994898759911';
+const DAILY_CHANNEL_ID = '1505767690889859072';
+const BIG_CHANNEL_ID = '1505768396221054976';
+const QUICK_CHANNEL_ID = '1505768034718060644';
 
-const GIVEAWAY_RULES_MESSAGE = `# 🎉 Giveaway Information
+// The latest posted rules message is tracked in memory. Running the command again
+// deletes that message and posts the newly configured version.
+let lastRulesMessageId = null;
+
+function buildRulesMessage({ dailyTime, bigTime, quickTime, payoutTime, sosRule, fakeClaimAction, pingRule }) {
+    return `# 🎉 Giveaway Information
 
 ## ⏰ Giveaway Claim Times
 
-**Daily Giveaways — 24 Hours**
-<#1505767690889859072>
+**Daily Giveaways — ${dailyTime}**
+<#${DAILY_CHANNEL_ID}>
 
-**Big Giveaways — 6 Hours**
-<#1505768396221054976>
+**Big Giveaways — ${bigTime}**
+<#${BIG_CHANNEL_ID}>
 
-**Quick Drops — 1 Hour**
-<#1505768034718060644>
+**Quick Drops — ${quickTime}**
+<#${QUICK_CHANNEL_ID}>
 
 Claim times may vary depending on the giveaway.
 
@@ -26,18 +36,47 @@ Claim times may vary depending on the giveaway.
 
 ## 📜 Rules
 
-Fake or edited claim screenshots will result in you receiving <@&1513948994898759911>.
+${fakeClaimAction}
 
-Pinging anyone in your claim ticket = NO PAY.
+${pingRule}
 
-Giveaway prizes are usually paid out within 3–5 days, but may take longer.
+Giveaway prizes are usually paid out within **${payoutTime}**, but may take longer.
 
-For SOS giveaways, if not everyone claims, nobody wins.`;
+${sosRule}`;
+}
 
 export default {
     data: new SlashCommandBuilder()
         .setName('giveawayrulesupdate')
-        .setDescription('Posts the current giveaway rules in the giveaway information channel.')
+        .setDescription('Update and repost the giveaway rules information.')
+        .addStringOption(option => option
+            .setName('daily_time')
+            .setDescription('Daily giveaway claim time, e.g. 24 Hours')
+            .setRequired(false))
+        .addStringOption(option => option
+            .setName('big_time')
+            .setDescription('Big giveaway claim time, e.g. 6 Hours')
+            .setRequired(false))
+        .addStringOption(option => option
+            .setName('quick_time')
+            .setDescription('Quick drop claim time, e.g. 1 Hour')
+            .setRequired(false))
+        .addStringOption(option => option
+            .setName('payout_time')
+            .setDescription('Normal prize payout time, e.g. 3–5 days')
+            .setRequired(false))
+        .addStringOption(option => option
+            .setName('fake_claim_action')
+            .setDescription('Action for fake or edited claim screenshots')
+            .setRequired(false))
+        .addStringOption(option => option
+            .setName('ping_rule')
+            .setDescription('Rule for pinging people in claim tickets')
+            .setRequired(false))
+        .addStringOption(option => option
+            .setName('sos_rule')
+            .setDescription('SOS giveaway rule')
+            .setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
     async execute(interaction) {
@@ -62,7 +101,6 @@ export default {
         }
 
         const targetChannel = await interaction.guild.channels.fetch(GIVEAWAY_RULES_CHANNEL_ID);
-
         if (!targetChannel || !targetChannel.isTextBased()) {
             throw new TitanBotError(
                 'Giveaway rules channel unavailable',
@@ -72,12 +110,43 @@ export default {
             );
         }
 
-        const message = await targetChannel.send({ content: GIVEAWAY_RULES_MESSAGE });
+        const options = interaction.options;
+        const dailyTime = options.getString('daily_time') || '24 Hours';
+        const bigTime = options.getString('big_time') || '6 Hours';
+        const quickTime = options.getString('quick_time') || '1 Hour';
+        const payoutTime = options.getString('payout_time') || '3–5 days';
+        const fakeClaimAction = options.getString('fake_claim_action') || `Fake or edited claim screenshots will result in you receiving <@&${CLAIM_ROLE_ID}>.`;
+        const pingRule = options.getString('ping_rule') || 'Pinging anyone in your claim ticket = **NO PAY.**';
+        const sosRule = options.getString('sos_rule') || 'For SOS giveaways, if not everyone claims, **nobody wins.**';
 
-        logger.info(`Giveaway rules update posted by ${interaction.user.tag} to channel ${GIVEAWAY_RULES_CHANNEL_ID}`);
+        // Delete the previously posted rules message, if this bot instance knows it.
+        if (lastRulesMessageId) {
+            try {
+                const oldMessage = await targetChannel.messages.fetch(lastRulesMessageId);
+                await oldMessage.delete();
+            } catch (error) {
+                // The old message may already have been deleted manually; continue.
+                logger.debug(`Could not delete previous giveaway rules message ${lastRulesMessageId}: ${error?.message || error}`);
+            }
+        }
+
+        const content = buildRulesMessage({
+            dailyTime,
+            bigTime,
+            quickTime,
+            payoutTime,
+            sosRule,
+            fakeClaimAction,
+            pingRule
+        });
+
+        const message = await targetChannel.send({ content });
+        lastRulesMessageId = message.id;
+
+        logger.info(`Giveaway rules update posted by ${interaction.user.tag} to channel ${GIVEAWAY_RULES_CHANNEL_ID}; message ${message.id}`);
 
         await interaction.editReply({
-            content: `✅ Giveaway rules update posted in <#${GIVEAWAY_RULES_CHANNEL_ID}>.\nMessage ID: ${message.id}`
+            content: `✅ Giveaway rules updated in <#${GIVEAWAY_RULES_CHANNEL_ID}>. The previous bot-posted rules message was replaced.`
         });
     }
 };
