@@ -14,6 +14,18 @@ function buildSpawnerTradeMenu() {
   );
 }
 
+function buildYesNoMenu(customId, placeholder, yesDescription, noDescription) {
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(customId)
+      .setPlaceholder(placeholder)
+      .addOptions(
+        new StringSelectMenuOptionBuilder().setLabel('Yes').setDescription(yesDescription).setValue('yes').setEmoji('✅'),
+        new StringSelectMenuOptionBuilder().setLabel('No').setDescription(noDescription).setValue('no').setEmoji('❌'),
+      ),
+  );
+}
+
 export default {
   name: 'ticket_select',
   async execute(interaction) {
@@ -31,12 +43,19 @@ export default {
         return;
       }
 
-      // Spawner selections must stay private to the ticket user.
-      // Never edit/update the public ticket panel.
       if (typeId === 'buying_selling_spawners') {
         await interaction.reply({
           content: '### 💸 Buying/Selling Spawners\nFirst, select whether you want to **Buy** or **Sell**.',
           components: [buildSpawnerTradeMenu()],
+          ephemeral: true,
+        });
+        return;
+      }
+
+      if (typeId === 'digging_services') {
+        await interaction.reply({
+          content: '### ⛏️ Digging Service\n**Do you have an area?**\nSelect an option below.',
+          components: [buildYesNoMenu('digging_area', 'Do you have an area?', 'I have an area/location', 'I need the builder to choose the area')],
           ephemeral: true,
         });
         return;
@@ -52,10 +71,7 @@ export default {
         return;
       }
 
-      const modal = new ModalBuilder()
-        .setCustomId(`ticket_form:${typeId}`)
-        .setTitle(ticket.label.slice(0, 45));
-
+      const modal = new ModalBuilder().setCustomId(`ticket_form:${typeId}`).setTitle(ticket.label.slice(0, 45));
       for (const field of ticket.form.slice(0, 5)) {
         const input = new TextInputBuilder()
           .setCustomId(field.id)
@@ -65,14 +81,10 @@ export default {
         if (field.placeholder) input.setPlaceholder(field.placeholder.slice(0, 100));
         modal.addComponents(new ActionRowBuilder().addComponents(input));
       }
-
       await interaction.showModal(modal);
     } catch (error) {
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply(`❌ Could not open the ticket: ${error.message}`).catch(() => {});
-      } else {
-        await interaction.reply({ content: `❌ Could not open the ticket: ${error.message}`, ephemeral: true }).catch(() => {});
-      }
+      if (interaction.deferred || interaction.replied) await interaction.editReply(`❌ Could not open the ticket: ${error.message}`).catch(() => {});
+      else await interaction.reply({ content: `❌ Could not open the ticket: ${error.message}`, ephemeral: true }).catch(() => {});
     }
   },
 };
