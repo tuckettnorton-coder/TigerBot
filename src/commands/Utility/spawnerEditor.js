@@ -10,9 +10,9 @@ import { loadPrices, persistPrices, postPrices } from './spawner-update.js';
 const drafts = new Map();
 
 const SPAWNERS = [
-  { key: 'skeleton', name: 'Skeleton', emoji: '<:download:1517708652981780682>' },
-  { key: 'creeper', name: 'Creeper', emoji: '<:MinecraftCreeperHead:1517707887068315839>' },
-  { key: 'irongolem', name: 'Iron Golem', emoji: '<:maxresdefault:1517708562489409566>' },
+  { key: 'skeleton', name: 'Skeleton', emoji: '<:download:1517708652981780682>', short: 'Skel' },
+  { key: 'creeper', name: 'Creeper', emoji: '<:MinecraftCreeperHead:1517707887068315839>', short: 'Creep' },
+  { key: 'irongolem', name: 'Iron Golem', emoji: '<:maxresdefault:1517708562489409566>', short: 'Golem' },
 ];
 
 const FIELDS = [
@@ -63,19 +63,23 @@ export function getPriceLabel(spawner, field) {
 }
 
 function makeEditButton(spawner, field, value) {
+  const spawnerInfo = SPAWNERS.find((item) => item.key === spawner);
+  const fieldInfo = FIELDS.find((item) => item.key === field);
   return new ButtonBuilder()
     .setCustomId(`spawner_edit:${spawner}:${field}`)
-    .setLabel(`${getPriceLabel(spawner, field)}: ${value}`.slice(0, 80))
+    .setLabel(`${spawnerInfo.short} ${fieldInfo.label}: ${value}`.slice(0, 80))
     .setStyle(ButtonStyle.Secondary);
 }
 
 export function buildEditorPayload(prices) {
   const embed = new EmbedBuilder()
     .setTitle('Spawner Price Editor')
-    .setDescription('All 12 prices are shown below. Click any individual price to edit only that price.')
+    .setDescription('Every price is separate. Click the exact price you want to change, enter the new value, then press Save.')
     .setColor(0x2b2d31);
 
   const rows = [];
+
+  // Show each spawner name, followed by its four individual prices.
   for (const spawner of SPAWNERS) {
     const price = prices[spawner.key];
     embed.addFields({
@@ -84,12 +88,9 @@ export function buildEditorPayload(prices) {
       inline: false,
     });
 
-    for (let i = 0; i < FIELDS.length; i += 2) {
-      rows.push(new ActionRowBuilder().addComponents(
-        makeEditButton(spawner.key, FIELDS[i].key, price[FIELDS[i].key]),
-        makeEditButton(spawner.key, FIELDS[i + 1].key, price[FIELDS[i + 1].key]),
-      ));
-    }
+    rows.push(new ActionRowBuilder().addComponents(
+      ...FIELDS.map((field) => makeEditButton(spawner.key, field.key, price[field.key]))
+    ));
   }
 
   rows.push(new ActionRowBuilder().addComponents(
