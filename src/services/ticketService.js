@@ -101,20 +101,21 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
 
   const channel = await guild.channels.create({ name, type: ChannelType.GuildText, parent: category.id, topic: `${OPEN_MARKER}${JSON.stringify(metadata)}`, permissionOverwrites: overwrites, reason: `TigerBot ticket opened by ${user.tag} (${ticket.label})` });
   const mentions = roles.map((role) => `<@&${role.id}>`).join(' ');
+  const displayName = user.displayName || user.username;
   const welcomeText = ticket.welcomeMessage
     ? ticket.welcomeMessage
-      .replaceAll('{user}', `<@${user.id}>`)
+      .replaceAll('{user}', displayName)
       .replaceAll(/@([A-Za-z |/]+?)(?= @|$)/g, (match, roleName) => {
         const role = roleByName(guild, roleName.trim());
         return role ? `<@&${role.id}>` : match;
       })
-    : `<@${user.id}> Welcome! ${mentions || 'Staff'} will get to you shortly.`;
+    : `${displayName} Welcome! ${mentions || 'Staff'} will get to you shortly.`;
 
   const welcome = new EmbedBuilder().setTitle(ticket.label).setDescription(welcomeText).addFields({ name: 'Ticket Code', value: `\`${code}\`` }).setFooter({ text: 'Tiger Market • Ticket Support' });
   const closeOnlyRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
   );
-  await channel.send({ content: `${user} ${mentions}`.trim(), embeds: [welcome], components: [closeOnlyRow] });
+  await channel.send({ embeds: [welcome], components: [closeOnlyRow] });
 
   if (Object.keys(answers).length && ticket.form?.length) {
     const answerFields = ticket.form.map((field) => ({ name: field.label, value: String(answers[field.id] ?? '—').slice(0, 1024) }));
@@ -164,7 +165,7 @@ function buildTranscriptHtml(channel, actor, messages) {
     const embeds = message.embeds?.length ? `<p><i>[${message.embeds.length} embed(s)]</i></p>` : '';
     return `<article><b>${escapeHtml(message.author.displayName || message.author.username)}</b> <small>${escapeHtml(message.createdAt.toISOString())}</small><pre>${escapeHtml(message.content || '')}</pre>${attachments}${embeds}</article>`;
   }).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</a></style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
 }
 
 export async function closeTicket(channel, actor) {
