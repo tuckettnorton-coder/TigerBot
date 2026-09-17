@@ -6,7 +6,7 @@ export default {
     const value = interaction.values?.[0];
     if (!['yes', 'no'].includes(value)) return interaction.reply({ content: '❌ Invalid area selection.', ephemeral: true });
 
-    // If the customer already has an area, skip the good-coords and region questions.
+    // If the customer already has an area, skip good coords and region entirely.
     if (value === 'yes') {
       const modal = new ModalBuilder()
         .setCustomId('ticket_form:digging_services:yes:no:none')
@@ -23,7 +23,7 @@ export default {
     }
 
     await interaction.update({
-      content: `### ⛏️ Digging Service\n**Do you want good coords?**\nSelect an option below.`,
+      content: '### ⛏️ Digging Service\n**Do you want good coords?**\nSelect an option below.',
       components: [
         new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder()
