@@ -1,4 +1,4 @@
-import { MessageFlags } from 'discord.js';
+import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { getPaidAdDraft, setPaidAdDraft, clearPaidAdDraft } from '../../utils/paidAdDrafts.js';
 import { loadPaidAdPrices } from '../../utils/paidAdPricing.js';
 import { createTicketChannel, logTicket } from '../../services/ticketService.js';
@@ -42,12 +42,45 @@ export default {
         return;
       }
 
-      await result.channel.send({ content: `# 💰 **Paid Advertisement Order**\n\n**Plan:** ${plan.label}\n**Plan Price:** $${planPrice.toFixed(2)}\n**Scheduled Posting:** ${draft.scheduled ? `Yes — ${draft.scheduledTime} (+$${scheduledPrice.toFixed(2)})` : 'No'}\n**Private Advertisement Channel:** ${plan.privateChannel ? 'Included' : 'Not included'}\n**Ping:** ${plan.ping}\n**Giveaway:** ${giveawayLabel}${giveawayPrice ? ` (+$${giveawayPrice.toFixed(2)})` : ''}\n**Extension:** ${extensionLabel}${extensionPrice ? ` (+$${extensionPrice.toFixed(2)})` : ''}\n**Advertisement Duration:** ${totalDays} days\n**Payment Method:** ${payment}\n\n### 💵 **Total Due: $${total.toFixed(2)}**\n\n### 📢 **Advertisement Details**\nPlease provide:\n• **Server / Business / Community Name**\n• **Discord Invite Link**\n• **Advertisement Content**` });
+      // Keep the normal ticket layout: welcome message stays separate, while all
+      // advertisement facts/questions are placed directly into the regular panel.
+      const messages = await result.channel.messages.fetch({ limit: 10 });
+      const panelMessage = messages.find(
+        (message) => message.author.id === interaction.client.user.id && message.embeds?.some((embed) => embed.title === planInfo[draft.plan]?.label || embed.title === 'Advertisement'),
+      );
+
+      const orderDescription = [
+        `**Plan:** ${plan.label}`,
+        `**Plan Price:** $${planPrice.toFixed(2)}`,
+        `**Scheduled Posting:** ${draft.scheduled ? `Yes — ${draft.scheduledTime} (+$${scheduledPrice.toFixed(2)})` : 'No'}`,
+        `**Private Advertisement Channel:** ${plan.privateChannel ? 'Included' : 'Not included'}`,
+        `**Ping:** ${plan.ping}`,
+        `**Giveaway:** ${giveawayLabel}${giveawayPrice ? ` (+$${giveawayPrice.toFixed(2)})` : ''}`,
+        `**Extension:** ${extensionLabel}${extensionPrice ? ` (+$${extensionPrice.toFixed(2)})` : ''}`,
+        `**Advertisement Duration:** ${totalDays} days`,
+        `**Payment Method:** ${payment}`,
+        '',
+        `### 💵 Total Due: $${total.toFixed(2)}`,
+        '',
+        `### 📢 Advertisement Details`,
+        'Please provide:',
+        '• **Server / Business / Community Name**',
+        '• **Discord Invite Link**',
+        '• **Advertisement Content**',
+      ].join('\n');
+
+      if (panelMessage) {
+        const panelEmbed = EmbedBuilder.from(panelMessage.embeds[0]).setDescription(orderDescription);
+        await panelMessage.edit({ embeds: [panelEmbed] });
+      } else {
+        // Safety fallback if the standard panel could not be located.
+        await result.channel.send({ content: orderDescription });
+      }
 
       const displayName = interaction.member?.displayName || interaction.user.globalName || interaction.user.username;
       await logTicket(interaction.guild, `🎫 **Ticket opened** • Advertisement • ${displayName} • ${result.channel}`);
       clearPaidAdDraft(interaction.user.id);
-      await interaction.editReply({ content: `✅ Advertisement ticket created: ${result.channel}\n💵 **Total due: $${total.toFixed(2)}**`, components: [] });
+      await interaction.editReply({ content: `✅ Advertisement ticket created: ${result.channel}\n💵 **Total due: $${total.toFixed(2)}`, components: [] });
       clearTicketEphemeralLater(interaction);
     } catch (error) {
       if (interaction.deferred || interaction.replied) await interaction.editReply({ content: `❌ Could not create the advertisement ticket: ${error.message}`, components: [] }).catch(() => {});
