@@ -8,6 +8,21 @@ import {
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 import { ensureTicketInfrastructure } from '../../services/ticketService.js';
 
+const TICKET_PANEL_DESCRIPTION = [
+  '**Staff members will never contact you via direct messages to trade spawners.**',
+  '',
+  '📋 **Ticket Rules**',
+  '• No troll tickets or unnecessary pings to staff.',
+  '• Ask your question clearly and right away.',
+  '• Check <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1513629563337441321>',
+  '  <#1519838464374476991> <#1525901034747330693> <#1545124171502329916> <#1513947221815590932> before opening a ticket.',
+  '• Tickets inactive for 1+ days will be closed.',
+  '• Fake giveaway claims or trolling will result in a timeout.',
+  '• Staff will never DM you — all responses stay in the ticket.',
+  '',
+  '⏳ **A staff member will get to you shortly.**',
+].join('\n');
+
 export default {
   data: new SlashCommandBuilder()
     .setName('panel')
@@ -38,17 +53,10 @@ export default {
           })),
         );
 
-      // Use the exact same emoji configured for each ticket type in the dropdown.
-      const ticketList = Object.values(TICKET_TYPES)
-        .map((ticket) => `${ticket.emoji} **${ticket.label}**`)
-        .join('\n');
-
       const embed = new EmbedBuilder()
-        .setTitle('Support for')
-        .setDescription(
-          `Select the type of support you need from the dropdown below.\n\n${ticketList}`,
-        )
-        .setFooter({ text: 'Tiger Market Support • Select a category to open a ticket' });
+        .setTitle('🎫 Tiger Market Support')
+        .setDescription(TICKET_PANEL_DESCRIPTION)
+        .setFooter({ text: 'Tiger Market Support • Select a category below to open a ticket' });
 
       await interaction.channel.send({
         embeds: [embed],
