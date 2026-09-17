@@ -2,6 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,7 +76,8 @@ export async function postPrices(client, prices) {
   }
 
   // Delete the previous message sent by /spawner-update, then send the replacement.
-  const previousMessageId = loadMessageId();
+  const state = await getUpdateState(client, channel.guild.id);
+  const previousMessageId = state.spawnerPriceMessageId || loadMessageId();
   if (previousMessageId) {
     try {
       const previousMessage = await channel.messages.fetch(previousMessageId);
@@ -88,6 +90,7 @@ export async function postPrices(client, prices) {
   try {
     const newMessage = await channel.send({ content: formatPriceMessage(prices) });
     saveMessageId(newMessage.id);
+    await setUpdateState(client, channel.guild.id, { spawnerPriceMessageId: newMessage.id, spawnerPriceChannelId: channel.id });
   } catch (error) {
     const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
     throw new Error(`Could not post the 12 spawner prices: ${apiMessage}`);
