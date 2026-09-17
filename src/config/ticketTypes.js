@@ -6,7 +6,7 @@ export const TICKET_TYPES = {
     form: [
       { id: 'ign', label: 'IGN', required: true, placeholder: 'IGN' },
       { id: 'buy_or_sell', label: 'Buy or Sell', required: true, placeholder: 'Buy or Sell' },
-      { id: 'amount', label: 'Amount', required: true, placeholder: 'Amount' },
+      { id: 'amount', label: 'Amount (Minimum 3 Spawners)', required: true, placeholder: 'Enter 3 or more spawners' },
       { id: 'spawner_type', label: 'What type of spawner?', required: true, placeholder: 'what type of spawner?' },
     ],
   },
