@@ -13,7 +13,6 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ---- CONFIG ----
 const SPAWNER_PRICE_CHANNEL_ID = '1504949441650622575';
 const SPAWNER_UPDATE_ROLE_ID = '1509955955063001218';
 const DATA_FILE = path.join(__dirname, 'spawnerPrices.json');
@@ -28,23 +27,17 @@ const DEFAULT_PRICES = {
   irongolem: { buy3: '18M', buy64: '17M', sell3: '8M', sell64: '9M' },
 };
 
-function cloneDefaults() {
-  return JSON.parse(JSON.stringify(DEFAULT_PRICES));
-}
+function cloneDefaults() { return JSON.parse(JSON.stringify(DEFAULT_PRICES)); }
 
 export function loadPrices() {
   try {
-    const raw = fs.readFileSync(DATA_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-
+    const parsed = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     return {
       skeleton: { ...DEFAULT_PRICES.skeleton, ...(parsed.skeleton || {}) },
       creeper: { ...DEFAULT_PRICES.creeper, ...(parsed.creeper || {}) },
       irongolem: { ...DEFAULT_PRICES.irongolem, ...(parsed.irongolem || {}) },
     };
-  } catch {
-    return cloneDefaults();
-  }
+  } catch { return cloneDefaults(); }
 }
 
 function savePrices(prices) {
@@ -59,19 +52,15 @@ function addPriceInput(modal, customId, label, value) {
     .setValue(String(value ?? ''))
     .setRequired(true)
     .setMaxLength(100);
-
   modal.addComponents(new ActionRowBuilder().addComponents(input));
 }
 
 export function buildSpawnerModal(spawner, prices) {
-  const names = {
-    skeleton: 'Skeleton',
-    creeper: 'Creeper',
-    irongolem: 'Iron Golem',
-  };
-
+  const names = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem' };
   const modal = new ModalBuilder()
-    .setCustomId(`spawner_update_${spawner}`)
+    // The interaction loader splits custom IDs at ':' and passes the second
+    // part to the registered spawner_update_modal handler.
+    .setCustomId(`spawner_update_modal:${spawner}`)
     .setTitle(`${names[spawner]} Spawner Prices`);
 
   const current = prices[spawner];
@@ -79,15 +68,12 @@ export function buildSpawnerModal(spawner, prices) {
   addPriceInput(modal, `${spawner}_buy64`, '64+ Buy Price', current.buy64);
   addPriceInput(modal, `${spawner}_sell3`, '3+ Sell Price', current.sell3);
   addPriceInput(modal, `${spawner}_sell64`, '64+ Sell Price', current.sell64);
-
   return modal;
 }
 
 export function formatPriceMessage(prices) {
   const { skeleton, creeper, irongolem } = prices;
-
-  return (
-`${EMOJI_SKELETON} **Skeleton Spawners**
+  return (`${EMOJI_SKELETON} **Skeleton Spawners**
 **(You buy from us)**
 **3+ Buy:** ${skeleton.buy3}  **64+ Buy:** ${skeleton.buy64}
 **(You sell to us)**
@@ -107,8 +93,7 @@ ${EMOJI_IRONGOLEM} **Iron Golem Spawners**
 
 ### __NOTE__- WE DON'T GO FIRST FOR BUYING/SELLING SPAWNERS MAKE A <#${SPAWNER_PRICE_CHANNEL_ID}>
 # MINIMUM 3+
-**ALL messages** regarding your ticket / spawners will be IN THE TICKET ONLY!! Scammers can SEE your ticket but not the messages inside, **dont get fooled by this**! <@&${SPAWNER_UPDATE_ROLE_ID}> , with the updates to the channel 💵│spawner-prices.`
-  );
+**ALL messages** regarding your ticket / spawners will be IN THE TICKET ONLY!! Scammers can SEE your ticket but not the messages inside, **dont get fooled by this**! <@&${SPAWNER_UPDATE_ROLE_ID}> , with the updates to the channel 💵│spawner-prices.`);
 }
 
 export const data = new SlashCommandBuilder()
@@ -117,8 +102,7 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
 export async function execute(interaction) {
-  const prices = loadPrices();
-  await interaction.showModal(buildSpawnerModal('skeleton', prices));
+  await interaction.showModal(buildSpawnerModal('skeleton', loadPrices()));
 }
 
 export default { data, execute };
@@ -132,16 +116,12 @@ export function parseSpawnerSubmission(interaction, spawner, fallback) {
   };
 }
 
-export function persistPrices(prices) {
-  savePrices(prices);
-}
+export function persistPrices(prices) { savePrices(prices); }
 
 export async function postPrices(client, prices) {
   const channel = await client.channels.fetch(SPAWNER_PRICE_CHANNEL_ID);
-
   if (!channel || typeof channel.send !== 'function') {
     throw new Error(`Spawner price channel ${SPAWNER_PRICE_CHANNEL_ID} is not a sendable channel.`);
   }
-
   await channel.send({ content: formatPriceMessage(prices) });
 }
