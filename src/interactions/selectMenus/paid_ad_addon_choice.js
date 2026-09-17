@@ -1,15 +1,13 @@
 import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { getPaidAdDraft, setPaidAdDraft } from '../../utils/paidAdDrafts.js';
 import { loadPaidAdPrices } from '../../utils/paidAdPricing.js';
-import { clearTicketEphemeral, registerTicketEphemeral } from '../../utils/ticketEphemeral.js';
+import { registerTicketEphemeral } from '../../utils/ticketEphemeral.js';
 
 function moreMenu() {
-  return new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder().setCustomId('paid_ad_addon_more').setPlaceholder('Add another add-on?').addOptions(
-      new StringSelectMenuOptionBuilder().setLabel('Yes').setDescription('Choose another add-on').setValue('yes').setEmoji('✅'),
-      new StringSelectMenuOptionBuilder().setLabel('No').setDescription('Finish add-ons and choose payment').setValue('no').setEmoji('❌'),
-    ),
-  );
+  return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('paid_ad_addon_more').setPlaceholder('Add another add-on?').addOptions(
+    new StringSelectMenuOptionBuilder().setLabel('Yes').setDescription('Choose another add-on').setValue('yes').setEmoji('✅'),
+    new StringSelectMenuOptionBuilder().setLabel('No').setDescription('Finish add-ons and choose payment').setValue('no').setEmoji('❌'),
+  ));
 }
 
 export default {
@@ -33,7 +31,6 @@ export default {
     }
     const label = value === 'nitroPremium' ? '💎 Nitro Premium Giveaway' : value === 'nitroBasic' ? '🚀 Nitro Basic Giveaway' : value === 'extend3' ? '+3 Additional Days' : '+7 Additional Days';
     await interaction.update({ content: `### ➕ Add-on selected\n**${label}** — $${Number(prices[value] || 0).toFixed(2)}\n\n**Do you want another add-on?**`, components: [moreMenu()] });
-    await clearTicketEphemeral(interaction.user.id);
     registerTicketEphemeral(interaction.user.id, interaction);
   },
 };
