@@ -158,12 +158,13 @@ function escapeHtml(value) {
 }
 
 function buildTranscriptHtml(channel, actor, messages) {
+  const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
   const body = messages.map((message) => {
     const attachments = [...message.attachments.values()].map((attachment) => `<p>📎 <a href="${escapeHtml(attachment.url)}">${escapeHtml(attachment.name || attachment.url)}</a></p>`).join('');
     const embeds = message.embeds?.length ? `<p><i>[${message.embeds.length} embed(s)]</i></p>` : '';
-    return `<article><b>${escapeHtml(message.author.tag)}</b> <small>${escapeHtml(message.createdAt.toISOString())}</small><pre>${escapeHtml(message.content || '')}</pre>${attachments}${embeds}</article>`;
+    return `<article><b>${escapeHtml(message.author.displayName || message.author.username)}</b> <small>${escapeHtml(message.createdAt.toISOString())}</small><pre>${escapeHtml(message.content || '')}</pre>${attachments}${embeds}</article>`;
   }).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actor.tag)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
 }
 
 export async function closeTicket(channel, actor) {
@@ -176,8 +177,9 @@ export async function closeTicket(channel, actor) {
   const messages = await fetchAllMessages(channel);
   const html = buildTranscriptHtml(channel, actor, messages);
   const transcript = new AttachmentBuilder(Buffer.from(html, 'utf8'), { name: `${channel.name}.html` });
-  await transcriptChannel.send({ content: `📜 Transcript for **${channel.name}** • closed by ${actor}`, files: [transcript] });
-  await logChannel.send(`🔒 **Ticket closed** • ${TICKET_TYPES[ticket.typeId]?.label || ticket.typeId} • ${actor} • #${channel.name}`).catch(() => {});
+  const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
+  await transcriptChannel.send({ content: `📜 Transcript for **${channel.name}** • closed by ${actorName}`, files: [transcript] });
+  await logChannel.send(`🔒 **Ticket closed** • ${TICKET_TYPES[ticket.typeId]?.label || ticket.typeId} • ${actorName} • #${channel.name}`).catch(() => {});
   await channel.delete(`Ticket closed by ${actor.tag}`);
   return true;
 }
