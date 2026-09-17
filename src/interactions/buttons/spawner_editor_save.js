@@ -15,15 +15,16 @@ export default {
 
     try {
       await saveDraft(interaction, client);
-      await interaction.message.edit({
+      await interaction.editReply({
         content: '✅ **All 12 spawner prices have been saved and posted.**',
         embeds: [],
         components: [],
       });
     } catch (error) {
-      await interaction.message.edit({
+      const details = error?.message || error?.rawError?.message || 'Unknown Discord API error.';
+      await interaction.editReply({
         ...buildEditorPayload(draft.prices),
-        content: `⚠️ **Save failed:** ${error.message}`,
+        content: `⚠️ **Save failed:** ${details}\n\nThe new prices are already saved locally. You can press Save again after fixing the Discord posting issue.`,
       }).catch(() => {});
     }
   },
