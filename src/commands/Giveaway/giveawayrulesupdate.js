@@ -2,6 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -97,7 +98,8 @@ export function persistGiveawayRules(data) {
 }
 
 async function deletePreviousRulesMessage(channel, client) {
-  const previousMessageId = loadMessageId();
+  const state = await getUpdateState(client, channel.guild.id);
+  const previousMessageId = state.giveawayRulesMessageId || loadMessageId();
 
   if (previousMessageId) {
     try {
@@ -136,6 +138,7 @@ export async function postGiveawayRules(client, data) {
   try {
     const newMessage = await channel.send({ content: formatGiveawayRulesMessage(data) });
     saveMessageId(newMessage.id);
+    await setUpdateState(client, channel.guild.id, { giveawayRulesMessageId: newMessage.id, giveawayRulesChannelId: channel.id });
   } catch (error) {
     const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
     throw new Error(`Could not post the giveaway rules: ${apiMessage}`);
