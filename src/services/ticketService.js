@@ -111,16 +111,27 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
       })
     : `${displayName} Welcome! ${mentions || 'Staff'} will get to you shortly.`;
 
-  const welcome = new EmbedBuilder().setTitle(ticket.label).setDescription(welcomeText).addFields({ name: 'Ticket Code', value: `\`${code}\`` }).setFooter({ text: 'Tiger Market • Ticket Support' });
+  const answerFields = Object.keys(answers).length && ticket.form?.length
+    ? ticket.form.map((field) => ({
+        name: field.label,
+        value: String(answers[field.id] ?? '—').slice(0, 1024),
+      }))
+    : [];
+
+  const ticketEmbed = new EmbedBuilder()
+    .setTitle(ticket.label)
+    .setDescription(welcomeText)
+    .addFields(
+      { name: 'Ticket Code', value: `\`${code}\``, inline: true },
+      ...answerFields,
+    )
+    .setFooter({ text: 'Tiger Market • Ticket Support' });
+
   const closeOnlyRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
   );
-  await channel.send({ embeds: [welcome], components: [closeOnlyRow] });
+  await channel.send({ embeds: [ticketEmbed], components: [closeOnlyRow] });
 
-  if (Object.keys(answers).length && ticket.form?.length) {
-    const answerFields = ticket.form.map((field) => ({ name: field.label, value: String(answers[field.id] ?? '—').slice(0, 1024) }));
-    await channel.send({ embeds: [new EmbedBuilder().setTitle('Ticket Form').addFields(answerFields)] });
-  }
   return { channel, metadata };
 }
 
