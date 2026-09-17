@@ -31,11 +31,13 @@ export default {
         return;
       }
 
-      // Keep the spawner flow inside the original ticket panel message instead of sending a separate message.
+      // Spawner selections must stay private to the ticket user.
+      // Never edit/update the public ticket panel.
       if (typeId === 'buying_selling_spawners') {
-        await interaction.update({
-          content: '### 💸 Buying/Selling Spawners\nSelect whether you want to **Buy** or **Sell** below.',
+        await interaction.reply({
+          content: '### 💸 Buying/Selling Spawners\nFirst, select whether you want to **Buy** or **Sell**.',
           components: [buildSpawnerTradeMenu()],
+          ephemeral: true,
         });
         return;
       }
