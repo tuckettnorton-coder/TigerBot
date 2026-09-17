@@ -39,6 +39,8 @@ async function addCalculationToPanel(channel, ticketLabel, name, text) {
   await panelMessage.edit({ embeds: [panelEmbed] });
 }
 
+const REGION_LABELS = { west: 'West', east: 'East', ocean: 'Ocean', asia: 'Asia', europe: 'Europe', none: 'None' };
+
 export default {
   name: 'ticket_form',
   async execute(interaction, client, args) {
@@ -72,24 +74,23 @@ export default {
       if (typeId === 'digging_services') {
         const area = args?.[1];
         const goodCoords = args?.[2];
-        const customRegion = args?.[3];
-        if (!['yes', 'no'].includes(area) || !['yes', 'no'].includes(goodCoords) || !['yes', 'no'].includes(customRegion)) {
+        const region = args?.[3];
+        if (!['yes', 'no'].includes(area) || !['yes', 'no'].includes(goodCoords) || !REGION_LABELS[region]) {
           return interaction.reply({ content: '❌ Invalid digging ticket selection.', ephemeral: true });
         }
         const areaSize = interaction.fields.getTextInputValue('area_size').trim();
         const areaLocation = interaction.fields.getTextInputValue('area_location').trim();
-        const regionName = interaction.fields.getTextInputValue('region_name').trim();
         const ign = interaction.fields.getTextInputValue('ign').trim();
-        if (!areaSize || !areaLocation || !regionName || !ign) return interaction.reply({ content: '❌ Please complete all digging service fields.', ephemeral: true });
+        if (!areaSize || !areaLocation || !ign) return interaction.reply({ content: '❌ Please complete all digging service fields.', ephemeral: true });
 
-        const calculation = calculateDiggingPrice({ areaSize, goodCoords: goodCoords === 'yes', customRegion: customRegion === 'yes' });
+        const calculation = calculateDiggingPrice({ areaSize, goodCoords: goodCoords === 'yes', customRegion: region !== 'none' });
         const answers = {
           area_size: areaSize,
           has_area: area === 'yes' ? 'Yes' : 'No',
           area_location: areaLocation,
           good_chords: goodCoords === 'yes' ? 'Yes' : 'No',
-          region: customRegion === 'yes' ? 'Yes' : 'No',
-          region_name: regionName,
+          region: region !== 'none' ? 'Yes' : 'No',
+          region_name: REGION_LABELS[region],
           ign,
         };
         await interaction.deferReply({ ephemeral: true });
