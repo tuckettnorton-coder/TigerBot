@@ -32,7 +32,7 @@ function cloneDefaults() {
   return JSON.parse(JSON.stringify(DEFAULT_PRICES));
 }
 
-function loadPrices() {
+export function loadPrices() {
   try {
     const raw = fs.readFileSync(DATA_FILE, 'utf8');
     const parsed = JSON.parse(raw);
@@ -51,29 +51,36 @@ function savePrices(prices) {
   fs.writeFileSync(DATA_FILE, `${JSON.stringify(prices, null, 2)}\n`, 'utf8');
 }
 
-function pricesToBlock(prices) {
-  return [
-    `3+ Buy: ${prices.buy3}`,
-    `64+ Buy: ${prices.buy64}`,
-    `3+ Sell: ${prices.sell3}`,
-    `64+ Sell: ${prices.sell64}`,
-  ].join('\n');
+function addPriceInput(modal, customId, label, value) {
+  const input = new TextInputBuilder()
+    .setCustomId(customId)
+    .setLabel(label)
+    .setStyle(TextInputStyle.Short)
+    .setValue(String(value ?? ''))
+    .setRequired(true)
+    .setMaxLength(100);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
 }
 
-function blockToPrices(block, fallback) {
-  const result = { ...fallback };
-  const lines = String(block || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+export function buildSpawnerModal(spawner, prices) {
+  const names = {
+    skeleton: 'Skeleton',
+    creeper: 'Creeper',
+    irongolem: 'Iron Golem',
+  };
 
-  for (const line of lines) {
-    const match = line.match(/^(3\+|64\+)\s*(Buy|Sell)\s*:\s*(.+)$/i);
-    if (!match) continue;
+  const modal = new ModalBuilder()
+    .setCustomId(`spawner_update_${spawner}`)
+    .setTitle(`${names[spawner]} Spawner Prices`);
 
-    const [, quantity, side, value] = match;
-    const key = `${side.toLowerCase()}${quantity.toLowerCase() === '3+' ? '3' : '64'}`;
-    if (value.trim()) result[key] = value.trim();
-  }
+  const current = prices[spawner];
+  addPriceInput(modal, `${spawner}_buy3`, '3+ Buy Price', current.buy3);
+  addPriceInput(modal, `${spawner}_buy64`, '64+ Buy Price', current.buy64);
+  addPriceInput(modal, `${spawner}_sell3`, '3+ Sell Price', current.sell3);
+  addPriceInput(modal, `${spawner}_sell64`, '64+ Sell Price', current.sell64);
 
-  return result;
+  return modal;
 }
 
 export function formatPriceMessage(prices) {
@@ -111,59 +118,17 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const prices = loadPrices();
-
-  const modal = new ModalBuilder()
-    .setCustomId('spawner_update_modal')
-    .setTitle('Update Spawner Prices');
-
-  const skeletonInput = new TextInputBuilder()
-    .setCustomId('skeleton_block')
-    .setLabel('Skeleton Spawner Prices')
-    .setStyle(TextInputStyle.Paragraph)
-    .setValue(pricesToBlock(prices.skeleton))
-    .setRequired(true);
-
-  const creeperInput = new TextInputBuilder()
-    .setCustomId('creeper_block')
-    .setLabel('Creeper Spawner Prices')
-    .setStyle(TextInputStyle.Paragraph)
-    .setValue(pricesToBlock(prices.creeper))
-    .setRequired(true);
-
-  const irongolemInput = new TextInputBuilder()
-    .setCustomId('irongolem_block')
-    .setLabel('Iron Golem Spawner Prices')
-    .setStyle(TextInputStyle.Paragraph)
-    .setValue(pricesToBlock(prices.irongolem))
-    .setRequired(true);
-
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(skeletonInput),
-    new ActionRowBuilder().addComponents(creeperInput),
-    new ActionRowBuilder().addComponents(irongolemInput),
-  );
-
-  await interaction.showModal(modal);
+  await interaction.showModal(buildSpawnerModal('skeleton', prices));
 }
 
 export default { data, execute };
 
-export function parseSubmittedPrices(interaction) {
-  const oldPrices = loadPrices();
-
+export function parseSpawnerSubmission(interaction, spawner, fallback) {
   return {
-    skeleton: blockToPrices(
-      interaction.fields.getTextInputValue('skeleton_block'),
-      oldPrices.skeleton,
-    ),
-    creeper: blockToPrices(
-      interaction.fields.getTextInputValue('creeper_block'),
-      oldPrices.creeper,
-    ),
-    irongolem: blockToPrices(
-      interaction.fields.getTextInputValue('irongolem_block'),
-      oldPrices.irongolem,
-    ),
+    buy3: interaction.fields.getTextInputValue(`${spawner}_buy3`).trim() || fallback.buy3,
+    buy64: interaction.fields.getTextInputValue(`${spawner}_buy64`).trim() || fallback.buy64,
+    sell3: interaction.fields.getTextInputValue(`${spawner}_sell3`).trim() || fallback.sell3,
+    sell64: interaction.fields.getTextInputValue(`${spawner}_sell64`).trim() || fallback.sell64,
   };
 }
 
