@@ -37,9 +37,6 @@ export function isStaffForTicket(member, ticket) {
 
 export function getTicketFromChannel(channel) {
   if (!channel || channel.type !== ChannelType.GuildText) return null;
-
-  // Ticket topics contain only the user-facing start-of-channel text.
-  // Ticket metadata is recovered from the channel name, category, and permission overwrites.
   const codeMatch = channel.name.match(/-(\d{4})$/);
   const code = codeMatch?.[1] || null;
   const categoryName = channel.parent?.name || null;
@@ -52,13 +49,7 @@ export function getTicketFromChannel(channel) {
 
   if (!code || !categoryName || !openerOverwrite) return null;
 
-  return {
-    typeId,
-    openerId: openerOverwrite.id,
-    categoryName,
-    claimedBy: null,
-    code,
-  };
+  return { typeId, openerId: openerOverwrite.id, categoryName, claimedBy: null, code };
 }
 
 function categoryByName(guild, name) {
@@ -72,9 +63,7 @@ export async function ensureTicketCategories(guild) {
   const categories = {};
   for (const name of names) {
     let category = categoryByName(guild, name);
-    if (!category) {
-      category = await guild.channels.create({ name, type: ChannelType.GuildCategory, reason: 'TigerBot automatic ticket category setup' });
-    }
+    if (!category) category = await guild.channels.create({ name, type: ChannelType.GuildCategory, reason: 'TigerBot automatic ticket category setup' });
     categories[name] = category;
   }
   return categories;
@@ -93,9 +82,25 @@ export async function ensureTicketInfrastructure(guild) {
   return { categories, logChannel, transcriptChannel };
 }
 
-function ticketName(user, code) {
-  const clean = user.username.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 18) || 'user';
-  return `ticket-${clean}-${code}`;
+function cleanChannelPart(value, fallback = 'ticket') {
+  return String(value || fallback)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24) || fallback;
+}
+
+function ticketName(user, code, ticket, answers = {}) {
+  if (ticket?.label === 'Buying/Selling Spawners') {
+    const spawnerType = cleanChannelPart(answers.spawner_type || answers['what_type_of_spawner'] || 'spawner');
+    const amount = cleanChannelPart(answers.amount || 'amount');
+    const buySell = cleanChannelPart(answers.buy_sell || answers['buy_or_sell'] || 'trade');
+    return `${spawnerType}-${amount}-${buySell}-${code}`.slice(0, 100);
+  }
+
+  const cleanUser = cleanChannelPart(user.username, 'user').slice(0, 18);
+  return `ticket-${cleanUser}-${code}`;
 }
 
 export async function findExistingTicket(guild, userId, categoryName) {
@@ -109,9 +114,7 @@ export async function findExistingTicket(guild, userId, categoryName) {
 function buildWelcomeText(guild, template, user, fallback) {
   let text = String(template || fallback).replaceAll('{user}', `<@${user.id}>`);
   const guildRoles = [...guild.roles.cache.values()].sort((a, b) => b.name.length - a.name.length);
-  for (const role of guildRoles) {
-    text = text.replaceAll(`@${role.name}`, `<@&${role.id}>`);
-  }
+  for (const role of guildRoles) text = text.replaceAll(`@${role.name}`, `<@&${role.id}>`);
   return text;
 }
 
@@ -130,45 +133,21 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   let code; let name;
   do {
     code = String(Math.floor(1000 + Math.random() * 9000));
-    name = ticketName(user, code);
+    name = ticketName(user, code, ticket, answers);
   } while (guild.channels.cache.some((channel) => channel.name === name));
 
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-    {
-      id: user.id,
-      allow: [
-        PermissionFlagsBits.ViewChannel,
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.ReadMessageHistory,
-        PermissionFlagsBits.AttachFiles,
-        PermissionFlagsBits.EmbedLinks,
-      ],
-    },
+    { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
     ...supportRoles.map((role) => ({
       id: role.id,
-      allow: [
-        PermissionFlagsBits.ViewChannel,
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.ReadMessageHistory,
-        PermissionFlagsBits.AttachFiles,
-        PermissionFlagsBits.EmbedLinks,
-        PermissionFlagsBits.UseApplicationCommands,
-      ],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.UseApplicationCommands],
     })),
   ];
 
   if (guild.members.me) overwrites.push({
     id: guild.members.me.id,
-    allow: [
-      PermissionFlagsBits.ViewChannel,
-      PermissionFlagsBits.SendMessages,
-      PermissionFlagsBits.ReadMessageHistory,
-      PermissionFlagsBits.AttachFiles,
-      PermissionFlagsBits.EmbedLinks,
-      PermissionFlagsBits.ManageMessages,
-      PermissionFlagsBits.UseApplicationCommands,
-    ],
+    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.UseApplicationCommands],
   });
 
   const channel = await guild.channels.create({
@@ -182,32 +161,13 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
 
   const mentions = pingRoles.map((role) => `<@&${role.id}>`).join(' ');
   const displayName = user.displayName || user.username;
-  const welcomeText = buildWelcomeText(
-    guild,
-    ticket.welcomeMessage,
-    user,
-    `${displayName} Welcome! ${mentions || 'Staff'} will get to you shortly.`,
-  );
-
+  const welcomeText = buildWelcomeText(guild, ticket.welcomeMessage, user, `${displayName} Welcome! ${mentions || 'Staff'} will get to you shortly.`);
   const answerFields = Object.keys(answers).length && ticket.form?.length
-    ? ticket.form.map((field) => ({
-        name: field.label,
-        value: String(answers[field.id] ?? '—').slice(0, 1024),
-      }))
+    ? ticket.form.map((field) => ({ name: field.label, value: String(answers[field.id] ?? '—').slice(0, 1024) }))
     : [];
 
-  const ticketEmbed = new EmbedBuilder()
-    .setTitle(ticket.label)
-    .addFields(
-      { name: 'Ticket Code', value: `\`${code}\``, inline: true },
-      ...answerFields,
-    )
-    .setFooter({ text: 'Tiger Market • Ticket Support' });
-
-  const closeOnlyRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
-  );
-
+  const ticketEmbed = new EmbedBuilder().setTitle(ticket.label).addFields({ name: 'Ticket Code', value: `\`${code}\``, inline: true }, ...answerFields).setFooter({ text: 'Tiger Market • Ticket Support' });
+  const closeOnlyRow = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger));
   const welcomeRoleIds = [...welcomeText.matchAll(/<@&(\d+)>/g)].map((match) => match[1]);
   const allowedRoleIds = [...new Set([...pingRoles.map((role) => role.id), ...welcomeRoleIds])];
   await channel.send({ content: welcomeText, allowedMentions: { parse: ['users'], roles: allowedRoleIds } });
@@ -226,13 +186,8 @@ export async function requestClose(channel, member) {
   if (recent?.some((message) => message.embeds?.some((embed) => embed.title === 'Close Request'))) return null;
 
   const ownerMention = `<@${ticket.openerId}>`;
-  const embed = new EmbedBuilder()
-    .setTitle('Close Request')
-    .setDescription(`Staff member ${member} has requested to close this ticket.\n\nTicket owner: ${ownerMention}\n\n**Confirmation**\n> Would you like to close this ticket?`);
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
-  );
+  const embed = new EmbedBuilder().setTitle('Close Request').setDescription(`Staff member ${member} has requested to close this ticket.\n\nTicket owner: ${ownerMention}\n\n**Confirmation**\n> Would you like to close this ticket?`);
+  const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary));
   return channel.send({ content: ownerMention, embeds: [embed], components: [row] });
 }
 
