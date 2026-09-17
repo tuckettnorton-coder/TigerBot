@@ -2,7 +2,7 @@ export const TICKET_TYPES = {
   buying_selling_spawners: {
     label: 'Buying/Selling Spawners', emoji: '💸', description: 'Click this to buy/Sell Skeletons', categoryName: 'Buyer/Sellar',
     pingRoles: ['Helper', 'Buyer/Seller', 'Owner'],
-    welcomeMessage: '{user} Welcome a @Buyer/Seller @Helper will get to you shortly.',
+    welcomeMessage: '{user} Welcome a @Buyer/Seller <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'ign', label: 'IGN', required: true, placeholder: 'IGN' },
       { id: 'buy_or_sell', label: 'Buy or Sell', required: true, placeholder: 'Buy or Sell' },
@@ -13,7 +13,7 @@ export const TICKET_TYPES = {
   claim_giveaway: {
     label: 'Claim Giveaway', emoji: '🎉', description: 'Click this to claim Giveaway', categoryName: 'Giveaway',
     pingRoles: ['Helper', 'Trial | Helper', 'Owner'],
-    welcomeMessage: '{user} Welcome a @Trial | Helper @Helper will get to you shortly.',
+    welcomeMessage: '{user} Welcome a @Trial | Helper <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'hosted_by', label: 'Who hosted the giveaway?', required: true, placeholder: 'Enter here' },
       { id: 'win_ss', label: 'Send a SS of the win in ticket', required: true, placeholder: 'Yes/Ok' },
@@ -32,13 +32,13 @@ export const TICKET_TYPES = {
   partner: {
     label: 'Partner', emoji: '🤝', description: 'Click this if you would like to Partner', categoryName: 'Partners',
     pingRoles: ['Trial | PM', 'Helper', 'Partner | Manager', 'Trial | Helper', 'Owner'],
-    welcomeMessage: '{user} Welcome a @Partner | Manager @Trial | PM @Helper @Trial | Helper will get to you shortly.',
+    welcomeMessage: '{user} Welcome a @Partner | Manager @Trial | PM <@&1505252058591138004> @Trial | Helper will get to you shortly.',
     form: [],
   },
   support: {
     label: 'Support', emoji: '🆘', description: 'Click this for Support', categoryName: 'General support',
     pingRoles: ['Helper', 'Trial | Helper', 'Owner'],
-    welcomeMessage: '{user} Welcome a @Trial | Helper @Helper will get to you shortly.',
+    welcomeMessage: '{user} Welcome a @Trial | Helper <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'support_topic', label: 'What do you need support with?', required: true, placeholder: 'Enter your reason' },
       { id: 'extra', label: 'Anything extra?', required: true, placeholder: '' },
@@ -71,7 +71,7 @@ export const TICKET_TYPES = {
   middleman: {
     label: 'Middleman service', emoji: '🏦', description: 'Click this for Middleman service', categoryName: 'Middleman',
     pingRoles: ['Helper', 'Buyer/Seller', 'Owner'],
-    welcomeMessage: '{user} Welcome a @Buyer/Seller @Helper will get to you shortly.',
+    welcomeMessage: '{user} Welcome a @Buyer/Seller <@&1505252058591138004> will get to you shortly.',
     form: [
       { id: 'your_ign', label: 'Your IGN', required: true, placeholder: 'Your IGN' },
       { id: 'person_ign', label: "Person's IGN", required: true, placeholder: "Person's IGN" },
@@ -82,7 +82,7 @@ export const TICKET_TYPES = {
   advertisement: {
     label: 'Advertisement', emoji: '💰', description: 'Click this for Advertisement services', categoryName: 'Advertisement',
     pingRoles: ['Helper', 'Trial | Helper', 'Mod', 'Owner'],
-    welcomeMessage: '{user} Welcome a @Trial | Helper @Helper @Mod will get to you shortly.',
+    welcomeMessage: '{user} Welcome a @Trial | Helper <@&1505252058591138004> @Mod will get to you shortly.',
     form: [
       { id: 'read_paid_ad', label: 'Have you read Paid-AD', required: true, placeholder: 'yes or no' },
       { id: 'ad_after', label: 'Send your ad in the ticket immediately after', required: true, placeholder: 'ok' },
@@ -93,7 +93,7 @@ export const TICKET_TYPES = {
   sponsor_giveaway: {
     label: 'Sponsor a giveaway', emoji: '😽', description: 'Click this for to Sponsor a giveaway', categoryName: 'Sponsor a giveaway',
     pingRoles: ['Helper'],
-    welcomeMessage: '{user} Welcome a @Helper will get to you shortly.',
+    welcomeMessage: '{user} Welcome a <@&1505252058591138004> will get to you shortly.',
     form: [{ id: 'sponsor_amount', label: 'How much are you looking to sponsor?', required: true, placeholder: 'Enter your Here' }],
   },
 };
