@@ -1,3 +1,5 @@
+import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+
 const SUFFIX_MULTIPLIERS = Object.freeze({
   K: 1_000,
   M: 1_000_000,
@@ -7,12 +9,9 @@ const SUFFIX_MULTIPLIERS = Object.freeze({
 
 export function parseAmount(raw) {
   if (raw === null || raw === undefined) return null;
-
   const cleaned = String(raw).trim().replace(/\s+/g, '');
   if (!cleaned) return null;
 
-  // Supports integers, decimals such as .5 / 5. / 5.25, optional sign,
-  // and K/M/B/T suffixes in any case.
   const match = cleaned.match(/^(-?(?:\d+(?:\.\d*)?|\.\d+))([kmbt])?$/i);
   if (!match) return null;
 
@@ -21,19 +20,16 @@ export function parseAmount(raw) {
 
   const suffix = match[2]?.toUpperCase();
   const value = numberPart * (suffix ? SUFFIX_MULTIPLIERS[suffix] : 1);
-
   return Number.isFinite(value) ? value : null;
 }
 
 export function parseOperation(raw) {
   if (!raw) return null;
   const op = String(raw).trim().toLowerCase().replace(/\s+/g, '');
-
   if (['+', 'add', 'plus'].includes(op)) return '+';
   if (['-', 'sub', 'subtract', 'minus'].includes(op)) return '-';
   if (['*', 'x', 'times', 'multiply', 'mult', '×'].includes(op)) return '*';
   if (['/', 'div', 'divide', '÷'].includes(op)) return '/';
-
   return null;
 }
 
@@ -44,15 +40,12 @@ function trimZeros(num) {
 
 export function formatResult(value) {
   if (!Number.isFinite(value)) return String(value);
-
   const abs = Math.abs(value);
   const sign = value < 0 ? '-' : '';
-
   if (abs >= 1_000_000_000_000) return `${sign}${trimZeros(abs / 1_000_000_000_000)}T`;
   if (abs >= 1_000_000_000) return `${sign}${trimZeros(abs / 1_000_000_000)}B`;
   if (abs >= 1_000_000) return `${sign}${trimZeros(abs / 1_000_000)}M`;
   if (abs >= 1_000) return `${sign}${trimZeros(abs / 1_000)}K`;
-
   return `${sign}${trimZeros(abs)}`;
 }
 
@@ -70,11 +63,7 @@ export function calculateValues(value1, operation, value2) {
 }
 
 export function buildCalculatorModal() {
-  const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-
-  const modal = new ModalBuilder()
-    .setCustomId('calculate_modal')
-    .setTitle('🧮 Calculator');
+  const modal = new ModalBuilder().setCustomId('calculate_modal').setTitle('🧮 Calculator');
 
   const value1Input = new TextInputBuilder()
     .setCustomId('calc_value1')
