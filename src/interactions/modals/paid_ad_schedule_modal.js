@@ -1,5 +1,6 @@
 import { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, MessageFlags } from 'discord.js';
 import { setPaidAdDraft } from '../../utils/paidAdDrafts.js';
+import { loadPaidAdPrices } from '../../utils/paidAdPricing.js';
 import { clearTicketEphemeral, registerTicketEphemeral } from '../../utils/ticketEphemeral.js';
 
 function moreMenu() {
@@ -21,8 +22,9 @@ export default {
     try {
       const scheduledTime = interaction.fields.getTextInputValue('scheduled_time').trim();
       if (!scheduledTime) throw new Error('Please enter a scheduled posting time.');
-      setPaidAdDraft(interaction.user.id, { scheduled: true, scheduledTime, scheduledPrice: 0 });
-      await interaction.reply({ content: '### ➕ Scheduled Posting Added\n**Do you want another add-on?**', components: [moreMenu()], ephemeral: true });
+      const prices = loadPaidAdPrices();
+      setPaidAdDraft(interaction.user.id, { scheduled: true, scheduledTime, scheduledPrice: Number(prices.scheduled || 0) });
+      await interaction.reply({ content: `### ➕ Scheduled Posting Added\n**Price:** $${Number(prices.scheduled || 0).toFixed(2)}\n**Time:** ${scheduledTime}\n\n**Do you want another add-on?**`, components: [moreMenu()], ephemeral: true });
       await clearTicketEphemeral(interaction.user.id);
       registerTicketEphemeral(interaction.user.id, interaction);
     } catch (error) {
