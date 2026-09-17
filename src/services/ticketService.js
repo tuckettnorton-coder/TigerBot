@@ -146,7 +146,7 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   const existing = await findExistingTicket(guild, user.id, ticket.categoryName);
   if (existing) return { existing };
   const category = categoryByName(guild, ticket.categoryName) || (await ensureTicketCategories(guild))[ticket.categoryName];
-  if (!category) throw new Error(`Could not create or find ticket category "${ticket.categoryName}".`);
+  if (!category) throw new Error(`Could not create or find ticket category \"${ticket.categoryName}\".`);
 
   const pingRoles = resolveRoles(guild, ticket.pingRoles);
   const accessRoles = resolveRoles(guild, ticket.accessRoles || []);
@@ -231,11 +231,11 @@ function escapeHtml(value) {
 function buildTranscriptHtml(channel, actor, messages) {
   const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
   const body = messages.map((message) => {
-    const attachments = [...message.attachments.values()].map((attachment) => `<p>📎 <a href="${escapeHtml(attachment.url)}">${escapeHtml(attachment.name || attachment.url)}</a></p>`).join('');
+    const attachments = [...message.attachments.values()].map((attachment) => `<p>📎 <a href=\"${escapeHtml(attachment.url)}\">${escapeHtml(attachment.name || attachment.url)}</a></p>`).join('');
     const embeds = message.embeds?.length ? `<p><i>[${message.embeds.length} embed(s)]</i></p>` : '';
     return `<article><b>${escapeHtml(message.author.displayName || message.author.username)}</b> <small>${escapeHtml(message.createdAt.toISOString())}</small><pre>${escapeHtml(message.content || '')}</pre>${attachments}${embeds}</article>`;
   }).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset=\"utf-8\"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
 }
 
 export async function closeTicket(channel, actor) {
@@ -245,14 +245,47 @@ export async function closeTicket(channel, actor) {
   const logChannel = await findUtilityChannel(channel.guild, LOG_CHANNEL_NAME);
   if (!transcriptChannel) throw new Error(`The #${TRANSCRIPT_CHANNEL_NAME} channel was not found. Please create it first.`);
   if (!logChannel) throw new Error(`The #${LOG_CHANNEL_NAME} channel was not found. Please create it first.`);
+
   const messages = await fetchAllMessages(channel);
   const html = buildTranscriptHtml(channel, actor, messages);
   const transcriptBuffer = Buffer.from(html, 'utf8');
-  const transcriptFileName = `${channel.name}.html`;
+  const transcriptFileName = `${channel.name}-transcript.html`;
   const transcript = new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName });
   const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
+  const ticketNumber = channel.name.match(/-(\d{4})$/)?.[1] || channel.id.slice(-4);
+  const durationMinutes = Math.max(0, Math.floor((Date.now() - channel.createdTimestamp) / 60000));
+  const creatorId = ticket.openerId;
+  const subject = TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Support Ticket';
 
-  await transcriptChannel.send({ content: `📜 Transcript for **${channel.name}** • closed by ${actorName}`, files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
+  const transcriptEmbed = new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle('Auto-Generated Transcript')
+    .setDescription(`Transcript automatically generated for ticket #${ticketNumber}`)
+    .addFields(
+      {
+        name: 'Ticket',
+        value: [
+          `Ticket #${ticketNumber}`,
+          `Created by <@${creatorId}>`,
+          `${messages.length} message${messages.length === 1 ? '' : 's'}`,
+        ].join('\n'),
+      },
+      {
+        name: 'Generation',
+        value: [
+          `Duration: ${durationMinutes} minute${durationMinutes === 1 ? '' : 's'}`,
+          'Status: Closed (Auto-transcript)',
+        ].join('\n'),
+      },
+      {
+        name: 'Subject',
+        value: subject.slice(0, 1024),
+      },
+    )
+    .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
+    .setTimestamp();
+
+  await transcriptChannel.send({ embeds: [transcriptEmbed], files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
 
   // Send the completed transcript directly to the ticket owner before deleting the ticket.
   // If the user's DMs are closed, the ticket still closes normally and the transcript remains in #📝│transcripts.
