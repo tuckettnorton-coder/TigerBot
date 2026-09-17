@@ -97,30 +97,22 @@ function ticketName(user, code, ticket, answers = {}) {
     const spawnerType = cleanChannelPart(answers.spawner_type || answers.what_type_of_spawner || 'spawner');
     return `${buySell}-${amount}-${spawnerType}-${code}`.slice(0, 100);
   }
-
   if (ticket?.label === 'Claim Giveaway') {
     const host = cleanChannelPart(answers.hosted_by || 'host');
     const amount = cleanChannelPart(answers.win_amount || 'amount');
     return `${host}-gw-${amount}-${code}`.slice(0, 100);
   }
-
   if (ticket?.label === 'Support') return `support-${code}`;
-
   if (ticket?.label === 'Sponsor a giveaway') {
     const amount = cleanChannelPart(answers.sponsor_amount || 'amount');
     return `${amount}-${code}`.slice(0, 100);
   }
-
   if (ticket?.label === 'Report Staff') return `report-${code}`;
-
   if (ticket?.label === 'Advertisement') return `ad-${code}`;
-
   if (ticket?.label === 'Partner') return `partner-${code}`;
-
   if (ticket?.label === 'Building services') return `building-${code}`;
   if (ticket?.label === 'Digging services') return `digging-${code}`;
   if (ticket?.label === 'Middleman service') return `mm-${code}`;
-
   const cleanUser = cleanChannelPart(user.username, 'user').slice(0, 18);
   return `ticket-${cleanUser}-${code}`;
 }
@@ -147,49 +139,28 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   if (existing) return { existing };
   const category = categoryByName(guild, ticket.categoryName) || (await ensureTicketCategories(guild))[ticket.categoryName];
   if (!category) throw new Error(`Could not create or find ticket category "${ticket.categoryName}".`);
-
   const pingRoles = resolveRoles(guild, ticket.pingRoles);
   const accessRoles = resolveRoles(guild, ticket.accessRoles || []);
   const supportRoles = [...new Map([...pingRoles, ...accessRoles].map((role) => [role.id, role])).values()];
-
   let code;
   let name;
   do {
     code = String(Math.floor(1000 + Math.random() * 9000));
     name = ticketName(user, code, ticket, answers);
   } while (guild.channels.cache.some((channel) => channel.name === name));
-
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
     { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
-    ...supportRoles.map((role) => ({
-      id: role.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.UseApplicationCommands],
-    })),
+    ...supportRoles.map((role) => ({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.UseApplicationCommands] })),
   ];
-  if (guild.members.me) overwrites.push({
-    id: guild.members.me.id,
-    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.UseApplicationCommands],
-  });
-
-  const channel = await guild.channels.create({
-    name,
-    type: ChannelType.GuildText,
-    parent: category.id,
-    topic: `This is the start of the #${name} private channel.`,
-    permissionOverwrites: overwrites,
-    reason: `TigerBot ticket opened by ${user.tag} (${ticket.label})`,
-  });
-
+  if (guild.members.me) overwrites.push({ id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.UseApplicationCommands] });
+  const channel = await guild.channels.create({ name, type: ChannelType.GuildText, parent: category.id, topic: `This is the start of the #${name} private channel.`, permissionOverwrites: overwrites, reason: `TigerBot ticket opened by ${user.tag} (${ticket.label})` });
   const mentions = pingRoles.map((role) => `<@&${role.id}>`).join(' ');
   const displayName = user.displayName || user.username;
   const welcomeText = buildWelcomeText(guild, ticket.welcomeMessage, user, `${displayName} Welcome! ${mentions || 'Staff'} will get to you shortly.`);
   const answerFields = Object.keys(answers).length && ticket.form?.length
-    ? ticket.form
-        .filter((field) => answers[field.id] !== undefined && answers[field.id] !== '—')
-        .map((field) => ({ name: field.label, value: String(answers[field.id] ?? '—').slice(0, 1024) }))
+    ? ticket.form.filter((field) => answers[field.id] !== undefined && answers[field.id] !== '—').map((field) => ({ name: field.label, value: String(answers[field.id] ?? '—').slice(0, 1024) }))
     : [];
-
   const ticketEmbed = new EmbedBuilder().setTitle(ticket.label).addFields({ name: 'Ticket Code', value: `\`${code}\``, inline: true }, ...answerFields).setFooter({ text: 'Tiger Market • Ticket Support' });
   const ticketActionRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
@@ -200,7 +171,6 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   const allowedRoleIds = [...new Set([...pingRoles.map((role) => role.id), ...welcomeRoleIds])];
   await channel.send({ content: welcomeText, allowedMentions: { parse: ['users'], roles: allowedRoleIds } });
   await channel.send({ embeds: [ticketEmbed], components: [ticketActionRow] });
-
   return { channel, metadata: { typeId, openerId: user.id, categoryName: ticket.categoryName, code } };
 }
 
@@ -212,13 +182,9 @@ export async function requestClose(channel, member) {
   if (!isStaffForTicket(member, staffDefinition)) throw new Error('Only the ticket staff team can request a close.');
   const recent = await channel.messages.fetch({ limit: 25 }).catch(() => null);
   if (recent?.some((message) => message.embeds?.some((embed) => embed.title === 'Close Request'))) return null;
-
   const ownerMention = `<@${ticket.openerId}>`;
   const embed = new EmbedBuilder().setTitle('Close Request').setDescription(`Staff member ${member} has requested to close this ticket.\n\nTicket owner: ${ownerMention}\n\n**Confirmation**\n> Would you like to close this ticket?`);
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
-  );
+  const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary));
   return channel.send({ content: ownerMention, embeds: [embed], components: [row] });
 }
 
@@ -256,7 +222,6 @@ export async function closeTicket(channel, actor) {
   const logChannel = await findUtilityChannel(channel.guild, LOG_CHANNEL_NAME);
   if (!transcriptChannel) throw new Error(`The #${TRANSCRIPT_CHANNEL_NAME} channel was not found. Please create it first.`);
   if (!logChannel) throw new Error(`The #${LOG_CHANNEL_NAME} channel was not found. Please create it first.`);
-
   const messages = await fetchAllMessages(channel);
   const html = buildTranscriptHtml(channel, actor, messages);
   const transcriptBuffer = Buffer.from(html, 'utf8');
@@ -265,7 +230,6 @@ export async function closeTicket(channel, actor) {
   const durationMinutes = Math.max(0, Math.floor((Date.now() - channel.createdTimestamp) / 60000));
   const creatorId = ticket.openerId;
   const subject = TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Support Ticket';
-
   const transcriptEmbed = new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle('Auto-Generated Transcript')
@@ -277,14 +241,20 @@ export async function closeTicket(channel, actor) {
     )
     .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
     .setTimestamp();
-
-  await transcriptChannel.send({ embeds: [transcriptEmbed], files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
+  const transcriptMessage = await transcriptChannel.send({ embeds: [transcriptEmbed], files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
+  const transcriptAttachment = transcriptMessage.attachments.first();
+  if (transcriptAttachment) {
+    const transcriptLinkRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
+    );
+    await transcriptMessage.edit({ components: [transcriptLinkRow] });
+  }
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
-    await owner.send({ content: `Your Tiger Market ticket **${channel.name}** has been closed. The transcript has been saved.` }).catch(() => {});
+    await owner.send({ content: `Your Tiger Market ticket **${channel.name}** has been closed. The transcript has been saved in the transcript panel: ${transcriptMessage.url}`, files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] }).catch(() => {});
   } catch {}
-  await logChannel.send(`🔒 **Ticket closed** • ${channel.name} • ${actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown'}`);
-  await channel.delete(`Ticket closed by ${actor?.tag || actor?.user?.tag || actor?.displayName || 'Unknown'}`);
+  await logChannel.send(`🔒 **Ticket closed** • ${channel.name} • ${actorName}`);
+  await channel.delete(`Ticket closed by ${actorName}`);
 }
 
 export async function logTicket(guild, message) {
