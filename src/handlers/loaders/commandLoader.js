@@ -9,18 +9,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const MAX_COMMANDS = 100;
 const COMMAND_COUNT_WARN_THRESHOLD = 90;
+const PRIORITY_COMMANDS = ['updatepanel'];
 
 function getSubcommandInfo(commandData) {
     const subcommands = [];
     
     if (commandData.options) {
         for (const option of commandData.options) {
-if (option.type === 1) {
+            if (option.type === 1) {
                 subcommands.push(option.name);
-} else if (option.type === 2) {
+            } else if (option.type === 2) {
                 if (option.options) {
                     for (const subOption of option.options) {
-if (subOption.type === 1) {
+                        if (subOption.type === 1) {
                             subcommands.push(`${option.name}/${subOption.name}`);
                         }
                     }
@@ -64,7 +65,6 @@ export async function loadCommands(client) {
         try {
             const normalizedPath = filePath.replace(/\\/g, '/');
             
-            const commandName = path.basename(filePath, '.js');
             const commandDir = path.dirname(filePath);
             const category = path.basename(commandDir);
             
@@ -83,7 +83,6 @@ export async function loadCommands(client) {
             
             if (!uniqueCommandNames.has(primaryCommandName)) {
                 uniqueCommandNames.add(primaryCommandName);
-                
                 client.commands.set(primaryCommandName, command);
             }
             
@@ -163,9 +162,7 @@ function validateCommands(commands) {
             validationErrors.push(`Command ${cmd.name} has description longer than 110 chars: "${cmd.description}" (${cmd.description.length} chars)`);
         }
 
-        if (!cmd.options) {
-            continue;
-        }
+        if (!cmd.options) continue;
 
         for (const option of cmd.options) {
             if (option.name && option.name.length > 32) {
@@ -186,9 +183,7 @@ function validateCommands(commands) {
                 }
             }
 
-            if (!option.options) {
-                continue;
-            }
+            if (!option.options) continue;
 
             for (const subOption of option.options) {
                 if (subOption.name && subOption.name.length > 32) {
@@ -198,9 +193,7 @@ function validateCommands(commands) {
                     validationErrors.push(`Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has description longer than 110 chars: "${subOption.description}" (${subOption.description.length} chars)`);
                 }
 
-                if (!subOption.choices) {
-                    continue;
-                }
+                if (!subOption.choices) continue;
 
                 for (const choice of subOption.choices) {
                     if (choice.name && choice.name.length > 110) {
@@ -230,9 +223,18 @@ function prepareCommandsForRegistration(commands) {
         return commands;
     }
 
-    logger.warn(`Command count (${commands.length}) exceeds Discord limit (${MAX_COMMANDS}), truncating...`);
-    const truncated = commands.slice(0, MAX_COMMANDS);
-    logger.info(`Truncated to ${truncated.length} commands for registration`);
+    logger.warn(`Command count (${commands.length}) exceeds Discord limit (${MAX_COMMANDS}), truncating while preserving priority commands...`);
+
+    const priority = commands.filter(command => PRIORITY_COMMANDS.includes(command.name));
+    const regular = commands.filter(command => !PRIORITY_COMMANDS.includes(command.name));
+    const truncated = [...priority, ...regular].slice(0, MAX_COMMANDS);
+
+    const missingPriority = PRIORITY_COMMANDS.filter(name => !truncated.some(command => command.name === name));
+    if (missingPriority.length > 0) {
+        throw new Error(`Priority command(s) missing from registration payload: ${missingPriority.join(', ')}`);
+    }
+
+    logger.info(`Truncated to ${truncated.length} commands for registration; priority commands preserved: ${PRIORITY_COMMANDS.join(', ')}`);
     return truncated;
 }
 
