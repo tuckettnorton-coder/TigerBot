@@ -77,9 +77,11 @@ export function buildEditorPayload(prices) {
     .setDescription('Every price is separate. Click the exact price you want to change, enter the new value, then press Save.')
     .setColor(0x2b2d31);
 
+  // Discord allows a maximum of 5 component rows per message.
+  // Three rows contain the four individual prices for each spawner, and the
+  // fourth row contains Save/Cancel.
   const rows = [];
 
-  // Show each spawner name, followed by its four individual prices.
   for (const spawner of SPAWNERS) {
     const price = prices[spawner.key];
     embed.addFields({
@@ -114,6 +116,8 @@ export function discardDraft(interaction) {
 export async function saveDraft(interaction, client) {
   const draft = getDraft(interaction);
   if (!draft) throw new Error('Your spawner price editor has expired. Run /spawner-update again.');
+
+  // Save locally first so a posting/permission problem does not lose the new prices.
   persistPrices(draft.prices);
   await postPrices(client, draft.prices);
   discardDraft(interaction);
