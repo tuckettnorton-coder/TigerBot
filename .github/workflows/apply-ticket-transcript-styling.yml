@@ -1,0 +1,97 @@
+name: Apply Ticket Transcript Styling
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, 'Apply ticket transcript styling') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch transcript styling
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/services/ticket.js')
+          text = path.read_text(encoding='utf-8-sig')
+
+          old_embed = """                const transcriptEmbed = buildStandardLogEmbed({
+                  color: 0x3498db,
+                  title: 'Ticket Transcript',
+                  description: [
+                    formatLogLine('Ticket', `#${ticketData.id}`),
+                    formatLogLine('Channel', `#${channel.name}`),
+                    formatLogLine('Generated', `<t:${Math.floor(Date.now() / 1000)}:F>`),
+                  ].join('\\n'),
+                  footer: deleter?.username
+                    ? { text: `Deleted by ${deleter.username}`, iconURL: deleter.displayAvatarURL?.() }
+                    : undefined,
+                  timestamp: true,
+                });"""
+
+          new_embed = """                const createdAt = ticketData.createdAt ? new Date(ticketData.createdAt).getTime() : Date.now();
+                const closedAt = ticketData.closedAt ? new Date(ticketData.closedAt).getTime() : Date.now();
+                const durationMinutes = Math.max(0, Math.floor((closedAt - createdAt) / 60000));
+                const messageCount = channel.messages.cache.size;
+                const subject = ticketData.reason || 'Support Ticket';
+
+                const transcriptEmbed = buildStandardLogEmbed({
+                  color: 0x5865f2,
+                  title: 'Auto-Generated Transcript',
+                  description: `Transcript automatically generated for ticket #${ticketData.id}`,
+                  fields: [
+                    {
+                      name: 'Ticket',
+                      value: [
+                        `Ticket #${ticketData.id}`,
+                        `Created by <@${ticketData.userId}>`,
+                        `${messageCount} message${messageCount === 1 ? '' : 's'}`,
+                      ].join('\\n'),
+                      inline: false,
+                    },
+                    {
+                      name: 'Generation',
+                      value: [
+                        `Duration: ${durationMinutes} minute${durationMinutes === 1 ? '' : 's'}`,
+                        'Status: Closed (Auto-transcript)',
+                      ].join('\\n'),
+                      inline: false,
+                    },
+                    {
+                      name: 'Subject',
+                      value: subject.slice(0, 1024),
+                      inline: false,
+                    },
+                  ],
+                  footer: {
+                    text: `Powered by TigerBot.com • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+                  },
+                  timestamp: true,
+                });"""
+
+          if old_embed not in text:
+              raise SystemExit('Expected transcript embed block was not found; refusing to modify the repository.')
+          text = text.replace(old_embed, new_embed, 1)
+
+          old_attachment = "const attachment = new AttachmentBuilder(buffer, { name: `ticket-${channel.id}.html` });"
+          new_attachment = "const attachment = new AttachmentBuilder(buffer, { name: `${channel.name}-transcript.html` });"
+          if old_attachment not in text:
+              raise SystemExit('Expected transcript filename line was not found; refusing to modify the repository.')
+          text = text.replace(old_attachment, new_attachment, 1)
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Commit and clean up
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f .github/workflows/apply-ticket-transcript-styling.yml
+          git add src/services/ticket.js
+          git commit -m 'Apply ticket transcript styling [skip ci]'
+          git push
