@@ -95,8 +95,30 @@ function ticketName(user, code, ticket, answers = {}) {
   if (ticket?.label === 'Buying/Selling Spawners') {
     const spawnerType = cleanChannelPart(answers.spawner_type || answers['what_type_of_spawner'] || 'spawner');
     const amount = cleanChannelPart(answers.amount || 'amount');
-    const buySell = cleanChannelPart(answers.buy_sell || answers['buy_or_sell'] || 'trade');
+    const buySell = cleanChannelPart(answers.buy_or_sell || answers['buy_sell'] || 'trade');
     return `${spawnerType}-${amount}-${buySell}-${code}`.slice(0, 100);
+  }
+
+  if (ticket?.label === 'Claim Giveaway') {
+    const host = cleanChannelPart(answers.hosted_by || 'giveaway');
+    const amount = cleanChannelPart(answers.win_amount || 'amount');
+    return `giveaway-${host}-${amount}-${code}`.slice(0, 100);
+  }
+
+  if (ticket?.label === 'Partner') {
+    const memberCount = cleanChannelPart(answers.server_member_count || 'members');
+    return `partner-${memberCount}-${code}`.slice(0, 100);
+  }
+
+  if (ticket?.label === 'Building services') return `building-${code}`;
+  if (ticket?.label === 'Digging services') return `digging-${code}`;
+  if (ticket?.label === 'Support') return `support-${code}`;
+
+  if (ticket?.label === 'Middleman service') return `mm-${code}`;
+
+  if (ticket?.label === 'Sponsor a giveaway') {
+    const amount = cleanChannelPart(answers.sponsor_amount || 'amount');
+    return `sponsor-${amount}-${code}`.slice(0, 100);
   }
 
   const cleanUser = cleanChannelPart(user.username, 'user').slice(0, 18);
