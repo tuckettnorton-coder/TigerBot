@@ -46,9 +46,18 @@ function parseNumberWord(value) {
     .replace(/[-,]/g, ' ')
     .replace(/\s+/g, ' ');
 
-  if (!normalized || !/^[a-z ]+$/.test(normalized)) return null;
+  if (!normalized) return null;
 
-  const words = normalized.split(' ');
+  // Accept natural answers such as "three spawners" or "three spawner".
+  const cleaned = normalized
+    .replace(/\bspawners?\b/g, '')
+    .replace(/\b(?:items?|pcs?|pieces?)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned || !/^[a-z ]+$/.test(cleaned)) return null;
+
+  const words = cleaned.split(' ');
   let total = 0;
   let current = 0;
   let sawNumber = false;
@@ -74,7 +83,7 @@ function parseNumberWord(value) {
       continue;
     }
 
-    // Allow the normal connector used in phrases such as "one hundred and three".
+    // Allow phrases such as "one hundred and three".
     if (word === 'and') continue;
 
     return null;
@@ -88,9 +97,14 @@ function parseSpawnerAmount(value) {
   const raw = String(value ?? '').trim().toLowerCase();
   if (!raw) return null;
 
-  const numeric = Number(raw.replace(/,/g, ''));
-  if (/^\d+(?:\.\d+)?$/.test(raw) && Number.isFinite(numeric)) return numeric;
+  // Normal numeric input: 3, 32, 128, 1,000, etc.
+  const numericText = raw.replace(/,/g, '');
+  if (/^\d+(?:\.\d+)?$/.test(numericText)) {
+    const numeric = Number(numericText);
+    return Number.isFinite(numeric) ? numeric : null;
+  }
 
+  // Written input: three, four, twenty-five, one hundred, three spawners, etc.
   return parseNumberWord(raw);
 }
 
@@ -110,14 +124,13 @@ export default {
       );
 
       // Buying/Selling Spawners requires a minimum of 3 spawners.
-      // Accept both digits (3, 4, 128) and written numbers (three, four, one hundred twenty-eight).
+      // Accept digits and written-out numbers, including phrases like "three spawners".
       if (typeId === 'buying_selling_spawners') {
-        const rawAmount = String(answers.amount ?? '').trim();
-        const amount = parseSpawnerAmount(rawAmount);
+        const amount = parseSpawnerAmount(answers.amount);
 
         if (amount === null || !Number.isFinite(amount) || amount < 3) {
           await interaction.reply({
-            content: '❌ **Minimum is 3 spawners.** Please enter an amount of **3 or more** (for example, `3`, `three`, or `one hundred`).',
+            content: '❌ **Minimum is 3 spawners.** Please enter an amount of **3 or more** (for example, `3`, `three`, or `three spawners`).',
             ephemeral: true,
           });
           return;
