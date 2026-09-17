@@ -2,6 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -113,7 +114,8 @@ export async function postDiggingPrices(client, data) {
   }
 
   // Delete the previous message sent by /digging-update, then send the replacement.
-  const previousMessageId = loadMessageId();
+  const state = await getUpdateState(client, channel.guild.id);
+  const previousMessageId = state.diggingPriceMessageId || loadMessageId();
   if (previousMessageId) {
     try {
       const previousMessage = await channel.messages.fetch(previousMessageId);
@@ -126,6 +128,7 @@ export async function postDiggingPrices(client, data) {
   try {
     const newMessage = await channel.send({ content: formatDiggingPriceMessage(data) });
     saveMessageId(newMessage.id);
+    await setUpdateState(client, channel.guild.id, { diggingPriceMessageId: newMessage.id, diggingPriceChannelId: channel.id });
   } catch (error) {
     const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
     throw new Error(`Could not post the digging prices: ${apiMessage}`);
