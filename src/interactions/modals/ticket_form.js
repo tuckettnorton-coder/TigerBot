@@ -1,3 +1,4 @@
+import { EmbedBuilder } from 'discord.js';
 import { createTicketChannel, logTicket } from '../../services/ticketService.js';
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 import { calculateSpawnerPrice, buildSpawnerCalculationMessage } from '../../utils/spawnerPricing.js';
@@ -35,6 +36,26 @@ function parseSpawnerAmount(value) {
   const calculatorValue = parseAmount(cleaned);
   if (calculatorValue !== null) return calculatorValue;
   return parseNumberWord(raw);
+}
+
+async function addSpawnerCalculationToPanel(channel, ticketLabel, calculation) {
+  const messages = await channel.messages.fetch({ limit: 20 });
+  const panelMessage = messages.find((message) => message.embeds?.some((embed) => embed.title === ticketLabel));
+  if (!panelMessage?.embeds?.[0]) throw new Error('Could not find the ticket panel message to add the calculation.');
+
+  const panelEmbed = EmbedBuilder.from(panelMessage.embeds[0]);
+  const calculationText = buildSpawnerCalculationMessage(calculation);
+  const existingFields = panelEmbed.data.fields || [];
+  panelEmbed.setFields(
+    ...existingFields,
+    {
+      name: '🧮 Automatic Spawner Price Calculation',
+      value: calculationText.slice(0, 1024),
+      inline: false,
+    },
+  );
+
+  await panelMessage.edit({ embeds: [panelEmbed] });
 }
 
 export default {
@@ -80,7 +101,9 @@ export default {
         const result = await createTicketChannel({ guild: interaction.guild, user: interaction.user, typeId, answers });
         if (result.existing) return interaction.editReply(`You already have an open ticket: ${result.existing}`);
 
-        await result.channel.send(buildSpawnerCalculationMessage(calculation));
+        // Add the automatic calculation directly to the existing ticket panel.
+        await addSpawnerCalculationToPanel(result.channel, ticket.label, calculation);
+
         const displayName = interaction.member?.displayName || interaction.user.globalName || interaction.user.username;
         await logTicket(interaction.guild, `🎫 **Ticket opened** • ${ticket.label} • ${displayName} • ${result.channel}`);
         await interaction.editReply(`✅ Ticket created: ${result.channel}\n💰 **Automatic total: ${calculation.totalFormatted}**`);
