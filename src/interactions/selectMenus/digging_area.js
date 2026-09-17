@@ -1,16 +1,4 @@
-import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
-
-function menu() {
-  return new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId('digging_area')
-      .setPlaceholder('Do you have an area?')
-      .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel('Yes').setDescription('I already have an area/location').setValue('yes').setEmoji('✅'),
-        new StringSelectMenuOptionBuilder().setLabel('No').setDescription('I need an area chosen for me').setValue('no').setEmoji('❌'),
-      ),
-  );
-}
+import { ActionRowBuilder, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 export default {
   name: 'digging_area',
