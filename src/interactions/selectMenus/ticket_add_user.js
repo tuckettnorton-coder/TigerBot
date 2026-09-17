@@ -5,27 +5,33 @@ export default {
 
   async execute(interaction) {
     try {
+      // Acknowledge the User Select immediately so Discord never reports
+      // "This interaction failed" while the permission API is processing.
+      await interaction.deferUpdate();
+
       const userId = interaction.values?.[0];
       if (!userId) {
-        await interaction.update({ content: '❌ No member was selected.', components: [] });
+        await interaction.editReply({ content: '❌ No member was selected.', components: [] });
         return;
       }
 
-      const user = await interaction.guild.members.fetch(userId);
-      const result = await addTicketUser(interaction.channel, interaction.member, user.user);
+      const member = await interaction.guild.members.fetch(userId);
+      const result = await addTicketUser(interaction.channel, interaction.member, member.user);
 
-      await interaction.update({
+      await interaction.editReply({
         content: result.alreadyAdded
-          ? `ℹ️ <@${user.id}> is already a member of this ticket.`
-          : `✅ Added <@${user.id}> to this ticket. They now have the same channel access as the ticket creator.`,
+          ? `ℹ️ <@${member.id}> is already a member of this ticket.`
+          : `✅ Added <@${member.id}> to this ticket. They now have the same channel access as the ticket creator.`,
         components: [],
-        allowedMentions: { users: [user.id] },
+        allowedMentions: { users: [member.id] },
       });
     } catch (error) {
-      await interaction.update({
-        content: `❌ ${error?.message || 'I could not add that member to the ticket.'}`,
-        components: [],
-      }).catch(() => {});
+      const message = `❌ ${error?.message || 'I could not add that member to the ticket.'}`;
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ content: message, components: [] }).catch(() => {});
+      } else {
+        await interaction.reply({ content: message, ephemeral: true }).catch(() => {});
+      }
     }
   },
 };
