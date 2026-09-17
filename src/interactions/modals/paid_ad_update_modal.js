@@ -25,7 +25,7 @@ export function buildPaidAdUpdateModal(prices = loadPaidAdPrices(), page = 1) {
   );
 }
 
-export default {
+const page1Handler = {
   name: 'paid_ad_update_page1',
   async execute(interaction) {
     try {
@@ -44,7 +44,7 @@ export default {
   },
 };
 
-export const page2Handler = {
+const page2Handler = {
   name: 'paid_ad_update_page2',
   async execute(interaction, client) {
     try {
@@ -70,3 +70,5 @@ export const page2Handler = {
     }
   },
 };
+
+export default [page1Handler, page2Handler];
