@@ -4,15 +4,30 @@ import { TICKET_TYPES } from '../../config/ticketTypes.js';
 export default {
   name: 'ticket_form',
   async execute(interaction, client, args) {
-    const typeId = args[0];
-    const ticket = TICKET_TYPES[typeId];
-    if (!ticket) return interaction.reply({ content: 'That ticket type is unavailable.', ephemeral: true });
+    try {
+      const typeId = args?.[0];
+      const ticket = TICKET_TYPES[typeId];
+      if (!ticket) {
+        await interaction.reply({ content: 'That ticket type is unavailable.', ephemeral: true });
+        return;
+      }
 
-    const answers = Object.fromEntries(ticket.form.map(field => [field.id, interaction.fields.getTextInputValue(field.id)]));
-    await interaction.deferReply({ ephemeral: true });
-    const result = await createTicketChannel({ guild: interaction.guild, user: interaction.user, typeId, answers });
-    if (result.existing) return interaction.editReply(`You already have an open ticket: ${result.existing}`);
-    await logTicket(interaction.guild, `🎫 **Ticket opened** • ${ticket.label} • ${interaction.user} • ${result.channel}`, client.config.ticket?.logChannelId || process.env.LOG_CHANNEL_ID);
-    await interaction.editReply(`Ticket created: ${result.channel}`);
+      const answers = Object.fromEntries(
+        ticket.form.map((field) => [field.id, interaction.fields.getTextInputValue(field.id)]),
+      );
+
+      await interaction.deferReply({ ephemeral: true });
+      const result = await createTicketChannel({ guild: interaction.guild, user: interaction.user, typeId, answers });
+      if (result.existing) return interaction.editReply(`You already have an open ticket: ${result.existing}`);
+
+      await logTicket(interaction.guild, `🎫 **Ticket opened** • ${ticket.label} • ${interaction.user} • ${result.channel}`);
+      await interaction.editReply(`✅ Ticket created: ${result.channel}`);
+    } catch (error) {
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply(`❌ Could not create the ticket: ${error.message}`).catch(() => {});
+      } else {
+        await interaction.reply({ content: `❌ Could not create the ticket: ${error.message}`, ephemeral: true }).catch(() => {});
+      }
+    }
   },
 };
