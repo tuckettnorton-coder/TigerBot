@@ -185,7 +185,7 @@ export async function requestClose(channel, member) {
   const recent = await channel.messages.fetch({ limit: 25 }).catch(() => null);
   if (recent?.some((message) => message.embeds?.some((embed) => embed.title === 'Close Request'))) return null;
   const ownerMention = `<@${ticket.openerId}>`;
-  const embed = new EmbedBuilder().setTitle('Close Request').setDescription(`Staff member ${member} has requested to close this ticket.\n\nTicket owner: ${ownerMention}\n\n**Confirmation**\n> Would you like to close this ticket?`);
+  const embed = new EmbedBuilder().setTitle('Close Request').setDescription(`Staff member ${member} has requested to close this ticket.\\n\\nTicket owner: ${ownerMention}\\n\\n**Confirmation**\\n> Would you like to close this ticket?`);
   const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary));
   return channel.send({ content: ownerMention, embeds: [embed], components: [row] });
 }
@@ -226,13 +226,47 @@ async function saveHostedTranscript(transcriptFileName, transcriptBuffer) {
   const transcriptDir = path.join(process.cwd(), 'data', 'transcripts');
   await fs.mkdir(transcriptDir, { recursive: true });
   await fs.writeFile(path.join(transcriptDir, transcriptFileName), transcriptBuffer);
+
   const baseUrl = String(
     process.env.TRANSCRIPT_BASE_URL ||
+    process.env.PUBLIC_URL ||
     process.env.RENDER_EXTERNAL_URL ||
-    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '')
+    (process.env.RENDER_EXTERNAL_HOSTNAME ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` : '') ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '') ||
+    (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : '') ||
+    (process.env.PROJECT_DOMAIN ? `https://${process.env.PROJECT_DOMAIN}` : '')
   ).replace(/\/$/, '');
+
   if (!baseUrl) return null;
   return `${baseUrl}/transcripts/${encodeURIComponent(transcriptFileName)}`;
+}
+
+function buildTranscriptPanel({ ticketNumber, guildName, creatorId, subject, messageCount, actorName, closedAt, transcriptUrl, unavailable = false }) {
+  const embed = new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle('Auto-Generated Transcript')
+    .setDescription(`Transcript automatically generated for ticket #${ticketNumber}`)
+    .addFields(
+      { name: 'Ticket', value: [`Ticket #${ticketNumber}`, `Server: ${guildName}`, `Created by <@${creatorId}>`, `${messageCount} message${messageCount === 1 ? '' : 's'}`].join('\\n') },
+      { name: 'Closure', value: [`Closed by ${actorName}`, `<t:${closedAt}:f>`, 'Status: Closed'].join('\\n') },
+      { name: 'Subject', value: subject.slice(0, 1024) },
+    )
+    .setFooter({ text: 'Powered by TigerBot • Transcript Log' })
+    .setTimestamp();
+
+  const row = transcriptUrl
+    ? new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setLabel('Download Transcript').setStyle(ButtonStyle.Link).setURL(transcriptUrl),
+      )
+    : new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('transcript_setup_needed').setLabel('Download Transcript').setStyle(ButtonStyle.Secondary).setDisabled(true),
+      );
+
+  if (unavailable) {
+    embed.addFields({ name: 'Transcript Status', value: 'Download is temporarily unavailable because the bot does not have a public transcript URL configured.' });
+  }
+
+  return { embeds: [embed], components: [row] };
 }
 
 export async function closeTicket(channel, actor) {
@@ -252,44 +286,26 @@ export async function closeTicket(channel, actor) {
   const subject = TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Support Ticket';
   const closedAt = Math.floor(Date.now() / 1000);
 
-  let transcriptMessage = null;
-  let transcriptAttachment = null;
   let transcriptUrl = null;
 
   try {
     transcriptUrl = await saveHostedTranscript(transcriptFileName, transcriptBuffer);
   } catch {}
 
+  const panel = buildTranscriptPanel({
+    ticketNumber,
+    guildName: channel.guild.name,
+    creatorId,
+    subject,
+    messageCount: messages.length,
+    actorName,
+    closedAt,
+    transcriptUrl,
+    unavailable: !transcriptUrl,
+  });
+
   if (transcriptChannel) {
-    const transcriptEmbed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle('Auto-Generated Transcript')
-      .setDescription(`Transcript automatically generated for ticket #${ticketNumber}`)
-      .addFields(
-        { name: 'Ticket', value: [`Ticket #${ticketNumber}`, `Server: ${channel.guild.name}`, `Created by <@${creatorId}>`, `${messages.length} message${messages.length === 1 ? '' : 's'}`].join('\n') },
-        { name: 'Closure', value: [`Closed by ${actorName}`, `<t:${closedAt}:f>`, 'Status: Closed'].join('\n') },
-        { name: 'Subject', value: subject.slice(0, 1024) },
-      )
-      .setFooter({ text: 'Powered by TigerBot • Transcript Log' })
-      .setTimestamp();
-
-    const transcriptPanelRow = transcriptUrl
-      ? new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setLabel('Download Transcript').setStyle(ButtonStyle.Link).setURL(transcriptUrl),
-        )
-      : null;
-
-    transcriptMessage = await transcriptChannel.send({
-      embeds: [transcriptEmbed],
-      ...(transcriptPanelRow ? { components: [transcriptPanelRow] } : {}),
-    });
-
-    if (!transcriptUrl) {
-      transcriptMessage = await transcriptChannel.send({
-        files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
-      });
-      transcriptAttachment = transcriptMessage.attachments.first() || null;
-    }
+    await transcriptChannel.send(panel).catch(() => {});
   }
 
   try {
@@ -304,7 +320,7 @@ export async function closeTicket(channel, actor) {
           `> Ticket #${ticketNumber}`,
           `> Server: ${channel.guild.name}`,
           `> Closed by ${actorName}`,
-        ].join('\n'),
+        ].join('\\n'),
       })
       .setFooter({ text: 'Powered by TigerBot • Ticket Transcript' })
       .setTimestamp();
@@ -313,47 +329,29 @@ export async function closeTicket(channel, actor) {
       ? [new ActionRowBuilder().addComponents(
           new ButtonBuilder().setLabel('Download Transcript').setStyle(ButtonStyle.Link).setURL(transcriptUrl),
         )]
-      : transcriptAttachment
-        ? [new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
-          )]
-        : [];
+      : [];
 
     await owner.send({
       embeds: [dmEmbed],
       components: dmComponents,
-      ...(transcriptUrl ? {} : { files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] }),
+      ...(!transcriptUrl ? { files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] } : {}),
     });
   } catch {}
 
   if (logChannel) {
-    const logEmbed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle('Ticket Closed')
-      .setDescription('A ticket has been closed and its transcript has been saved.')
-      .addFields(
-        { name: 'Ticket', value: [`#${ticketNumber}`, `#${channel.name}`].join('\n'), inline: true },
-        { name: 'Server', value: channel.guild.name, inline: true },
-        { name: 'Closed By', value: actorName, inline: true },
-        { name: 'Owner', value: `<@${creatorId}>`, inline: true },
-        { name: 'Messages', value: String(messages.length), inline: true },
-        { name: 'Time', value: `<t:${closedAt}:f>`, inline: true },
-      )
-      .setFooter({ text: 'Powered by TigerBot • Ticket Log' })
-      .setTimestamp();
+    const logPanel = buildTranscriptPanel({
+      ticketNumber,
+      guildName: channel.guild.name,
+      creatorId,
+      subject,
+      messageCount: messages.length,
+      actorName,
+      closedAt,
+      transcriptUrl,
+      unavailable: !transcriptUrl,
+    });
 
-    await logChannel.send({
-      embeds: [logEmbed],
-      components: transcriptUrl
-        ? [new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setLabel('Download Transcript').setStyle(ButtonStyle.Link).setURL(transcriptUrl),
-          )]
-        : transcriptAttachment
-          ? [new ActionRowBuilder().addComponents(
-              new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
-            )]
-          : [],
-    }).catch(() => {});
+    await logChannel.send(logPanel).catch(() => {});
   }
 
   await channel.delete(`Ticket closed by ${actorName}`);
