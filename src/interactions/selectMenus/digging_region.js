@@ -27,9 +27,6 @@ export default {
           new TextInputBuilder().setCustomId('area_size').setLabel('Area size (width x length x height)').setStyle(TextInputStyle.Short).setPlaceholder('Example: 100 x 100 x 50').setRequired(true),
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('area_location').setLabel('Area / Location').setStyle(TextInputStyle.Short).setPlaceholder(area === 'yes' ? 'Enter your coordinates/location' : 'Enter where you want it').setRequired(true),
-        ),
-        new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId('ign').setLabel('IGN').setStyle(TextInputStyle.Short).setPlaceholder('Your Minecraft username').setRequired(true),
         ),
       );
