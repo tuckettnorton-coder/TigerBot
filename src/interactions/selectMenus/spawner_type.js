@@ -1,11 +1,6 @@
-import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
+import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 const SPAWNER_LABELS = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem' };
-const EMOJIS = {
-  skeleton: '<:download:1517708652981780682>',
-  creeper: '<:MinecraftCreeperHead:1517707887068315839>',
-  irongolem: '<:maxresdefault:1517708562489409566>',
-};
 
 export default {
   name: 'spawner_type',
@@ -19,19 +14,28 @@ export default {
       return;
     }
 
-    const amountMenu = new StringSelectMenuBuilder()
-      .setCustomId(`spawner_amount:${trade}:${spawnerType}`)
-      .setPlaceholder('Select the amount of spawners')
-      .addOptions(
-        ['3', '4', '8', '16', '32', '64', '128', '256', '512', '1024', '2048', '4096'].map((amount) =>
-          new StringSelectMenuOptionBuilder().setLabel(`${amount} Spawners`).setValue(amount).setDescription(`${amount} ${spawnerLabel} spawners`),
+    const modal = new ModalBuilder()
+      .setCustomId(`ticket_form:buying_selling_spawners:${trade}:${spawnerType}`)
+      .setTitle(`${trade === 'buy' ? 'Buy' : 'Sell'} ${spawnerLabel}`.slice(0, 45))
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('amount')
+            .setLabel('Amount of Spawners (Minimum 3)')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('Example: 3, 64, 128, 1,000, 2.5k')
+            .setRequired(true),
         ),
-        new StringSelectMenuOptionBuilder().setLabel('Custom Amount').setValue('custom').setDescription('Enter any whole-number amount of 3+'),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('ign')
+            .setLabel('IGN')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('Your Minecraft username')
+            .setRequired(true),
+        ),
       );
 
-    await interaction.update({
-      content: `### 📦 ${spawnerLabel} Spawners\nSelect how many spawners you want. The total will be calculated automatically using the current spawner-update prices.`,
-      components: [new ActionRowBuilder().addComponents(amountMenu)],
-    });
+    await interaction.showModal(modal);
   },
 };
