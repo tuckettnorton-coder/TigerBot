@@ -1,6 +1,6 @@
 export const TICKET_TYPES = {
   buying_selling_spawners: {
-    label: 'Buying/Selling Spawners', emoji: '💸', description: 'Click this to buy/Sell Skeletons', categoryName: 'Buyer/Sellar', pingRoles: ['1505252058591138004', 'Buyer/Seller'], welcomeMessage: '{user} Welcome a @Buyer/Seller <@&1505252058591138004> will get to you shortly.',
+    label: 'Buying/Selling Spawners', emoji: '💸', description: 'Click this to buy/Sell Skeletons', categoryName: 'Buyer/Sellar', pingRoles: ['1505252058591138004', 'Buyer/Seller'],
     form: [{ id:'ign',label:'IGN',required:true,placeholder:'IGN' },{ id:'buy_or_sell',label:'Buy or Sell',required:true,placeholder:'Selected from dropdown' },{ id:'amount',label:'Amount (Minimum 3 Spawners)',required:true,placeholder:'Selected from dropdown' },{ id:'spawner_type',label:'What type of spawner?',required:true,placeholder:'Selected from dropdown' }],
   },
   claim_giveaway: { label:'Claim Giveaway',emoji:'🎉',description:'Click this to claim Giveaway',categoryName:'Giveaway',pingRoles:['1505252058591138004','1536860897509900389'],welcomeMessage:'{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> will get to you shortly.',form:[{id:'hosted_by',label:'Who hosted the giveaway?',required:true,placeholder:'Enter here'},{id:'win_amount',label:'How much did you win?',required:true,placeholder:'Enter the amount you won'},{id:'win_ss',label:'Send a SS of the win in ticket',required:true,placeholder:'Yes/Ok'},{id:'ign',label:'IGN',required:true,placeholder:'IGN'}] },
@@ -23,7 +23,16 @@ export const TICKET_TYPES = {
       {id:'ign',label:'IGN',required:true,placeholder:'IGN'},
     ],
   },
-  middleman: { label:'Middleman service',emoji:'🏦',description:'Click this for Middleman service',categoryName:'Middleman',pingRoles:['1505252058591138004','Buyer/Seller'],welcomeMessage:'{user} Welcome a @Buyer/Seller <@&1505252058591138004> will get to you shortly.',form:[{id:'your_ign',label:'Your IGN',required:true,placeholder:'Your IGN'},{id:'person_ign',label:"Person's IGN",required:true,placeholder:"Person's IGN"},{id:'what_needs_mm',label:'What needs a middleman?',required:true,placeholder:'Enter here'},{id:'money_involved',label:'How much money involved?',required:true,placeholder:'Enter here'}] },
+  middleman: {
+    label:'Middleman service',emoji:'🏦',description:'Click this for Middleman service',categoryName:'Middleman',pingRoles:['1505252058591138004','Buyer/Seller'],welcomeMessage:'{user} Welcome a @Buyer/Seller <@&1505252058591138004> will get to you shortly.',
+    form:[
+      {id:'your_ign',label:'Your IGN',required:true,placeholder:'Your IGN'},
+      {id:'person_ign',label:"Person's IGN",required:true,placeholder:"Person's IGN"},
+      {id:'spawners_involved',label:'Are spawners involved?',required:true,placeholder:'Yes or No'},
+      {id:'spawner_amount',label:'If yes, how many spawners?',required:true,placeholder:'Example: 100'},
+      {id:'spawner_trade',label:'If yes: spawner type + Buy/Sell',required:true,placeholder:'Example: Skeleton Sell. If no: enter total value, e.g. 100M'},
+    ],
+  },
   advertisement: { label:'Advertisement',emoji:'💰',description:'Click this for Advertisement services',categoryName:'Advertisement',pingRoles:['1505252058591138004','1536860897509900389','Mod'],welcomeMessage:'{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> @Mod will get to you shortly.',form:[{id:'read_paid_ad',label:'Have you read Paid-AD',required:true,placeholder:'yes or no'},{id:'ad_after',label:'Send your ad in the ticket immediately after',required:true,placeholder:'ok'},{id:'ad_plan',label:'What advertising plan?',required:true,placeholder:'Enter here'}] },
   sponsor_giveaway: { label:'Sponsor a giveaway',emoji:'😽',description:'Click this for to Sponsor a giveaway',categoryName:'Sponsor a giveaway',pingRoles:['1505252058591138004'],welcomeMessage:'{user} Welcome a <@&1505252058591138004> will get to you shortly.',form:[{id:'sponsor_amount',label:'How much are you looking to sponsor?',required:true,placeholder:'Enter your Here'}] },
 };
