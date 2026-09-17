@@ -12,12 +12,8 @@ import { TICKET_TYPES } from '../config/ticketTypes.js';
 const OPEN_MARKER = 'tiger-ticket:';
 const LOG_CHANNEL_NAME = '📝│logs';
 const TRANSCRIPT_CHANNEL_NAME = '📝│transcripts';
-const HELPER_ROLE_ID = '1505252058591138004';
 
 function roleByName(guild, name) {
-  if (String(name).trim().toLowerCase() === 'helper') {
-    return guild.roles.cache.get(HELPER_ROLE_ID) || null;
-  }
   return guild.roles.cache.find((role) => role.name.toLowerCase() === String(name).toLowerCase()) || null;
 }
 
