@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import fs from 'fs'; import path from 'path'; import { fileURLToPath } from 'url';
+import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
 const __filename=fileURLToPath(import.meta.url); const __dirname=path.dirname(__filename);
 export const BUILDING_PRICE_CHANNEL_ID='1513625388503535657'; export const BUILDING_TICKET_CHANNEL_ID='1504949441650622575'; export const BUILDING_BUILDER_ROLE_ID='1517213500655796265';
 const DATA_FILE=path.join(__dirname,'buildingPrices.json'); const MESSAGE_FILE=path.join(__dirname,'buildingPriceMessage.json');
