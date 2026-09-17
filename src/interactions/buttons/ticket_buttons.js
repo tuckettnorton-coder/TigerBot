@@ -1,5 +1,7 @@
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 import { closeTicket, getTicketFromChannel, isStaffForTicket, requestClose } from '../../services/ticketService.js';
+import { addTicketUser } from '../../services/ticketParticipantService.js';
+import { ActionRowBuilder, UserSelectMenuBuilder } from 'discord.js';
 
 async function safeError(interaction, message) {
   if (interaction.deferred || interaction.replied) {
@@ -55,6 +57,33 @@ export default [
           return safeError(interaction, 'Only the ticket owner or ticket staff can cancel the close request.');
         }
         await interaction.update({ content: 'Close request cancelled.', embeds: [], components: [] });
+      } catch (error) {
+        await safeError(interaction, error.message);
+      }
+    },
+  },
+  {
+    name: 'ticket_add_user',
+    async execute(interaction) {
+      try {
+        const ticket = getTicketFromChannel(interaction.channel);
+        if (!ticket) return safeError(interaction, 'This ticket is no longer active.');
+        const staff = isStaffForTicket(interaction.member, TICKET_TYPES[ticket.typeId]);
+        if (interaction.user.id !== ticket.openerId && !staff && !interaction.member.permissions.has('Administrator')) {
+          return safeError(interaction, 'Only the ticket creator or ticket staff can add members to this ticket.');
+        }
+
+        const userSelect = new UserSelectMenuBuilder()
+          .setCustomId('ticket_add_user_select')
+          .setPlaceholder('Select a member to add to this ticket')
+          .setMinValues(1)
+          .setMaxValues(1);
+
+        await interaction.reply({
+          content: '👤 **Add a member to this ticket**\nSelect the member below. They will receive the same channel access as the ticket creator.',
+          components: [new ActionRowBuilder().addComponents(userSelect)],
+          ephemeral: true,
+        });
       } catch (error) {
         await safeError(interaction, error.message);
       }
