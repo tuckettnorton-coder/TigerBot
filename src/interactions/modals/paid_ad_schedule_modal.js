@@ -1,4 +1,4 @@
-import { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, MessageFlags } from 'discord.js';
+import { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, MessageFlags } from 'discord.js';
 import { setPaidAdDraft } from '../../utils/paidAdDrafts.js';
 import { clearTicketEphemeral, registerTicketEphemeral } from '../../utils/ticketEphemeral.js';
 
