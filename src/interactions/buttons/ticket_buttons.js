@@ -69,8 +69,8 @@ export default [
         const ticket = getTicketFromChannel(interaction.channel);
         if (!ticket) return safeError(interaction, 'This ticket is no longer active.');
         const staff = isStaffForTicket(interaction.member, TICKET_TYPES[ticket.typeId]);
-        if (interaction.user.id !== ticket.openerId && !staff && !interaction.member.permissions.has('Administrator')) {
-          return safeError(interaction, 'Only the ticket creator or ticket staff can add members to this ticket.');
+        if (!staff) {
+          return safeError(interaction, 'Only members with a support team role for this ticket can add members.');
         }
 
         const userSelect = new UserSelectMenuBuilder()
