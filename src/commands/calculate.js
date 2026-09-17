@@ -1,4 +1,10 @@
-import { SlashCommandBuilder } from 'discord.js';
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  SlashCommandBuilder,
+} from 'discord.js';
 
 const SUFFIXES = {
   k: 1e3,
@@ -59,7 +65,6 @@ function calculateExpression(expression) {
 
   if (!normalized) throw new Error('Enter a calculation.');
 
-  // Supports +, -, *, / and parentheses while safely parsing K/M/B/T amounts.
   normalized = normalized.replace(
     /([+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[kmbt])?)/gi,
     (token) => parseAmount(token).toString(),
@@ -69,11 +74,49 @@ function calculateExpression(expression) {
     throw new Error('Use numbers with K, M, B, T and operators +, -, ×, ÷.');
   }
 
-  // Evaluate only after the expression has been reduced to numbers/operators.
   const result = Function(`"use strict"; return (${normalized})`)();
 
   if (!Number.isFinite(result)) throw new Error('The calculation produced an invalid result.');
   return result;
+}
+
+function calculatorRows() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('calc_plus').setLabel('+').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('calc_minus').setLabel('−').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('calc_multiply').setLabel('×').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('calc_divide').setLabel('÷').setStyle(ButtonStyle.Secondary),
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('calc_k').setLabel('K').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('calc_m').setLabel('M').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('calc_b').setLabel('B').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('calc_t').setLabel('T').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('calc_clear').setLabel('Clear').setStyle(ButtonStyle.Danger),
+    ),
+  ];
+}
+
+function buildCalculatorEmbed(expression, result = null) {
+  return new EmbedBuilder()
+    .setTitle('🧮 Donut SMP Calculator')
+    .setDescription(
+      `**Calculation**\n\`${expression || 'Use the buttons below or enter an expression above.'}\`\n\n**Result**\n### ${result === null ? '—' : formatAmount(result)}`,
+    )
+    .addFields(
+      {
+        name: 'Exact Value',
+        value: result === null ? '`—`' : `\`${formatExact(result)}\``,
+        inline: true,
+      },
+      {
+        name: 'Supported',
+        value: '`K` Thousand\n`M` Million\n`B` Billion\n`T` Trillion',
+        inline: true,
+      },
+    )
+    .setFooter({ text: 'TigerBot • Donut SMP Calculator' });
 }
 
 export default {
@@ -94,25 +137,8 @@ export default {
       const result = calculateExpression(expression);
 
       await interaction.reply({
-        embeds: [
-          {
-            title: '🧮 Donut SMP Calculator',
-            description: `**Calculation**\n\`${expression}\`\n\n**Result**\n### ${formatAmount(result)}`,
-            fields: [
-              {
-                name: 'Exact Value',
-                value: `\`${formatExact(result)}\``,
-                inline: true,
-              },
-              {
-                name: 'Supported',
-                value: '`K` Thousand\n`M` Million\n`B` Billion\n`T` Trillion',
-                inline: true,
-              },
-            ],
-            footer: { text: 'TigerBot • Donut SMP Calculator' },
-          },
-        ],
+        embeds: [buildCalculatorEmbed(expression, result)],
+        components: calculatorRows(),
       });
     } catch (error) {
       await interaction.reply({
@@ -120,5 +146,45 @@ export default {
         ephemeral: true,
       });
     }
+  },
+
+  async handleButton(interaction) {
+    const id = interaction.customId;
+    const current = interaction.message.embeds[0]?.description?.match(/`([^`]*)`/)?.[1] || '';
+
+    const actions = {
+      calc_plus: ' + ',
+      calc_minus: ' - ',
+      calc_multiply: ' × ',
+      calc_divide: ' ÷ ',
+      calc_k: 'K',
+      calc_m: 'M',
+      calc_b: 'B',
+      calc_t: 'T',
+    };
+
+    let expression = current === 'Use the buttons below or enter an expression above.' ? '' : current;
+
+    if (id === 'calc_clear') {
+      await interaction.update({
+        embeds: [buildCalculatorEmbed('')],
+        components: calculatorRows(),
+      });
+      return;
+    }
+
+    if (actions[id]) expression += actions[id];
+
+    let result = null;
+    try {
+      if (expression.trim()) result = calculateExpression(expression);
+    } catch {
+      // Keep the expression visible while the user builds it.
+    }
+
+    await interaction.update({
+      embeds: [buildCalculatorEmbed(expression, result)],
+      components: calculatorRows(),
+    });
   },
 };
