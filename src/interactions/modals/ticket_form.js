@@ -1,6 +1,99 @@
 import { createTicketChannel, logTicket } from '../../services/ticketService.js';
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 
+const NUMBER_WORDS = {
+  zero: 0,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
+};
+
+const SCALE_WORDS = {
+  hundred: 100,
+  thousand: 1_000,
+  million: 1_000_000,
+  billion: 1_000_000_000,
+};
+
+function parseNumberWord(value) {
+  const normalized = String(value ?? '')
+    .toLowerCase()
+    .trim()
+    .replace(/[-,]/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  if (!normalized || !/^[a-z ]+$/.test(normalized)) return null;
+
+  const words = normalized.split(' ');
+  let total = 0;
+  let current = 0;
+  let sawNumber = false;
+
+  for (const word of words) {
+    if (Object.prototype.hasOwnProperty.call(NUMBER_WORDS, word)) {
+      current += NUMBER_WORDS[word];
+      sawNumber = true;
+      continue;
+    }
+
+    if (word === 'hundred') {
+      if (!sawNumber || current === 0) return null;
+      current *= 100;
+      continue;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(SCALE_WORDS, word)) {
+      if (!sawNumber || current === 0) return null;
+      total += current * SCALE_WORDS[word];
+      current = 0;
+      sawNumber = false;
+      continue;
+    }
+
+    // Allow the normal connector used in phrases such as "one hundred and three".
+    if (word === 'and') continue;
+
+    return null;
+  }
+
+  if (!sawNumber && current === 0 && total === 0) return null;
+  return total + current;
+}
+
+function parseSpawnerAmount(value) {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return null;
+
+  const numeric = Number(raw.replace(/,/g, ''));
+  if (/^\d+(?:\.\d+)?$/.test(raw) && Number.isFinite(numeric)) return numeric;
+
+  return parseNumberWord(raw);
+}
+
 export default {
   name: 'ticket_form',
   async execute(interaction, client, args) {
@@ -17,14 +110,14 @@ export default {
       );
 
       // Buying/Selling Spawners requires a minimum of 3 spawners.
-      // Validate this before creating the ticket so amounts like 1 or 2 are rejected.
+      // Accept both digits (3, 4, 128) and written numbers (three, four, one hundred twenty-eight).
       if (typeId === 'buying_selling_spawners') {
         const rawAmount = String(answers.amount ?? '').trim();
-        const amount = Number(rawAmount.replace(/,/g, ''));
+        const amount = parseSpawnerAmount(rawAmount);
 
-        if (!/^\d+(?:\.\d+)?$/.test(rawAmount) || !Number.isFinite(amount) || amount < 3) {
+        if (amount === null || !Number.isFinite(amount) || amount < 3) {
           await interaction.reply({
-            content: '❌ **Minimum is 3 spawners.** Please enter an amount of **3 or more**.',
+            content: '❌ **Minimum is 3 spawners.** Please enter an amount of **3 or more** (for example, `3`, `three`, or `one hundred`).',
             ephemeral: true,
           });
           return;
