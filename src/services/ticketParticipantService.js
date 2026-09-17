@@ -12,8 +12,6 @@ const TICKET_MEMBER_PERMISSIONS = [
 
 function canManageParticipants(interaction, ticket) {
   if (!interaction?.member || !ticket) return false;
-  if (interaction.member.permissions?.has(PermissionFlagsBits.Administrator)) return true;
-  if (interaction.user.id === ticket.openerId) return true;
   return isStaffForTicket(interaction.member, TICKET_TYPES[ticket.typeId]);
 }
 
@@ -23,10 +21,9 @@ export async function addTicketUser(channel, actor, user) {
   if (!user?.id) throw new Error('Please select a valid server member.');
   if (user.bot) throw new Error('Bots cannot be added as ticket members.');
 
-  const actorCanManage = actor?.permissions?.has(PermissionFlagsBits.Administrator)
-    || actor?.id === ticket.openerId
-    || isStaffForTicket(actor, TICKET_TYPES[ticket.typeId]);
-  if (!actorCanManage) throw new Error('Only the ticket creator or ticket staff can add members to this ticket.');
+  if (!isStaffForTicket(actor, TICKET_TYPES[ticket.typeId])) {
+    throw new Error('Only members with a support team role for this ticket can add members.');
+  }
   if (user.id === ticket.openerId) throw new Error('That member is already the ticket creator.');
   if (user.id === channel.guild.members.me?.id) throw new Error('I cannot add myself to the ticket.');
 
@@ -41,7 +38,7 @@ export async function addTicketUser(channel, actor, user) {
     ReadMessageHistory: true,
     AttachFiles: true,
     EmbedLinks: true,
-  }, { reason: `Added to ticket by ${actor?.tag || actor?.username || actor?.id || 'unknown'}` });
+  }, { reason: `Added to ticket by ${actor?.user?.tag || actor?.user?.username || actor?.user?.id || actor?.id || 'unknown'}` });
 
   return { alreadyAdded: false, user };
 }
