@@ -2,6 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,7 +95,8 @@ export function formatPartnerRulesMessage(data) {
 }
 
 async function deletePreviousPartnerMessage(channel, client) {
-  const previousMessageId = loadMessageId();
+  const state = await getUpdateState(client, channel.guild.id);
+  const previousMessageId = state.partnerRulesMessageId || loadMessageId();
 
   if (previousMessageId) {
     try {
@@ -131,6 +133,7 @@ export async function postPartnerRules(client, data) {
   try {
     const newMessage = await channel.send({ content: formatPartnerRulesMessage(data) });
     saveMessageId(newMessage.id);
+    await setUpdateState(client, channel.guild.id, { partnerRulesMessageId: newMessage.id, partnerRulesChannelId: channel.id });
   } catch (error) {
     const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
     throw new Error(`Could not post the partner rules: ${apiMessage}`);
