@@ -4,28 +4,51 @@ import { createTicketChannel, logTicket, findExistingTicket } from '../../servic
 
 export default {
   name: 'ticket_select',
-  async execute(interaction, client) {
-    const typeId = interaction.values[0];
-    const ticket = TICKET_TYPES[typeId];
-    if (!ticket) return interaction.reply({ content: 'That ticket type is unavailable.', ephemeral: true });
+  async execute(interaction) {
+    try {
+      const typeId = interaction.values?.[0];
+      const ticket = TICKET_TYPES[typeId];
+      if (!ticket) {
+        await interaction.reply({ content: 'That ticket type is unavailable.', ephemeral: true });
+        return;
+      }
 
-    const existing = await findExistingTicket(interaction.guild, interaction.user.id, ticket.categoryName);
-    if (existing) return interaction.reply({ content: `You already have an open ${ticket.label} ticket: ${existing}`, ephemeral: true });
+      const existing = await findExistingTicket(interaction.guild, interaction.user.id, ticket.categoryName);
+      if (existing) {
+        await interaction.reply({ content: `You already have an open ${ticket.label} ticket: ${existing}`, ephemeral: true });
+        return;
+      }
 
-    if (!ticket.form.length) {
-      await interaction.deferReply({ ephemeral: true });
-      const result = await createTicketChannel({ guild: interaction.guild, user: interaction.user, typeId });
-      if (result.existing) return interaction.editReply(`You already have an open ticket: ${result.existing}`);
-      await logTicket(interaction.guild, `🎫 **Ticket opened** • ${ticket.label} • ${interaction.user} • ${result.channel}`, client.config.ticket?.logChannelId || process.env.LOG_CHANNEL_ID);
-      return interaction.editReply(`Ticket created: ${result.channel}`);
+      if (!ticket.form?.length) {
+        await interaction.deferReply({ ephemeral: true });
+        const result = await createTicketChannel({ guild: interaction.guild, user: interaction.user, typeId });
+        if (result.existing) return interaction.editReply(`You already have an open ticket: ${result.existing}`);
+        await logTicket(interaction.guild, `🎫 **Ticket opened** • ${ticket.label} • ${interaction.user} • ${result.channel}`);
+        await interaction.editReply(`✅ Ticket created: ${result.channel}`);
+        return;
+      }
+
+      const modal = new ModalBuilder()
+        .setCustomId(`ticket_form:${typeId}`)
+        .setTitle(ticket.label.slice(0, 45));
+
+      for (const field of ticket.form.slice(0, 5)) {
+        const input = new TextInputBuilder()
+          .setCustomId(field.id)
+          .setLabel(field.label.slice(0, 45))
+          .setStyle(field.style === 'paragraph' ? TextInputStyle.Paragraph : TextInputStyle.Short)
+          .setRequired(field.required !== false);
+        if (field.placeholder) input.setPlaceholder(field.placeholder.slice(0, 100));
+        modal.addComponents(new ActionRowBuilder().addComponents(input));
+      }
+
+      await interaction.showModal(modal);
+    } catch (error) {
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply(`❌ Could not open the ticket: ${error.message}`).catch(() => {});
+      } else {
+        await interaction.reply({ content: `❌ Could not open the ticket: ${error.message}`, ephemeral: true }).catch(() => {});
+      }
     }
-
-    const modal = new ModalBuilder().setCustomId(`ticket_form:${typeId}`).setTitle(ticket.label.slice(0, 45));
-    for (const field of ticket.form.slice(0, 5)) {
-      const input = new TextInputBuilder().setCustomId(field.id).setLabel(field.label.slice(0, 45)).setStyle(TextInputStyle.Short).setRequired(field.required !== false);
-      if (field.placeholder) input.setPlaceholder(field.placeholder.slice(0, 100));
-      modal.addComponents(new ActionRowBuilder().addComponents(input));
-    }
-    await interaction.showModal(modal);
   },
 };
