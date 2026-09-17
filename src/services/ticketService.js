@@ -10,8 +10,8 @@ import {
 import { TICKET_TYPES } from '../config/ticketTypes.js';
 
 const OPEN_MARKER = 'tiger-ticket:';
-const LOG_CHANNEL_NAME = 'ticket-logs';
-const TRANSCRIPT_CHANNEL_NAME = 'ticket-transcripts';
+const LOG_CHANNEL_NAME = 'logs';
+const TRANSCRIPT_CHANNEL_NAME = 'transcripts';
 
 function roleByName(guild, name) {
   return guild.roles.cache.find((role) => role.name.toLowerCase() === String(name).toLowerCase()) || null;
@@ -51,21 +51,16 @@ export async function ensureTicketCategories(guild) {
   return categories;
 }
 
-async function ensureUtilityChannel(guild, name) {
-  let channel = guild.channels.cache.find(
+async function findUtilityChannel(guild, name) {
+  return guild.channels.cache.find(
     (candidate) => candidate.type === ChannelType.GuildText && candidate.name.toLowerCase() === name.toLowerCase(),
-  );
-  if (channel) return channel;
-  const overwrites = [{ id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] }];
-  if (guild.ownerId) overwrites.push({ id: guild.ownerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
-  if (guild.members.me) overwrites.push({ id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ManageMessages] });
-  return guild.channels.create({ name, type: ChannelType.GuildText, permissionOverwrites: overwrites, reason: 'TigerBot automatic ticket utility channel setup' });
+  ) || null;
 }
 
 export async function ensureTicketInfrastructure(guild) {
   const categories = await ensureTicketCategories(guild);
-  const logChannel = await ensureUtilityChannel(guild, LOG_CHANNEL_NAME);
-  const transcriptChannel = await ensureUtilityChannel(guild, TRANSCRIPT_CHANNEL_NAME);
+  const logChannel = await findUtilityChannel(guild, LOG_CHANNEL_NAME);
+  const transcriptChannel = await findUtilityChannel(guild, TRANSCRIPT_CHANNEL_NAME);
   return { categories, logChannel, transcriptChannel };
 }
 
@@ -174,8 +169,10 @@ function buildTranscriptHtml(channel, actor, messages) {
 export async function closeTicket(channel, actor) {
   const ticket = getTicketFromChannel(channel);
   if (!ticket) throw new Error('This channel is not a managed ticket.');
-  const transcriptChannel = await ensureUtilityChannel(channel.guild, TRANSCRIPT_CHANNEL_NAME);
-  const logChannel = await ensureUtilityChannel(channel.guild, LOG_CHANNEL_NAME);
+  const transcriptChannel = await findUtilityChannel(channel.guild, TRANSCRIPT_CHANNEL_NAME);
+  const logChannel = await findUtilityChannel(channel.guild, LOG_CHANNEL_NAME);
+  if (!transcriptChannel) throw new Error(`The #${TRANSCRIPT_CHANNEL_NAME} channel was not found. Please create it first.`);
+  if (!logChannel) throw new Error(`The #${LOG_CHANNEL_NAME} channel was not found. Please create it first.`);
   const messages = await fetchAllMessages(channel);
   const html = buildTranscriptHtml(channel, actor, messages);
   const transcript = new AttachmentBuilder(Buffer.from(html, 'utf8'), { name: `${channel.name}.html` });
@@ -187,7 +184,7 @@ export async function closeTicket(channel, actor) {
 
 export async function logTicket(guild, message) {
   try {
-    const channel = await ensureUtilityChannel(guild, LOG_CHANNEL_NAME);
+    const channel = await findUtilityChannel(guild, LOG_CHANNEL_NAME);
     if (channel?.isTextBased()) await channel.send(message);
   } catch {}
 }
