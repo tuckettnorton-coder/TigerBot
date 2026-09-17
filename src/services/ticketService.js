@@ -98,29 +98,23 @@ function ticketName(user, code, ticket, answers = {}) {
     const buySell = cleanChannelPart(answers.buy_or_sell || answers['buy_sell'] || 'trade');
     return `${spawnerType}-${amount}-${buySell}-${code}`.slice(0, 100);
   }
-
   if (ticket?.label === 'Claim Giveaway') {
     const host = cleanChannelPart(answers.hosted_by || 'giveaway');
     const amount = cleanChannelPart(answers.win_amount || 'amount');
     return `giveaway-${host}-${amount}-${code}`.slice(0, 100);
   }
-
   if (ticket?.label === 'Partner') {
     const memberCount = cleanChannelPart(answers.server_member_count || 'members');
     return `partner-${memberCount}-${code}`.slice(0, 100);
   }
-
   if (ticket?.label === 'Building services') return `building-${code}`;
   if (ticket?.label === 'Digging services') return `digging-${code}`;
   if (ticket?.label === 'Support') return `support-${code}`;
-
   if (ticket?.label === 'Middleman service') return `mm-${code}`;
-
   if (ticket?.label === 'Sponsor a giveaway') {
     const amount = cleanChannelPart(answers.sponsor_amount || 'amount');
     return `sponsor-${amount}-${code}`.slice(0, 100);
   }
-
   const cleanUser = cleanChannelPart(user.username, 'user').slice(0, 18);
   return `ticket-${cleanUser}-${code}`;
 }
@@ -166,7 +160,6 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.UseApplicationCommands],
     })),
   ];
-
   if (guild.members.me) overwrites.push({
     id: guild.members.me.id,
     allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.UseApplicationCommands],
@@ -185,7 +178,9 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   const displayName = user.displayName || user.username;
   const welcomeText = buildWelcomeText(guild, ticket.welcomeMessage, user, `${displayName} Welcome! ${mentions || 'Staff'} will get to you shortly.`);
   const answerFields = Object.keys(answers).length && ticket.form?.length
-    ? ticket.form.map((field) => ({ name: field.label, value: String(answers[field.id] ?? '—').slice(0, 1024) }))
+    ? ticket.form
+        .filter((field) => answers[field.id] !== undefined && answers[field.id] !== '—')
+        .map((field) => ({ name: field.label, value: String(answers[field.id] ?? '—').slice(0, 1024) }))
     : [];
 
   const ticketEmbed = new EmbedBuilder().setTitle(ticket.label).addFields({ name: 'Ticket Code', value: `\`${code}\``, inline: true }, ...answerFields).setFooter({ text: 'Tiger Market • Ticket Support' });
@@ -253,7 +248,6 @@ export async function closeTicket(channel, actor) {
   const html = buildTranscriptHtml(channel, actor, messages);
   const transcriptBuffer = Buffer.from(html, 'utf8');
   const transcriptFileName = `${channel.name}-transcript.html`;
-  const transcript = new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName });
   const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
   const ticketNumber = channel.name.match(/-(\d{4})$/)?.[1] || channel.id.slice(-4);
   const durationMinutes = Math.max(0, Math.floor((Date.now() - channel.createdTimestamp) / 60000));
@@ -265,47 +259,23 @@ export async function closeTicket(channel, actor) {
     .setTitle('Auto-Generated Transcript')
     .setDescription(`Transcript automatically generated for ticket #${ticketNumber}`)
     .addFields(
-      {
-        name: 'Ticket',
-        value: [
-          `Ticket #${ticketNumber}`,
-          `Created by <@${creatorId}>`,
-          `${messages.length} message${messages.length === 1 ? '' : 's'}`,
-        ].join('\n'),
-      },
-      {
-        name: 'Generation',
-        value: [
-          `Duration: ${durationMinutes} minute${durationMinutes === 1 ? '' : 's'}`,
-          'Status: Closed (Auto-transcript)',
-        ].join('\n'),
-      },
-      {
-        name: 'Subject',
-        value: subject.slice(0, 1024),
-      },
+      { name: 'Ticket', value: [`Ticket #${ticketNumber}`, `Created by <@${creatorId}>`, `${messages.length} message${messages.length === 1 ? '' : 's'}`].join('\n') },
+      { name: 'Generation', value: [`Duration: ${durationMinutes} minute${durationMinutes === 1 ? '' : 's'}`, 'Status: Closed (Auto-transcript)'].join('\n') },
+      { name: 'Subject', value: subject.slice(0, 1024) },
     )
     .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
     .setTimestamp();
 
   await transcriptChannel.send({ embeds: [transcriptEmbed], files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
-
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
-    await owner.send({
-      content: `📜 Your ticket **#${channel.name}** has been closed. Here is your transcript.`,
-      files: [transcript],
-    });
+    await owner.send({ content: `Your Tiger Market ticket **${channel.name}** has been closed. The transcript has been saved.` }).catch(() => {});
   } catch {}
-
-  await logChannel.send(`🔒 **Ticket closed** • ${TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Ticket'} • ${actorName} • #${channel.name}`).catch(() => {});
-  await channel.delete(`Ticket closed by ${actor.tag}`);
-  return true;
+  await logChannel.send(`🔒 **Ticket closed** • ${channel.name} • ${actorName}`);
+  await channel.delete(`Ticket closed by ${actorName}`);
 }
 
 export async function logTicket(guild, message) {
-  try {
-    const channel = await findUtilityChannel(guild, LOG_CHANNEL_NAME);
-    if (channel?.isTextBased()) await channel.send(message);
-  } catch {}
+  const logChannel = await findUtilityChannel(guild, LOG_CHANNEL_NAME);
+  if (logChannel) await logChannel.send(message);
 }
