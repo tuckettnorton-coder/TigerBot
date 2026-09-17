@@ -1,6 +1,6 @@
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 import { closeTicket, getTicketFromChannel, isStaffForTicket, requestClose } from '../../services/ticketService.js';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 async function safeError(interaction, message) {
   if (interaction.deferred || interaction.replied) {
@@ -71,6 +71,9 @@ export default [
           return safeError(interaction, 'Only members with a support team role for this ticket can add members.');
         }
 
+        // The button intentionally opens a modal instead of a User Select Menu.
+        // This uses the same ticket participant service as /add-ticket-user,
+        // avoiding the User Select interaction path that was timing out.
         const modal = new ModalBuilder()
           .setCustomId('ticket_add_user_modal')
           .setTitle('Add User to Ticket');
@@ -78,7 +81,7 @@ export default [
         const userInput = new TextInputBuilder()
           .setCustomId('ticket_add_user_input')
           .setLabel('User ID or @mention')
-          .setPlaceholder('Example: 123456789012345678 or @username')
+          .setPlaceholder('123456789012345678 or @username')
           .setStyle(TextInputStyle.Short)
           .setRequired(true)
           .setMaxLength(30);
