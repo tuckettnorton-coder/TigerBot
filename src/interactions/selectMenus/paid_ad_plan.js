@@ -1,7 +1,7 @@
 import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { getPaidAdDraft, setPaidAdDraft } from '../../utils/paidAdDrafts.js';
 import { loadPaidAdPrices } from '../../utils/paidAdPricing.js';
-import { clearTicketEphemeral, registerTicketEphemeral } from '../../utils/ticketEphemeral.js';
+import { registerTicketEphemeral } from '../../utils/ticketEphemeral.js';
 
 function buildAddonsYesNo() {
   return new ActionRowBuilder().addComponents(
@@ -23,12 +23,7 @@ export default {
       if (!['premium', 'standard', 'basic'].includes(plan)) return interaction.update({ content: '❌ Please choose a valid advertisement plan.', components: [] });
       const planPrice = Number(prices[plan] || 0);
       setPaidAdDraft(interaction.user.id, { plan, planPrice });
-
-      await interaction.update({
-        content: `### 💰 Paid Advertisement\n**Plan selected:** ${plan === 'premium' ? '💎 Premium Bundle' : plan === 'standard' ? '🚀 Standard Bundle' : '📢 Basic Bundle'} — $${planPrice.toFixed(2)}\n\n**Do you want any add-ons?**\nChoose **Yes** to see the current add-ons and their prices.`,
-        components: [buildAddonsYesNo()],
-      });
-      await clearTicketEphemeral(interaction.user.id);
+      await interaction.update({ content: `### 💰 Paid Advertisement\n**Plan selected:** ${plan === 'premium' ? '💎 Premium Bundle' : plan === 'standard' ? '🚀 Standard Bundle' : '📢 Basic Bundle'} — $${planPrice.toFixed(2)}\n\n**Do you want any add-ons?**\nChoose **Yes** to see the current add-ons and their prices.`, components: [buildAddonsYesNo()] });
       registerTicketEphemeral(interaction.user.id, interaction);
     } catch (error) {
       if (!interaction.replied && !interaction.deferred) await interaction.reply({ content: `❌ Paid advertisement error: ${error.message}`, ephemeral: true }).catch(() => {});
