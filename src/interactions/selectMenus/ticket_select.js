@@ -31,12 +31,11 @@ export default {
         return;
       }
 
-      // Spawner tickets use click-only Buy/Sell and spawner-type dropdowns.
+      // Keep the spawner flow inside the original ticket panel message instead of sending a separate message.
       if (typeId === 'buying_selling_spawners') {
-        await interaction.reply({
-          content: '### 💸 Buying/Selling Spawners\nFirst, select whether you want to **Buy** or **Sell**.',
+        await interaction.update({
+          content: '### 💸 Buying/Selling Spawners\nSelect whether you want to **Buy** or **Sell** below.',
           components: [buildSpawnerTradeMenu()],
-          ephemeral: true,
         });
         return;
       }
