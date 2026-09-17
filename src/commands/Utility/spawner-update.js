@@ -1,4 +1,8 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import {
+  SlashCommandBuilder,
+  PermissionFlagsBits,
+  EmbedBuilder,
+} from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -43,43 +47,59 @@ function savePrices(prices) {
 
 export function formatPriceMessage(prices) {
   const { skeleton, creeper, irongolem } = prices;
-  return (`${EMOJI_SKELETON} **Skeleton Spawners**
-**(You buy from us)**
-**3+ Buy:** ${skeleton.buy3}  **64+ Buy:** ${skeleton.buy64}
-**(You sell to us)**
-**3+ Sell:** ${skeleton.sell3}  **64+ Sell:** ${skeleton.sell64}
+  const embed = new EmbedBuilder()
+    .setTitle('Spawner Prices')
+    .setColor(0x2b2d31)
+    .addFields(
+      {
+        name: `${EMOJI_SKELETON} Skeleton Spawners`,
+        inline: true,
+        value: [
+          '**3+ Buy:** ' + skeleton.buy3,
+          '**64+ Buy:** ' + skeleton.buy64,
+          '**3+ Sell:** ' + skeleton.sell3,
+          '**64+ Sell:** ' + skeleton.sell64,
+        ].join('\n'),
+      },
+      {
+        name: `${EMOJI_CREEPER} Creeper Spawners`,
+        inline: true,
+        value: [
+          '**3+ Buy:** ' + creeper.buy3,
+          '**64+ Buy:** ' + creeper.buy64,
+          '**3+ Sell:** ' + creeper.sell3,
+          '**64+ Sell:** ' + creeper.sell64,
+        ].join('\n'),
+      },
+      {
+        name: `${EMOJI_IRONGOLEM} Iron Golem Spawners`,
+        inline: true,
+        value: [
+          '**3+ Buy:** ' + irongolem.buy3,
+          '**64+ Buy:** ' + irongolem.buy64,
+          '**3+ Sell:** ' + irongolem.sell3,
+          '**64+ Sell:** ' + irongolem.sell64,
+        ].join('\n'),
+      },
+    )
+    .setDescription(
+      `### __NOTE__\nWE DON'T GO FIRST FOR BUYING/SELLING SPAWNERS. MAKE A <#${SPAWNER_PRICE_CHANNEL_ID}>\n# MINIMUM 3+\n**ALL messages** regarding your ticket / spawners will be IN THE TICKET ONLY!! Scammers can SEE your ticket but not the messages inside, **dont get fooled by this**! <@&${SPAWNER_UPDATE_ROLE_ID}> with the updates to the channel 💵│spawner-prices.`
+    );
 
-${EMOJI_CREEPER} **Creeper Spawners**
-**(You buy from us)**
-**3+ Buy:** ${creeper.buy3}  **64+ Buy:** ${creeper.buy64}
-**(You sell to us)**
-**3+ Sell:** ${creeper.sell3}  **64+ Sell:** ${creeper.sell64}
-
-${EMOJI_IRONGOLEM} **Iron Golem Spawners**
-**(You buy from us)**
-**3+ Buy:** ${irongolem.buy3}  **64+ Buy:** ${irongolem.buy64}
-**(You sell to us)**
-**3+ Sell:** ${irongolem.sell3}  **64+ Sell:** ${irongolem.sell64}
-
-### __NOTE__- WE DON'T GO FIRST FOR BUYING/SELLING SPAWNERS MAKE A <#${SPAWNER_PRICE_CHANNEL_ID}>
-# MINIMUM 3+
-**ALL messages** regarding your ticket / spawners will be IN THE TICKET ONLY!! Scammers can SEE your ticket but not the messages inside, **dont get fooled by this**! <@&${SPAWNER_UPDATE_ROLE_ID}> , with the updates to the channel 💵│spawner-prices.`);
+  return { embeds: [embed] };
 }
 
 export const data = new SlashCommandBuilder()
   .setName('spawner-update')
-  .setDescription('Open the 12-field spawner price editor')
+  .setDescription('Update all 12 spawner prices')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
 export async function execute(interaction) {
-  const { startDraft, buildEditorPayload, setPanelLocation } = await import('./spawnerEditor.js');
+  const { startDraft } = await import('./spawnerEditor.js');
+  const { buildSpawnerPriceModal } = await import('../../interactions/modals/spawner_update_modal.js');
+
   startDraft(interaction);
-  const message = await interaction.reply({
-    ...buildEditorPayload(loadPrices()),
-    ephemeral: true,
-    fetchReply: true,
-  });
-  setPanelLocation(interaction, message);
+  await interaction.showModal(buildSpawnerPriceModal(1, loadPrices()));
 }
 
 export default { data, execute };
@@ -89,9 +109,15 @@ export function persistPrices(prices) {
 }
 
 export async function postPrices(client, prices) {
-  const channel = await client.channels.fetch(SPAWNER_PRICE_CHANNEL_ID);
+  const channel = await client.channels.fetch(SPAWNER_PRICE_CHANNEL_ID).catch(() => null);
   if (!channel || typeof channel.send !== 'function') {
     throw new Error(`Spawner price channel ${SPAWNER_PRICE_CHANNEL_ID} is not a sendable channel.`);
   }
-  await channel.send({ content: formatPriceMessage(prices) });
+
+  try {
+    await channel.send(formatPriceMessage(prices));
+  } catch (error) {
+    const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
+    throw new Error(`Could not post the 12 spawner prices: ${apiMessage}`);
+  }
 }
