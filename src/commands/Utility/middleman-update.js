@@ -2,6 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
 import { buildMiddlemanServiceMessage, loadMiddlemanFees } from '../../utils/middlemanPricing.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -68,7 +69,8 @@ export async function postMiddlemanMessage(client, message) {
     throw new Error(`Middleman update channel ${MIDDLEMAN_UPDATE_CHANNEL_ID} is not a sendable channel.`);
   }
 
-  const previousMessageIds = loadMessageIds();
+  const state = await getUpdateState(client, channel.guild.id);
+  const previousMessageIds = Array.isArray(state.middlemanPriceMessageIds) && state.middlemanPriceMessageIds.length ? state.middlemanPriceMessageIds : loadMessageIds();
   for (const messageId of previousMessageIds) {
     try {
       const previousMessage = await channel.messages.fetch(messageId);
@@ -86,6 +88,7 @@ export async function postMiddlemanMessage(client, message) {
   }
 
   saveMessageIds(newMessageIds);
+  await setUpdateState(client, channel.guild.id, { middlemanPriceMessageIds: newMessageIds, middlemanPriceChannelId: channel.id });
   return newMessageIds;
 }
 
