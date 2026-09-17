@@ -30,7 +30,14 @@ export const TICKET_TYPES = {
       {id:'person_ign',label:"Person's IGN",required:true,placeholder:"Other person's Minecraft username"},
     ],
   },
-  advertisement: { label:'Advertisement',emoji:'💰',description:'Click this for Advertisement services',categoryName:'Advertisement',pingRoles:['1505252058591138004','1536860897509900389','Mod'],welcomeMessage:'{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> @Mod will get to you shortly.',form:[{id:'read_paid_ad',label:'Have you read Paid-AD',required:true,placeholder:'yes or no'},{id:'ad_after',label:'Send your ad in the ticket immediately after',required:true,placeholder:'ok'},{id:'ad_plan',label:'What advertising plan?',required:true,placeholder:'Enter here'}] },
+  advertisement: {
+    label:'Advertisement',emoji:'💰',description:'Click this for Paid Advertisement services',categoryName:'Advertisement',pingRoles:['1505252058591138004','1536860897509900389','Mod'],welcomeMessage:'{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> @Mod will get to you shortly.',
+    form:[
+      {id:'ad_name',label:'Server / Business / Community Name',required:true,placeholder:'Your server or business name'},
+      {id:'ad_link',label:'Discord Invite Link',required:true,placeholder:'https://discord.gg/...' },
+      {id:'ad_content',label:'Advertisement Content',required:true,placeholder:'Paste the ad you want posted'},
+    ],
+  },
   sponsor_giveaway: { label:'Sponsor a giveaway',emoji:'😽',description:'Click this for to Sponsor a giveaway',categoryName:'Sponsor a giveaway',pingRoles:['1505252058591138004'],welcomeMessage:'{user} Welcome a <@&1505252058591138004> will get to you shortly.',form:[{id:'sponsor_amount',label:'How much are you looking to sponsor?',required:true,placeholder:'Enter your Here'}] },
 };
 export const TICKET_BY_ID = TICKET_TYPES;
