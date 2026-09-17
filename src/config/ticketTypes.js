@@ -13,7 +13,7 @@ export const TICKET_TYPES = {
     form:[
       {id:'what_built',label:'What do you need built?',required:true,placeholder:'Farm, stash, or custom build'},
       {id:'is_farm',label:'Is this a farm?',required:true,placeholder:'Yes/No'},
-      {id:'price_value',label:'AH value / farm earnings per day',required:true,placeholder:'Example: 100M'},
+      {id:'price_value',label:'Farm earnings per day',required:true,placeholder:'Only required for farms'},
       {id:'schematic',label:'Do you have a schematic?',required:true,placeholder:'Yes/No'},
       {id:'area_dug',label:'Do you have an area dug out?',required:true,placeholder:'Yes/No'},
       {id:'digging_requested',label:'Do you want us to dig it out?',required:true,placeholder:'Yes/No'},
