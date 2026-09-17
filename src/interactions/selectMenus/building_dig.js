@@ -1,0 +1,6 @@
+import { ActionRowBuilder, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+export default { name:'building_dig', async execute(interaction,client,args) {
+  const schematic=args?.[0], dig=interaction.values?.[0]; if(!['yes','no'].includes(schematic)||!['yes','no'].includes(dig)) return interaction.reply({content:'❌ Invalid digging selection.',ephemeral:true});
+  if(dig==='no') { const modal=new ModalBuilder().setCustomId(`ticket_form:building_services:final:${schematic}:no:no:none`).setTitle('Building Service').addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ign').setLabel('IGN').setStyle(TextInputStyle.Short).setPlaceholder('Your Minecraft username').setRequired(true))); return interaction.showModal(modal); }
+  await interaction.update({content:'### ⛏️ Area Digging\n**What size of area needs to be dug?**',components:[new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`building_dig_coords:${schematic}`).setPlaceholder('Continue to area options').addOptions(new StringSelectMenuOptionBuilder().setLabel('Continue').setDescription('Enter area size and choose digging options').setValue('continue').setEmoji('➡️')))]});
+} };
