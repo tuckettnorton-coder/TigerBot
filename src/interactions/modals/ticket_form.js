@@ -7,6 +7,7 @@ import { calculateBuildingPrice, buildBuildingCalculationMessage } from '../../u
 import { parseAmount } from '../../utils/calculator.js';
 import { setBuildingDraft, getBuildingDraft, clearBuildingDraft } from '../../utils/buildingDrafts.js';
 import { setMiddlemanDraft } from '../../utils/middlemanDrafts.js';
+import { setPaidAdDraft } from '../../utils/paidAdDrafts.js';
 import { registerTicketEphemeral, clearTicketEphemeral, clearTicketEphemeralLater } from '../../utils/ticketEphemeral.js';
 
 const NUMBER_WORDS={zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
@@ -26,6 +27,21 @@ export default { name:'ticket_form', async execute(interaction,client,args){try{
    if(!yourIgn||!personIgn)return interaction.reply({content:'❌ Please enter both IGNs.',ephemeral:true});
    setMiddlemanDraft(interaction.user.id,{yourIgn,personIgn});
    await interaction.reply({content:'### 🤝 Middleman Service\n**Are spawners involved in this trade?**',components:[yesNoMenu('middleman_spawners','Are spawners involved?')],ephemeral:true});
+   registerTicketEphemeral(interaction.user.id,interaction);
+   return;
+ }
+
+ if(typeId==='advertisement'){
+   const adName=interaction.fields.getTextInputValue('ad_name').trim();
+   const adLink=interaction.fields.getTextInputValue('ad_link').trim();
+   const adContent=interaction.fields.getTextInputValue('ad_content').trim();
+   if(!adName||!adLink||!adContent)return interaction.reply({content:'❌ Please complete the advertisement name, invite link, and ad content.',ephemeral:true});
+   setPaidAdDraft(interaction.user.id,{adName,adLink,adContent});
+   await interaction.reply({content:'### 💰 Paid Advertisement\n**Which advertisement plan are you choosing?**',components:[new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('paid_ad_plan').setPlaceholder('Choose a plan').addOptions(
+     new StringSelectMenuOptionBuilder().setLabel('Premium Bundle — $3').setDescription('@everyone • Private Channel • Scheduled • +7 Days').setValue('premium'),
+     new StringSelectMenuOptionBuilder().setLabel('Standard Bundle — $2').setDescription('Partner Ping • Private Channel • +3 Days').setValue('standard'),
+     new StringSelectMenuOptionBuilder().setLabel('Basic Bundle — $1').setDescription('@here Ping').setValue('basic'),
+   ))],ephemeral:true});
    registerTicketEphemeral(interaction.user.id,interaction);
    return;
  }
