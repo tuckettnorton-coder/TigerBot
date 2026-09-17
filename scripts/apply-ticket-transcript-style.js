@@ -9,10 +9,12 @@ const ticketFile = path.join(__dirname, '..', 'src', 'services', 'ticket.js');
 let source = fs.readFileSync(ticketFile, 'utf8');
 let changed = false;
 
-const oldEmbed = /\s*const transcriptEmbed = buildStandardLogEmbed\(\{\n\s*color: 0x3498db,\n\s*title: 'Ticket Transcript',\n\s*description: \[\n\s*formatLogLine\('Ticket', `#\$\{ticketData\.id\}`\),\n\s*formatLogLine\('Channel', `#\$\{channel\.name\}`\),\n\s*formatLogLine\('Generated', `<t:\$\{Math\.floor\(Date\.now\(\) \/ 1000\):F>`\),\n\s*\]\.join\('\\\\n'\),\n\s*footer: deleter\?\.username\n\s*\? \{ text: `Deleted by \$\{deleter\.username\}`, iconURL: deleter\.displayAvatarURL\?\.\(\) \}\n\s*:\s*undefined,\n\s*timestamp: true,\n\s*\}\);/;
+const embedStartMarker = '                const transcriptEmbed = buildStandardLogEmbed({';
+const embedEndMarker = '\n\n                await transcriptChannel.send';
+const embedStart = source.indexOf(embedStartMarker);
+const embedEnd = embedStart >= 0 ? source.indexOf(embedEndMarker, embedStart) : -1;
 
-const newEmbed = `
-                const createdAt = ticketData.createdAt ? new Date(ticketData.createdAt).getTime() : Date.now();
+const newEmbed = `                const createdAt = ticketData.createdAt ? new Date(ticketData.createdAt).getTime() : Date.now();
                 const closedAt = ticketData.closedAt ? new Date(ticketData.closedAt).getTime() : Date.now();
                 const durationMinutes = Math.max(0, Math.floor((closedAt - createdAt) / 60000));
                 const messageCount = channel.messages.cache.size;
@@ -52,11 +54,11 @@ const newEmbed = `
                   timestamp: true,
                 });`;
 
-if (!oldEmbed.test(source)) {
-  console.log('[transcript-style] Embed already styled or source changed; no embed patch needed.');
-} else {
-  source = source.replace(oldEmbed, newEmbed);
+if (embedStart >= 0 && embedEnd >= 0) {
+  source = source.slice(0, embedStart) + newEmbed + source.slice(embedEnd);
   changed = true;
+} else {
+  console.log('[transcript-style] Transcript embed markers were not found; skipping embed patch.');
 }
 
 const oldAttachment = "const attachment = new AttachmentBuilder(buffer, { name: `ticket-${channel.id}.html` });";
