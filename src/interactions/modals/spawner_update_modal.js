@@ -1,73 +1,50 @@
 import { MessageFlags } from 'discord.js';
 import {
-  buildSpawnerModal,
-  loadPrices,
-  parseSpawnerSubmission,
-  persistPrices,
-  postPrices,
-} from '../../commands/Utility/spawner-update.js';
+  buildEditorPayload,
+  discardDraft,
+  getDraft,
+  updateDraftPrice,
+} from '../../commands/Utility/spawnerEditor.js';
 
-// Discord modals allow a maximum of 5 action rows. Since we need 12 individual
-// price fields (4 for each of 3 spawners), the editor walks through 3 modals:
-// Skeleton -> Creeper -> Iron Golem. Each modal has 4 separate price boxes.
-const drafts = new Map();
+const VALID_SPAWNERS = new Set(['skeleton', 'creeper', 'irongolem']);
+const VALID_FIELDS = new Set(['buy3', 'buy64', 'sell3', 'sell64']);
 
 export default {
-  name: 'spawner_update_modal',
+  name: 'spawner_price_edit',
 
   async execute(interaction, client, args = []) {
-    const step = args[0] || 'skeleton';
-    const userId = interaction.user.id;
-    const currentPrices = loadPrices();
+    const [spawner, field] = args;
 
-    if (step === 'skeleton') {
-      const draft = {
-        ...currentPrices,
-        skeleton: parseSpawnerSubmission(interaction, 'skeleton', currentPrices.skeleton),
-      };
-      drafts.set(userId, draft);
-
-      await interaction.showModal(buildSpawnerModal('creeper', draft));
+    if (!VALID_SPAWNERS.has(spawner) || !VALID_FIELDS.has(field)) {
+      await interaction.reply({ content: '⚠️ Invalid spawner price edit.', flags: MessageFlags.Ephemeral });
       return;
     }
 
-    if (step === 'creeper') {
-      const draft = drafts.get(userId) || currentPrices;
-      draft.creeper = parseSpawnerSubmission(interaction, 'creeper', draft.creeper);
-      drafts.set(userId, draft);
-
-      await interaction.showModal(buildSpawnerModal('irongolem', draft));
+    const draft = getDraft(interaction);
+    if (!draft) {
+      await interaction.reply({ content: '⚠️ Your price editor expired. Run `/spawner-update` again.', flags: MessageFlags.Ephemeral });
       return;
     }
 
-    if (step === 'irongolem') {
-      const draft = drafts.get(userId) || currentPrices;
-      draft.irongolem = parseSpawnerSubmission(interaction, 'irongolem', draft.irongolem);
-      drafts.delete(userId);
+    const value = interaction.fields.getTextInputValue('price').trim();
+    if (!value) {
+      await interaction.reply({ content: '⚠️ Enter a price before submitting.', flags: MessageFlags.Ephemeral });
+      return;
+    }
 
-      // Save all 12 values first so the next command opens with the new prices.
-      persistPrices(draft);
+    updateDraftPrice(interaction, spawner, field, value);
 
-      try {
-        await postPrices(client, draft);
-      } catch (error) {
-        await interaction.reply({
-          content: `⚠️ All 12 prices were saved, but I couldn't post the updated price list.\n\`${error.message}\``,
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
+    if (draft.messageId && draft.channelId) {
+      const channel = await client.channels.fetch(draft.channelId).catch(() => null);
+      const message = channel ? await channel.messages.fetch(draft.messageId).catch(() => null) : null;
+      if (message) {
+        await message.edit(buildEditorPayload(draft.prices));
       }
-
-      await interaction.reply({
-        content: '✅ All 12 spawner prices were updated, saved, and posted to the spawner-prices channel.',
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
     }
 
-    await interaction.reply({
-      content: '⚠️ Invalid spawner price update step. Please run `/spawner-update` again.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.reply({ content: `✅ ${spawner} ${field} updated to **${value}**.`, flags: MessageFlags.Ephemeral });
   },
 };
+
+// The old multi-screen modal handler is intentionally replaced. The editor now
+// uses one individual modal per price so all 12 prices remain visible together.
