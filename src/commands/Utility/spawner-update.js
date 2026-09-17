@@ -6,7 +6,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const SPAWNER_PRICE_CHANNEL_ID = '1504949441650622575';
+// Public spawner price channel: 💵│spawner-prices
+const SPAWNER_PRICE_CHANNEL_ID = '1530000000000000000';
 const SPAWNER_UPDATE_ROLE_ID = '1509955955063001218';
 const DATA_FILE = path.join(__dirname, 'spawnerPrices.json');
 
