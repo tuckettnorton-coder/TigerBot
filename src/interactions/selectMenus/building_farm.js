@@ -3,7 +3,7 @@ function schematicMenu(){return new ActionRowBuilder().addComponents(new StringS
 export default { name:'building_farm', async execute(interaction){
  const value=interaction.values?.[0];
  if(!['yes','no'].includes(value))return interaction.reply({content:'❌ Invalid farm selection.',ephemeral:true});
- if(value==='no')return interaction.reply({content:'### 🏗️ Building Service\n**Do you have a schematic?**',components:[schematicMenu()],ephemeral:true});
+ if(value==='no')return interaction.update({content:'### 🏗️ Building Service\n**Do you have a schematic?**',components:[schematicMenu()]});
  const modal=new ModalBuilder().setCustomId('ticket_form:building_services:value:yes').setTitle('Farm Earnings').addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('value').setLabel('Farm earnings per day').setStyle(TextInputStyle.Short).setPlaceholder('Example: 100M').setRequired(true)));
  await interaction.showModal(modal);
 } };
