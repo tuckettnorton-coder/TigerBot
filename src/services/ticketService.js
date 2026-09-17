@@ -236,8 +236,10 @@ export async function closeTicket(channel, actor) {
   const durationMinutes = Math.max(0, Math.floor((Date.now() - channel.createdTimestamp) / 60000));
   const creatorId = ticket.openerId;
   const subject = TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Support Ticket';
+  const closedAt = Math.floor(Date.now() / 1000);
 
   let transcriptMessage = null;
+  let transcriptAttachment = null;
 
   if (transcriptChannel) {
     const transcriptEmbed = new EmbedBuilder()
@@ -245,11 +247,11 @@ export async function closeTicket(channel, actor) {
       .setTitle('Auto-Generated Transcript')
       .setDescription(`Transcript automatically generated for ticket #${ticketNumber}`)
       .addFields(
-        { name: 'Ticket', value: [`Ticket #${ticketNumber}`, `Created by <@${creatorId}>`, `${messages.length} message${messages.length === 1 ? '' : 's'}`].join('\n') },
-        { name: 'Generation', value: [`Duration: ${durationMinutes} minute${durationMinutes === 1 ? '' : 's'}`, 'Status: Closed (Auto-transcript)'].join('\n') },
+        { name: 'Ticket', value: [`Ticket #${ticketNumber}`, `Server: ${channel.guild.name}`, `Created by <@${creatorId}>`, `${messages.length} message${messages.length === 1 ? '' : 's'}`].join('\n') },
+        { name: 'Closure', value: [`Closed by ${actorName}`, `<t:${closedAt}:f>`, 'Status: Closed'].join('\n') },
         { name: 'Subject', value: subject.slice(0, 1024) },
       )
-      .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
+      .setFooter({ text: 'Powered by TigerBot • Transcript Log' })
       .setTimestamp();
 
     transcriptMessage = await transcriptChannel.send({
@@ -257,7 +259,7 @@ export async function closeTicket(channel, actor) {
       files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
     });
 
-    const transcriptAttachment = transcriptMessage.attachments.first();
+    transcriptAttachment = transcriptMessage.attachments.first() || null;
     if (transcriptAttachment) {
       const transcriptLinkRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
@@ -268,15 +270,58 @@ export async function closeTicket(channel, actor) {
 
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
-    const panelLink = transcriptMessage?.url ? ` ${transcriptMessage.url}` : '';
+    const dmEmbed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle('Your Ticket Was Closed')
+      .setDescription(`Your support ticket in **${channel.guild.name}** has been closed by **${actorName}**.`)
+      .addFields({
+        name: 'Ticket',
+        value: [
+          `> Ticket #${ticketNumber}`,
+          `> Server: ${channel.guild.name}`,
+          `> Closed by ${actorName}`,
+        ].join('\n'),
+      })
+      .setFooter({ text: 'Powered by TigerBot • Ticket Transcript' })
+      .setTimestamp();
+
+    const dmComponents = transcriptAttachment
+      ? [new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
+        )]
+      : [];
+
     await owner.send({
-      content: `Your Tiger Market ticket **${channel.name}** has been closed. The full transcript file is attached.${panelLink ? ` It is also saved in the transcript panel: ${panelLink}` : ''}`,
+      embeds: [dmEmbed],
+      components: dmComponents,
       files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
     });
   } catch {}
 
   if (logChannel) {
-    await logChannel.send(`🔒 **Ticket closed** • ${channel.name} • ${actorName}`).catch(() => {});
+    const logEmbed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle('Ticket Closed')
+      .setDescription(`A ticket has been closed and its transcript has been saved.`)
+      .addFields(
+        { name: 'Ticket', value: [`#${ticketNumber}`, `#${channel.name}`].join('\n'), inline: true },
+        { name: 'Server', value: channel.guild.name, inline: true },
+        { name: 'Closed By', value: actorName, inline: true },
+        { name: 'Owner', value: `<@${creatorId}>`, inline: true },
+        { name: 'Messages', value: String(messages.length), inline: true },
+        { name: 'Time', value: `<t:${closedAt}:f>`, inline: true },
+      )
+      .setFooter({ text: 'Powered by TigerBot • Ticket Log' })
+      .setTimestamp();
+
+    await logChannel.send({
+      embeds: [logEmbed],
+      components: transcriptAttachment
+        ? [new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setLabel('View Transcript').setStyle(ButtonStyle.Link).setURL(transcriptAttachment.url),
+          )]
+        : [],
+    }).catch(() => {});
   }
 
   await channel.delete(`Ticket closed by ${actorName}`);
