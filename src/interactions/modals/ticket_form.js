@@ -2,59 +2,18 @@ import { createTicketChannel, logTicket } from '../../services/ticketService.js'
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 
 const NUMBER_WORDS = {
-  zero: 0,
-  one: 1,
-  two: 2,
-  three: 3,
-  four: 4,
-  five: 5,
-  six: 6,
-  seven: 7,
-  eight: 8,
-  nine: 9,
-  ten: 10,
-  eleven: 11,
-  twelve: 12,
-  thirteen: 13,
-  fourteen: 14,
-  fifteen: 15,
-  sixteen: 16,
-  seventeen: 17,
-  eighteen: 18,
-  nineteen: 19,
-  twenty: 20,
-  thirty: 30,
-  forty: 40,
-  fifty: 50,
-  sixty: 60,
-  seventy: 70,
-  eighty: 80,
-  ninety: 90,
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+  ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
+  seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50,
+  sixty: 60, seventy: 70, eighty: 80, ninety: 90,
 };
 
-const SCALE_WORDS = {
-  hundred: 100,
-  thousand: 1_000,
-  million: 1_000_000,
-  billion: 1_000_000_000,
-};
+const SCALE_WORDS = { hundred: 100, thousand: 1_000, million: 1_000_000, billion: 1_000_000_000 };
 
 function parseNumberWord(value) {
-  const normalized = String(value ?? '')
-    .toLowerCase()
-    .trim()
-    .replace(/[-,]/g, ' ')
-    .replace(/\s+/g, ' ');
-
+  const normalized = String(value ?? '').toLowerCase().trim().replace(/[-,]/g, ' ').replace(/\s+/g, ' ');
   if (!normalized) return null;
-
-  // Accept natural answers such as "three spawners" or "three spawner".
-  const cleaned = normalized
-    .replace(/\bspawners?\b/g, '')
-    .replace(/\b(?:items?|pcs?|pieces?)\b/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
+  const cleaned = normalized.replace(/\bspawners?\b/g, '').replace(/\b(?:items?|pcs?|pieces?)\b/g, '').replace(/\s+/g, ' ').trim();
   if (!cleaned || !/^[a-z ]+$/.test(cleaned)) return null;
 
   const words = cleaned.split(' ');
@@ -68,13 +27,11 @@ function parseNumberWord(value) {
       sawNumber = true;
       continue;
     }
-
     if (word === 'hundred') {
       if (!sawNumber || current === 0) return null;
       current *= 100;
       continue;
     }
-
     if (Object.prototype.hasOwnProperty.call(SCALE_WORDS, word)) {
       if (!sawNumber || current === 0) return null;
       total += current * SCALE_WORDS[word];
@@ -82,10 +39,7 @@ function parseNumberWord(value) {
       sawNumber = false;
       continue;
     }
-
-    // Allow phrases such as "one hundred and three".
     if (word === 'and') continue;
-
     return null;
   }
 
@@ -96,15 +50,11 @@ function parseNumberWord(value) {
 function parseSpawnerAmount(value) {
   const raw = String(value ?? '').trim().toLowerCase();
   if (!raw) return null;
-
-  // Normal numeric input: 3, 32, 128, 1,000, etc.
   const numericText = raw.replace(/,/g, '');
   if (/^\d+(?:\.\d+)?$/.test(numericText)) {
     const numeric = Number(numericText);
     return Number.isFinite(numeric) ? numeric : null;
   }
-
-  // Written input: three, four, twenty-five, one hundred, three spawners, etc.
   return parseNumberWord(raw);
 }
 
@@ -119,15 +69,30 @@ export default {
         return;
       }
 
-      const answers = Object.fromEntries(
-        ticket.form.map((field) => [field.id, interaction.fields.getTextInputValue(field.id)]),
-      );
-
-      // Buying/Selling Spawners requires a minimum of 3 spawners.
-      // Accept digits and written-out numbers, including phrases like "three spawners".
+      // Special spawner flow: Buy/Sell and spawner type come from dropdowns, never typed.
       if (typeId === 'buying_selling_spawners') {
-        const amount = parseSpawnerAmount(answers.amount);
+        const trade = args?.[1];
+        const spawnerType = args?.[2];
+        const validTrade = trade === 'buy' || trade === 'sell';
+        const validSpawner = ['skeleton', 'creeper', 'irongolem'].includes(spawnerType);
 
+        if (!validTrade || !validSpawner) {
+          await interaction.reply({ content: '❌ Invalid spawner ticket selection.', ephemeral: true });
+          return;
+        }
+
+        const answers = {
+          ign: interaction.fields.getTextInputValue('ign').trim(),
+          buy_or_sell: trade,
+          amount: interaction.fields.getTextInputValue('amount').trim(),
+          spawner_type: spawnerType,
+        };
+
+        const amount = parseSpawnerAmount(answers.amount);
+        if (!answers.ign) {
+          await interaction.reply({ content: '❌ Please enter your IGN.', ephemeral: true });
+          return;
+        }
         if (amount === null || !Number.isFinite(amount) || amount < 3) {
           await interaction.reply({
             content: '❌ **Minimum is 3 spawners.** Please enter an amount of **3 or more** (for example, `3`, `three`, or `three spawners`).',
@@ -135,7 +100,20 @@ export default {
           });
           return;
         }
+
+        await interaction.deferReply({ ephemeral: true });
+        const result = await createTicketChannel({ guild: interaction.guild, user: interaction.user, typeId, answers });
+        if (result.existing) return interaction.editReply(`You already have an open ticket: ${result.existing}`);
+
+        const displayName = interaction.member?.displayName || interaction.user.globalName || interaction.user.username;
+        await logTicket(interaction.guild, `🎫 **Ticket opened** • ${ticket.label} • ${displayName} • ${result.channel}`);
+        await interaction.editReply(`✅ Ticket created: ${result.channel}`);
+        return;
       }
+
+      const answers = Object.fromEntries(
+        ticket.form.map((field) => [field.id, interaction.fields.getTextInputValue(field.id)]),
+      );
 
       await interaction.deferReply({ ephemeral: true });
       const result = await createTicketChannel({ guild: interaction.guild, user: interaction.user, typeId, answers });
