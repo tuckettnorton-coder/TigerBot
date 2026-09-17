@@ -29,11 +29,14 @@ const DEFAULT_REFUND = [
   'Once the project has been started, no refunds will be issued.',
 ].join('\n');
 
+const DEFAULT_TICKET = 'Make a `Digging Service` <#1504949441650622575>  To Buy <@&1528495941328441456>';
+
 function cloneDefaults() {
   return {
     prices: { ...DEFAULT_PRICES },
     notes: DEFAULT_NOTES,
     refundPolicy: DEFAULT_REFUND,
+    ticket: DEFAULT_TICKET,
   };
 }
 
@@ -45,6 +48,7 @@ export function loadDiggingPrices() {
       prices: { ...defaults.prices, ...(parsed.prices || {}) },
       notes: parsed.notes || defaults.notes,
       refundPolicy: parsed.refundPolicy || defaults.refundPolicy,
+      ticket: parsed.ticket || defaults.ticket,
     };
   } catch {
     return cloneDefaults();
@@ -69,7 +73,7 @@ function saveMessageId(messageId) {
 }
 
 export function formatDiggingPriceMessage(data) {
-  const { prices, notes, refundPolicy } = data;
+  const { prices, notes, refundPolicy, ticket = DEFAULT_TICKET } = data;
   return [
     '# Digging Prices',
     `- ${prices.perBlock} Per block`,
@@ -82,7 +86,7 @@ export function formatDiggingPriceMessage(data) {
     '# 💰 Refund Policy',
     refundPolicy,
     '',
-    `### Make a \`Digging Service\` <#${DIGGING_TICKET_CHANNEL_ID}>  To Buy <@&${DIGGING_BUY_ROLE_ID}>`,
+    `### ${ticket}`,
   ].join('\n');
 }
 
