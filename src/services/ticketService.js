@@ -120,7 +120,6 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
 
   const ticketEmbed = new EmbedBuilder()
     .setTitle(ticket.label)
-    .setDescription(welcomeText)
     .addFields(
       { name: 'Ticket Code', value: `\`${code}\``, inline: true },
       ...answerFields,
@@ -130,6 +129,8 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   const closeOnlyRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
   );
+
+  await channel.send(welcomeText);
   await channel.send({ embeds: [ticketEmbed], components: [closeOnlyRow] });
 
   return { channel, metadata };
