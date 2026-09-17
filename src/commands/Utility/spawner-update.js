@@ -1,11 +1,4 @@
-import {
-  SlashCommandBuilder,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
-  PermissionFlagsBits,
-} from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -27,7 +20,9 @@ const DEFAULT_PRICES = {
   irongolem: { buy3: '18M', buy64: '17M', sell3: '8M', sell64: '9M' },
 };
 
-function cloneDefaults() { return JSON.parse(JSON.stringify(DEFAULT_PRICES)); }
+function cloneDefaults() {
+  return JSON.parse(JSON.stringify(DEFAULT_PRICES));
+}
 
 export function loadPrices() {
   try {
@@ -37,38 +32,13 @@ export function loadPrices() {
       creeper: { ...DEFAULT_PRICES.creeper, ...(parsed.creeper || {}) },
       irongolem: { ...DEFAULT_PRICES.irongolem, ...(parsed.irongolem || {}) },
     };
-  } catch { return cloneDefaults(); }
+  } catch {
+    return cloneDefaults();
+  }
 }
 
 function savePrices(prices) {
   fs.writeFileSync(DATA_FILE, `${JSON.stringify(prices, null, 2)}\n`, 'utf8');
-}
-
-function addPriceInput(modal, customId, label, value) {
-  const input = new TextInputBuilder()
-    .setCustomId(customId)
-    .setLabel(label)
-    .setStyle(TextInputStyle.Short)
-    .setValue(String(value ?? ''))
-    .setRequired(true)
-    .setMaxLength(100);
-  modal.addComponents(new ActionRowBuilder().addComponents(input));
-}
-
-export function buildSpawnerModal(spawner, prices) {
-  const names = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem' };
-  const modal = new ModalBuilder()
-    // The interaction loader splits custom IDs at ':' and passes the second
-    // part to the registered spawner_update_modal handler.
-    .setCustomId(`spawner_update_modal:${spawner}`)
-    .setTitle(`${names[spawner]} Spawner Prices`);
-
-  const current = prices[spawner];
-  addPriceInput(modal, `${spawner}_buy3`, '3+ Buy Price', current.buy3);
-  addPriceInput(modal, `${spawner}_buy64`, '64+ Buy Price', current.buy64);
-  addPriceInput(modal, `${spawner}_sell3`, '3+ Sell Price', current.sell3);
-  addPriceInput(modal, `${spawner}_sell64`, '64+ Sell Price', current.sell64);
-  return modal;
 }
 
 export function formatPriceMessage(prices) {
@@ -98,25 +68,25 @@ ${EMOJI_IRONGOLEM} **Iron Golem Spawners**
 
 export const data = new SlashCommandBuilder()
   .setName('spawner-update')
-  .setDescription('Update spawner buy/sell prices')
+  .setDescription('Open the 12-field spawner price editor')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
 export async function execute(interaction) {
-  await interaction.showModal(buildSpawnerModal('skeleton', loadPrices()));
+  const { startDraft, buildEditorPayload, setPanelLocation } = await import('./spawnerEditor.js');
+  startDraft(interaction);
+  const message = await interaction.reply({
+    ...buildEditorPayload(loadPrices()),
+    ephemeral: true,
+    fetchReply: true,
+  });
+  setPanelLocation(interaction, message);
 }
 
 export default { data, execute };
 
-export function parseSpawnerSubmission(interaction, spawner, fallback) {
-  return {
-    buy3: interaction.fields.getTextInputValue(`${spawner}_buy3`).trim() || fallback.buy3,
-    buy64: interaction.fields.getTextInputValue(`${spawner}_buy64`).trim() || fallback.buy64,
-    sell3: interaction.fields.getTextInputValue(`${spawner}_sell3`).trim() || fallback.sell3,
-    sell64: interaction.fields.getTextInputValue(`${spawner}_sell64`).trim() || fallback.sell64,
-  };
+export function persistPrices(prices) {
+  savePrices(prices);
 }
-
-export function persistPrices(prices) { savePrices(prices); }
 
 export async function postPrices(client, prices) {
   const channel = await client.channels.fetch(SPAWNER_PRICE_CHANNEL_ID);
