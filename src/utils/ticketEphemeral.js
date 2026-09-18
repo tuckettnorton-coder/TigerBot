@@ -10,6 +10,7 @@ export function registerTicketEphemeral(userId, interaction) {
 export async function clearTicketEphemeral(userId) {
   const interaction = sessions.get(userId);
   sessions.delete(userId);
+  await resetMainTicketPanel(userId);
   if (!interaction) return;
   await interaction.deleteReply().catch(() => {});
 }
