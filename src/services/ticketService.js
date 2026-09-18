@@ -333,3 +333,8 @@ export async function closeTicket(channel, actor) {
   await channel.delete(`Ticket closed by ${actorName}`);
 }
 
+
+// Kept for compatibility with existing interaction handlers. Ticket logging is intentionally disabled.
+export async function logTicket(_guild, _message) {
+  return null;
+}
