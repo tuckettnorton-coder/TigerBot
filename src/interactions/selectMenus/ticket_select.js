@@ -42,7 +42,9 @@ function buildPaidAdPlanMenu() { const p=loadPaidAdPrices(); return new ActionRo
 export default { name:'ticket_select', async execute(interaction) {
   try {
     const typeId=interaction.values?.[0]; const ticket=TICKET_TYPES[typeId]; if(!ticket)return interaction.reply({content:'That ticket type is unavailable.',ephemeral:true});
-    // Reset the main ticket dropdown immediately so it returns to its placeholder after every selection.\n    await resetMainTicketMenu(interaction);\n    const existing=await findExistingTicket(interaction.guild,interaction.user.id,ticket.categoryName); if(existing)return interaction.reply({content:`You already have an open ${ticket.label} ticket: ${existing}`,ephemeral:true});
+    // Reset the main ticket dropdown immediately so it returns to its placeholder after every selection.
+    await resetMainTicketMenu(interaction);
+    const existing=await findExistingTicket(interaction.guild,interaction.user.id,ticket.categoryName); if(existing)return interaction.reply({content:`You already have an open ${ticket.label} ticket: ${existing}`,ephemeral:true});
     if(typeId==='advertisement'){setPaidAdDraft(interaction.user.id,{});await interaction.reply({content:'### 💰 Paid Advertisement\n**What paid advertisement would you like?**\n\nChoose one of the current plans below.',components:[buildPaidAdPlanMenu(), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}
     if(typeId==='buying_selling_spawners'){await interaction.reply({content:'### 💸 Buying/Selling Spawners\nFirst, select whether you want to **Buy** or **Sell**.',components:[buildSpawnerTradeMenu(), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}
     if(typeId==='digging_services'){await interaction.reply({content:'### ⛏️ Digging Service\n**Do you have an area?**\nSelect an option below.',components:[buildYesNoMenu('digging_area','Do you have an area?','I have an area/location','I need the builder to choose the area'), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}
