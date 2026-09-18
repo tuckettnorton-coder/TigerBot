@@ -247,9 +247,7 @@ export async function closeTicket(channel, actor) {
   const ticket = getTicketFromChannel(channel);
   if (!ticket) throw new Error('This channel is not a managed ticket.');
   const transcriptChannel = await findUtilityChannel(channel.guild, TRANSCRIPT_CHANNEL_NAME);
-  const logChannel = await findUtilityChannel(channel.guild, LOG_CHANNEL_NAME);
   if (!transcriptChannel) throw new Error(`The #${TRANSCRIPT_CHANNEL_NAME} channel was not found. Please create it first.`);
-  if (!logChannel) throw new Error(`The #${LOG_CHANNEL_NAME} channel was not found. Please create it first.`);
 
   const messages = await fetchAllMessages(channel);
   const html = buildTranscriptHtml(channel, actor, messages);
@@ -332,11 +330,6 @@ export async function closeTicket(channel, actor) {
     // Do not let a failed DM prevent the ticket from being closed.
     console.warn(`Could not DM transcript to ticket creator ${ticket.openerId}: ${dmError.message}`);
   }
-  await logChannel.send(`🔒 **Ticket closed** • ${channel.name} • ${actorName}`);
   await channel.delete(`Ticket closed by ${actorName}`);
 }
 
-export async function logTicket(guild, message) {
-  const logChannel = await findUtilityChannel(guild, LOG_CHANNEL_NAME);
-  if (logChannel) await logChannel.send(message);
-}
