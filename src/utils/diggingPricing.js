@@ -14,8 +14,22 @@ function parseDimension(value) {
 }
 
 export function parseAreaDimensions(value) {
-  const parts = String(value || '').trim().toLowerCase().replace(/[×*]/g, 'x').split(/\s*x\s*/).filter(Boolean);
-  if (parts.length !== 3) throw new Error('Area size must be entered as width x length x height, for example 100 x 100 x 50.');
+  const raw = String(value || '').trim().toLowerCase();
+
+  // Accept the normal format (100 x 10 x 50) as well as a simple
+  // space-separated format (100 10 50). Users do not need to type
+  // multiplication signs for area dimensions.
+  let parts;
+  if (/[x×*]/.test(raw)) {
+    parts = raw.replace(/[×*]/g, 'x').split(/\s*x\s*/).filter(Boolean);
+  } else {
+    parts = raw.split(/[\s,]+/).filter(Boolean);
+  }
+
+  if (parts.length !== 3) {
+    throw new Error('Area size must contain width, length, and height, for example 100 10 50.');
+  }
+
   const [width, length, height] = parts.map(parseDimension);
   const blocks = width * length * height;
   if (!Number.isSafeInteger(blocks)) throw new Error('The area is too large to calculate safely.');
