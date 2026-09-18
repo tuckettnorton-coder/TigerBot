@@ -276,10 +276,26 @@ export async function closeTicket(channel, actor) {
   await transcriptChannel.send({ embeds: [transcriptEmbed], files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
-    await owner.send({
+    // Send the transcript first so Discord gives us a permanent attachment URL.
+    // The URL button below opens the exact transcript attachment from the DM.
+    const transcriptMessage = await owner.send({
       content: `Your Tiger Market ticket **${channel.name}** has been closed. The transcript has been saved.`,
       files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
     });
+    const transcriptAttachment = transcriptMessage.attachments.first();
+    if (transcriptAttachment?.url) {
+      const downloadRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel('Download Transcript')
+          .setEmoji('📄')
+          .setStyle(ButtonStyle.Link)
+          .setURL(transcriptAttachment.url),
+      );
+      await owner.send({
+        content: 'Click the button below to view or download your transcript.',
+        components: [downloadRow],
+      });
+    }
   } catch (dmError) {
     // Do not let a failed DM prevent the ticket from being closed.
     console.warn(`Could not DM transcript to ticket creator ${ticket.openerId}: ${dmError.message}`);
