@@ -273,7 +273,7 @@ export async function closeTicket(channel, actor) {
     .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
     .setTimestamp();
 
-  const transcriptLogMessage = await transcriptChannel.send({ embeds: [transcriptEmbed], files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
+  const transcriptLogMessage = await transcriptChannel.send({ files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
     // Send the transcript first so Discord gives us a permanent attachment URL.
@@ -309,6 +309,10 @@ export async function closeTicket(channel, actor) {
       embeds: [closureEmbed],
       ...(downloadRow ? { components: [downloadRow] } : {}),
     });
+
+    if (transcriptLogMessage?.deletable) {
+      await transcriptLogMessage.delete().catch(() => {});
+    }
   } catch (dmError) {
     // Do not let a failed DM prevent the ticket from being closed.
     console.warn(`Could not DM transcript to ticket creator ${ticket.openerId}: ${dmError.message}`);
