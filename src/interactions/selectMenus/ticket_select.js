@@ -11,19 +11,31 @@ async function resetMainTicketMenu(interaction) {
   const message = interaction.message;
   if (!message?.components?.length) return;
 
+  // Rebuild every select menu without any selected/default option.
+  // This is done immediately when the user picks a ticket type, before
+  // opening any modal/private flow, so closing the modal cannot leave the
+  // public panel visually selected.
   const components = message.components.map((row) => {
     const data = row.toJSON();
     data.components = data.components.map((component) => {
       if (component.type !== 3 || !Array.isArray(component.options)) return component;
       return {
         ...component,
-        options: component.options.map((option) => ({ ...option, default: false })),
+        options: component.options.map((option) => {
+          const clean = { ...option };
+          delete clean.default;
+          return clean;
+        }),
       };
     });
     return data;
   });
 
-  await message.edit({ components }).catch(() => {});
+  try {
+    await message.edit({ components });
+  } catch {
+    // Ignore edit failures; the ticket flow can continue normally.
+  }
 }
 
 function buildPaidAdPlanMenu() { const p=loadPaidAdPrices(); return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('paid_ad_plan').setPlaceholder('Choose your advertisement plan...').addOptions(new StringSelectMenuOptionBuilder().setLabel(`💎 Premium Bundle — $${Number(p.premium).toFixed(2)}`).setDescription('@everyone • Private Channel • Scheduled • +7 Days').setValue('premium'),new StringSelectMenuOptionBuilder().setLabel(`🚀 Standard Bundle — $${Number(p.standard).toFixed(2)}`).setDescription('Partner Ping • Private Channel • +3 Days').setValue('standard'),new StringSelectMenuOptionBuilder().setLabel(`📢 Basic Bundle — $${Number(p.basic).toFixed(2)}`).setDescription('@here Ping').setValue('basic'))); }
