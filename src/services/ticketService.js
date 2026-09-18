@@ -273,14 +273,15 @@ export async function closeTicket(channel, actor) {
     .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
     .setTimestamp();
 
-  // Remove legacy transcript panels so only the new clean panel remains.
-  const legacyMessages = await transcriptChannel.messages.fetch({ limit: 100 }).catch(() => null);
-  if (legacyMessages) {
-    const oldTranscriptMessages = legacyMessages.filter((message) =>
-      message.author?.id === channel.client.user.id &&
-      message.embeds?.some((embed) => embed.title === 'Auto-Generated Transcript')
+  // The transcripts channel is dedicated to ticket transcripts. Remove ALL
+  // previous TigerBot transcript messages first so the channel does not keep
+  // the old "Auto-Generated Transcript" panels or duplicate transcript posts.
+  const existingTranscriptMessages = await transcriptChannel.messages.fetch({ limit: 100 }).catch(() => null);
+  if (existingTranscriptMessages) {
+    const botMessages = existingTranscriptMessages.filter(
+      (message) => message.author?.id === channel.client.user.id,
     );
-    for (const message of oldTranscriptMessages.values()) {
+    for (const message of botMessages.values()) {
       await message.delete().catch(() => {});
     }
   }
