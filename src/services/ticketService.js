@@ -261,18 +261,6 @@ export async function closeTicket(channel, actor) {
   const creatorId = ticket.openerId;
   const subject = TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Support Ticket';
 
-  const transcriptEmbed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle('Auto-Generated Transcript')
-    .setDescription(`Transcript automatically generated for ticket #${ticketNumber}`)
-    .addFields(
-      { name: 'Ticket', value: [`Ticket #${ticketNumber}`, `Created by <@${creatorId}>`, `${messages.length} message${messages.length === 1 ? '' : 's'}`].join('\n') },
-      { name: 'Generation', value: [`Duration: ${durationMinutes} minute${durationMinutes === 1 ? '' : 's'}`, 'Status: Closed (Auto-transcript)'].join('\n') },
-      { name: 'Subject', value: subject.slice(0, 1024) },
-    )
-    .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
-    .setTimestamp();
-
   // The transcripts channel is dedicated to ticket transcripts. Remove ALL
   // previous TigerBot transcript messages first so the channel does not keep
   // the old "Auto-Generated Transcript" panels or duplicate transcript posts.
@@ -292,20 +280,31 @@ export async function closeTicket(channel, actor) {
   storeTranscript(transcriptToken, transcriptBuffer, transcriptFileName);
 
   const closedAt = Math.floor(Date.now() / 1000);
-  const closureEmbed = new EmbedBuilder()
-    .setTitle('Your Ticket Was Closed')
-    .setDescription(`Your support ticket in **Tiger Market** has been closed by ${actorName}.`)
-    .addFields({
-      name: 'Ticket',
-      value: [
-        `> Ticket #${ticketNumber}`,
-        '> Server: Tiger Market',
-        `> Closed by ${actorName}`,
-        `> Closed on <t:${closedAt}:F>`,
-      ].join('\\n'),
-    })
-    .setFooter({ text: 'Powered by TigerBot' })
-    .setTimestamp(new Date(closedAt * 1000));
+  const transcriptEmbed = new EmbedBuilder()
+    .setTitle('Auto-Generated Transcript')
+    .setDescription(`Transcript automatically generated for ticket #${ticketNumber}`)
+    .addFields(
+      {
+        name: 'Ticket',
+        value: [
+          `> Ticket #${ticketNumber}`,
+          `> Created by <@${creatorId}>`,
+          `> ${messages.length} message${messages.length === 1 ? '' : 's'}`,
+        ].join('\\n'),
+      },
+      {
+        name: 'Generation',
+        value: [
+          `> Duration: ${durationMinutes} minute${durationMinutes === 1 ? '' : 's'}`,
+          '> Status: Closed (Auto-transcript)',
+        ].join('\\n'),
+      },
+      {
+        name: 'Subject',
+        value: `> ${subject.slice(0, 1024)}`,
+      },
+    )
+    .setFooter({ text: `Powered by TicketCord.com • <t:${closedAt}:f>` });
   const downloadRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
        .setCustomId('download_transcript')
@@ -316,7 +315,7 @@ export async function closeTicket(channel, actor) {
 
   // Send exactly one message: the same clean panel and download button used in DMs.
   const transcriptPanelMessage = await transcriptChannel.send({
-    embeds: [closureEmbed],
+    embeds: [transcriptEmbed],
     components: [downloadRow],
   });
   bindTranscriptMessage(transcriptPanelMessage.id, transcriptToken);
