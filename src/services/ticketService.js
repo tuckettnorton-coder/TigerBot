@@ -323,7 +323,7 @@ export async function closeTicket(channel, actor) {
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
     const dmMessage = await owner.send({
-      embeds: [closureEmbed],
+      embeds: [transcriptEmbed],
       components: [downloadRow],
     });
     bindTranscriptMessage(dmMessage.id, transcriptToken);
