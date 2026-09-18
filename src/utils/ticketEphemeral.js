@@ -1,4 +1,4 @@
-import { ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
 
 const sessions = new Map();
 const mainPanels = new Map();
@@ -8,7 +8,7 @@ export function registerTicketEphemeral(userId, interaction) {
   sessions.set(userId, interaction);
   // Only store the original public ticket panel. Do not overwrite it with
   // later modal/select interactions that have no message or use ephemeral messages.
-  if (interaction.message?.components?.length) {
+  if (interaction.message?.components?.length && !interaction.message.flags?.has(MessageFlags.Ephemeral)) {
     mainPanels.set(userId, interaction.message);
   }
 }
