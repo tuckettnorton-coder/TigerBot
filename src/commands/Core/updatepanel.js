@@ -8,7 +8,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const MESSAGE_FILE = path.join(__dirname, 'updatePanelMessage.json');
 
-// These MUST match the real registered slash-command names.
 const UPDATE_BUTTONS = [
   { command: 'spawner-update', label: 'Spawners', emoji: '🕷️', style: ButtonStyle.Primary },
   { command: 'digging-update', label: 'Digging', emoji: '⛏️', style: ButtonStyle.Secondary },
@@ -19,14 +18,20 @@ const UPDATE_BUTTONS = [
 ];
 
 function saveMessageId(messageId, channelId) {
-  fs.writeFileSync(MESSAGE_FILE, `${JSON.stringify({ messageId, channelId }, null, 2)}\n`, 'utf8');
+  try {
+    fs.writeFileSync(MESSAGE_FILE, JSON.stringify({ messageId, channelId }, null, 2) + '\n', 'utf8');
+  } catch {}
 }
 
 async function deletePreviousPanel(channel, client) {
-  let saved = null;
   const state = await getUpdateState(client, channel.guild.id);
-  if (state.updatePanel?.channelId === channel.id && state.updatePanel?.messageId) saved = state.updatePanel;
-  try { saved = JSON.parse(fs.readFileSync(MESSAGE_FILE, 'utf8')); } catch {}
+  let saved = state.updatePanel;
+
+  if (!saved?.messageId || saved.channelId !== channel.id) {
+    try {
+      saved = JSON.parse(fs.readFileSync(MESSAGE_FILE, 'utf8'));
+    } catch {}
+  }
 
   if (saved?.messageId && saved.channelId === channel.id) {
     try {
@@ -39,7 +44,8 @@ async function deletePreviousPanel(channel, client) {
   try {
     const messages = await channel.messages.fetch({ limit: 50 });
     const oldPanel = messages.find((message) =>
-      message.author?.bot && message.components?.some((row) =>
+      message.author?.id === client.user?.id &&
+      message.components?.some((row) =>
         row.components?.some((component) =>
           typeof component.customId === 'string' && component.customId.startsWith('update_panel:'),
         ),
@@ -51,12 +57,11 @@ async function deletePreviousPanel(channel, client) {
 
 export function buildUpdatePanel(client) {
   const rows = [];
-
   for (let i = 0; i < UPDATE_BUTTONS.length; i += 5) {
     const buttons = UPDATE_BUTTONS.slice(i, i + 5).map((item) => {
       const exists = Boolean(client.commands?.get(item.command));
       return new ButtonBuilder()
-        .setCustomId(`update_panel:${item.command}`)
+        .setCustomId('update_panel:' + item.command)
         .setLabel(item.label)
         .setEmoji(item.emoji)
         .setStyle(item.style)
@@ -85,14 +90,22 @@ export async function execute(interaction, guildConfig, client) {
   await interaction.deferReply({ ephemeral: true });
   try {
     await deletePreviousPanel(interaction.channel, client);
-    const panel = buildUpdatePanel(client);
-    const message = await interaction.channel.send(panel);
+    const message = await interaction.channel.send(buildUpdatePanel(client));
+
+    // Database is authoritative. The local JSON file is only a compatibility
+    // fallback and must never override a newer database value.
     saveMessageId(message.id, interaction.channel.id);
-    await setUpdateState(client, interaction.guildId, { updatePanel: { messageId: message.id, channelId: interaction.channel.id } });
-    await setUpdateState(client, interaction.guildId, { updatePanel: { messageId: message.id, channelId: interaction.channel.id } });
-    await interaction.editReply('✅ **Update panel posted.** The previous update panel in this channel was replaced.');
+    const saved = await setUpdateState(client, interaction.guildId, {
+      updatePanel: { messageId: message.id, channelId: interaction.channel.id },
+    });
+
+    if (!saved) {
+      throw new Error('The update panel was posted, but its persistent database state could not be saved.');
+    }
+
+    await interaction.editReply('✅ **Update panel posted.** The previous update panel in this channel was replaced and the new message ID was saved persistently.');
   } catch (error) {
-    await interaction.editReply(`❌ **Update panel failed:** ${error?.message || 'Unknown error.'}`);
+    await interaction.editReply('❌ **Update panel failed:** ' + (error?.message || 'Unknown error.'));
   }
 }
 
