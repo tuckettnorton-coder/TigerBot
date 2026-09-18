@@ -279,7 +279,6 @@ export async function closeTicket(channel, actor) {
     // Send the transcript first so Discord gives us a permanent attachment URL.
     // The URL button below opens the exact transcript attachment from the DM.
     const transcriptMessage = await owner.send({
-      content: `Your Tiger Market ticket **${channel.name}** has been closed. The transcript has been saved.`,
       files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
     });
     const transcriptAttachment = transcriptMessage.attachments.first();
@@ -291,8 +290,23 @@ export async function closeTicket(channel, actor) {
           .setStyle(ButtonStyle.Link)
           .setURL(transcriptAttachment.url),
       );
+      const closedAt = Math.floor(Date.now() / 1000);
+      const closureEmbed = new EmbedBuilder()
+        .setTitle('Your Ticket Was Closed')
+        .setDescription(`Your support ticket in **Tiger Market** has been closed by ${actorName}.`)
+        .addFields({
+          name: 'Ticket',
+          value: [
+            `> Ticket #${ticketNumber}`,
+            '> Server: Tiger Market',
+            `> Closed by ${actorName}`,
+          ].join('\\n'),
+        })
+        .setFooter({ text: 'Powered by TigerBot' })
+        .setTimestamp(new Date(closedAt * 1000));
+
       await owner.send({
-        content: 'Click the button below to view or download your transcript.',
+        embeds: [closureEmbed],
         components: [downloadRow],
       });
     }
