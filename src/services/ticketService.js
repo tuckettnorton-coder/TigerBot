@@ -273,6 +273,18 @@ export async function closeTicket(channel, actor) {
     .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
     .setTimestamp();
 
+  // Remove legacy transcript panels so only the new clean panel remains.
+  const legacyMessages = await transcriptChannel.messages.fetch({ limit: 100 }).catch(() => null);
+  if (legacyMessages) {
+    const oldTranscriptMessages = legacyMessages.filter((message) =>
+      message.author?.id === channel.client.user.id &&
+      message.embeds?.some((embed) => embed.title === 'Auto-Generated Transcript')
+    );
+    for (const message of oldTranscriptMessages.values()) {
+      await message.delete().catch(() => {});
+    }
+  }
+
   const transcriptLogMessage = await transcriptChannel.send({
     files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
   });
