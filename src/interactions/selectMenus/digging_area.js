@@ -13,7 +13,7 @@ export default {
         .setTitle('Digging Service')
         .addComponents(
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('area_size').setLabel('Area size (width x length x height)').setStyle(TextInputStyle.Short).setPlaceholder('Example: 100 x 100 x 50').setRequired(true),
+            new TextInputBuilder().setCustomId('area_size').setLabel('Area size (width x length x height)').setStyle(TextInputStyle.Short).setPlaceholder('100 × 10 × 50 or 100 10 50').setRequired(true),
           ),
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId('ign').setLabel('IGN').setStyle(TextInputStyle.Short).setPlaceholder('Your Minecraft username').setRequired(true),
