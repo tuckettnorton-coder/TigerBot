@@ -1,6 +1,5 @@
 import {
   ActionRowBuilder,
-  AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
@@ -8,6 +7,7 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import { TICKET_TYPES } from '../config/ticketTypes.js';
+import { storeTranscript } from './transcriptStore.js';
 
 const LOG_CHANNEL_NAME = '📝│logs';
 const TRANSCRIPT_CHANNEL_NAME = '📝│transcripts';
@@ -286,10 +286,11 @@ export async function closeTicket(channel, actor) {
     }
   }
 
-  const transcriptLogMessage = await transcriptChannel.send({
-    files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
-  });
-  const transcriptAttachment = transcriptLogMessage.attachments.first();
+  // Store the transcript behind a button instead of uploading it into the
+  // transcripts channel. This keeps the channel message identical to the DM.
+  const transcriptToken = `transcript:${channel.id}:${Date.now()}`;
+  storeTranscript(transcriptToken, transcriptBuffer, transcriptFileName);
+
   const closedAt = Math.floor(Date.now() / 1000);
   const closureEmbed = new EmbedBuilder()
     .setTitle('Your Ticket Was Closed')
@@ -305,28 +306,25 @@ export async function closeTicket(channel, actor) {
     })
     .setFooter({ text: 'Powered by TigerBot' })
     .setTimestamp(new Date(closedAt * 1000));
-  const downloadRow = transcriptAttachment?.url
-    ? new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setLabel('Download Transcript')
-          .setEmoji('📄')
-          .setStyle(ButtonStyle.Link)
-          .setURL(transcriptAttachment.url),
-      )
-    : null;
+  const downloadRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(transcriptToken)
+      .setLabel('Download Transcript')
+      .setEmoji('📄')
+      .setStyle(ButtonStyle.Secondary),
+  );
 
-  // Edit the same transcript message so the channel contains one clean panel
-  // with the download button and the transcript attachment behind it.
-  await transcriptLogMessage.edit({
+  // Send exactly one message: the same clean panel and download button used in DMs.
+  await transcriptChannel.send({
     embeds: [closureEmbed],
-    ...(downloadRow ? { components: [downloadRow] } : {}),
+    components: [downloadRow],
   });
 
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
     await owner.send({
       embeds: [closureEmbed],
-      ...(downloadRow ? { components: [downloadRow] } : {}),
+      components: [downloadRow],
     });
 
   } catch (dmError) {
