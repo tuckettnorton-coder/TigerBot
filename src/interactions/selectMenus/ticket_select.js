@@ -11,28 +11,27 @@ async function resetMainTicketMenu(interaction) {
   const message = interaction.message;
   if (!message?.components?.length) return;
 
-  // Rebuild every select menu without any selected/default option.
-  // This is done immediately when the user picks a ticket type, before
-  // opening any modal/private flow, so closing the modal cannot leave the
-  // public panel visually selected.
-  const components = message.components.map((row) => {
+  // Discord clients can keep the clicked option visually selected until the
+  // component is forced to rerender. We do that by briefly disabling the
+  // public menu, then immediately restoring it with no default option.
+  const buildComponents = (disabled) => message.components.map((row) => {
     const data = row.toJSON();
     data.components = data.components.map((component) => {
       if (component.type !== 3 || !Array.isArray(component.options)) return component;
-      return {
-        ...component,
-        options: component.options.map((option) => {
-          const clean = { ...option };
-          delete clean.default;
-          return clean;
-        }),
-      };
+      const cleanOptions = component.options.map((option) => {
+        const clean = { ...option };
+        delete clean.default;
+        return clean;
+      });
+      return { ...component, disabled, options: cleanOptions };
     });
     return data;
   });
 
   try {
-    await message.edit({ components });
+    await message.edit({ components: buildComponents(true) });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await message.edit({ components: buildComponents(false) });
   } catch {
     // Ignore edit failures; the ticket flow can continue normally.
   }
