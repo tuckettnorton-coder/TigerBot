@@ -278,7 +278,24 @@ export async function closeTicket(channel, actor) {
     const owner = await channel.guild.members.fetch(ticket.openerId);
     // Send the transcript first so Discord gives us a permanent attachment URL.
     // The URL button below opens the exact transcript attachment from the DM.
+    const closedAt = Math.floor(Date.now() / 1000);
+    const closureEmbed = new EmbedBuilder()
+      .setTitle('Your Ticket Was Closed')
+      .setDescription(`Your support ticket in **Tiger Market** has been closed by ${actorName}.`)
+      .addFields({
+        name: 'Ticket',
+        value: [
+          `> Ticket #${ticketNumber}`,
+          '> Server: Tiger Market',
+          `> Closed by ${actorName}`,
+          `> Closed on <t:${closedAt}:F>`,
+        ].join('\\n'),
+      })
+      .setFooter({ text: 'Powered by TigerBot' })
+      .setTimestamp(new Date(closedAt * 1000));
+
     const transcriptMessage = await owner.send({
+      embeds: [closureEmbed],
       files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
     });
     const transcriptAttachment = transcriptMessage.attachments.first();
@@ -290,23 +307,7 @@ export async function closeTicket(channel, actor) {
           .setStyle(ButtonStyle.Link)
           .setURL(transcriptAttachment.url),
       );
-      const closedAt = Math.floor(Date.now() / 1000);
-      const closureEmbed = new EmbedBuilder()
-        .setTitle('Your Ticket Was Closed')
-        .setDescription(`Your support ticket in **Tiger Market** has been closed by ${actorName}.`)
-        .addFields({
-          name: 'Ticket',
-          value: [
-            `> Ticket #${ticketNumber}`,
-            '> Server: Tiger Market',
-            `> Closed by ${actorName}`,
-          ].join('\\n'),
-        })
-        .setFooter({ text: 'Powered by TigerBot' })
-        .setTimestamp(new Date(closedAt * 1000));
-
       await owner.send({
-        embeds: [closureEmbed],
         components: [downloadRow],
       });
     }
