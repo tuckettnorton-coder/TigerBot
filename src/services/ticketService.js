@@ -273,7 +273,7 @@ export async function closeTicket(channel, actor) {
     .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
     .setTimestamp();
 
-  await transcriptChannel.send({ embeds: [transcriptEmbed], files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
+  const transcriptLogMessage = await transcriptChannel.send({ embeds: [transcriptEmbed], files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
     // Send the transcript first so Discord gives us a permanent attachment URL.
@@ -294,23 +294,21 @@ export async function closeTicket(channel, actor) {
       .setFooter({ text: 'Powered by TigerBot' })
       .setTimestamp(new Date(closedAt * 1000));
 
-    const transcriptMessage = await owner.send({
+    const transcriptAttachment = transcriptLogMessage.attachments.first();
+    const downloadRow = transcriptAttachment?.url
+      ? new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel('Download Transcript')
+            .setEmoji('📄')
+            .setStyle(ButtonStyle.Link)
+            .setURL(transcriptAttachment.url),
+        )
+      : null;
+
+    await owner.send({
       embeds: [closureEmbed],
-      files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
+      ...(downloadRow ? { components: [downloadRow] } : {}),
     });
-    const transcriptAttachment = transcriptMessage.attachments.first();
-    if (transcriptAttachment?.url) {
-      const downloadRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setLabel('Download Transcript')
-          .setEmoji('📄')
-          .setStyle(ButtonStyle.Link)
-          .setURL(transcriptAttachment.url),
-      );
-      await owner.send({
-        components: [downloadRow],
-      });
-    }
   } catch (dmError) {
     // Do not let a failed DM prevent the ticket from being closed.
     console.warn(`Could not DM transcript to ticket creator ${ticket.openerId}: ${dmError.message}`);
