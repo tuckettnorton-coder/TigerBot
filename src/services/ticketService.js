@@ -176,7 +176,10 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
 
   const mentions = pingRoles.map((role) => `<@&${role.id}>`).join(' ');
   const displayName = user.displayName || user.username;
-  const welcomeText = buildWelcomeText(guild, ticket.welcomeMessage, user, `${displayName} Welcome! ${mentions || 'Staff'} will get to you shortly.`);
+  let welcomeText = buildWelcomeText(guild, ticket.welcomeMessage, user, `${displayName} Welcome! ${mentions || 'Staff'} will get to you shortly.`);
+  // Always include the ticket creator's mention and explicitly allow that user mention.
+  // This prevents Discord's allowed-mentions settings from silently suppressing the creator ping.
+  if (!welcomeText.includes(`<@${user.id}>`)) welcomeText = `<@${user.id}> ${welcomeText}`;
   const answerFields = Object.keys(answers).length && ticket.form?.length
     ? ticket.form
         .filter((field) => answers[field.id] !== undefined && answers[field.id] !== '—')
@@ -191,7 +194,10 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   );
   const welcomeRoleIds = [...welcomeText.matchAll(/<@&(\d+)>/g)].map((match) => match[1]);
   const allowedRoleIds = [...new Set([...pingRoles.map((role) => role.id), ...welcomeRoleIds])];
-  await channel.send({ content: welcomeText, allowedMentions: { parse: ['users'], roles: allowedRoleIds } });
+  await channel.send({
+    content: welcomeText,
+    allowedMentions: { users: [user.id], roles: allowedRoleIds },
+  });
   await channel.send({ embeds: [ticketEmbed], components: [ticketActionRow] });
 
   return { channel, metadata: { typeId, openerId: user.id, categoryName: ticket.categoryName, code } };
@@ -270,8 +276,14 @@ export async function closeTicket(channel, actor) {
   await transcriptChannel.send({ embeds: [transcriptEmbed], files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
-    await owner.send({ content: `Your Tiger Market ticket **${channel.name}** has been closed. The transcript has been saved.` }).catch(() => {});
-  } catch {}
+    await owner.send({
+      content: `Your Tiger Market ticket **${channel.name}** has been closed. The transcript has been saved.`,
+      files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
+    });
+  } catch (dmError) {
+    // Do not let a failed DM prevent the ticket from being closed.
+    console.warn(`Could not DM transcript to ticket creator ${ticket.openerId}: ${dmError.message}`);
+  }
   await logChannel.send(`🔒 **Ticket closed** • ${channel.name} • ${actorName}`);
   await channel.delete(`Ticket closed by ${actorName}`);
 }
