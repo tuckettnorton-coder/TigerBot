@@ -1,4 +1,5 @@
 const transcripts = new Map();
+const messageToToken = new Map();
 
 export function storeTranscript(token, buffer, fileName) {
   transcripts.set(token, { buffer, fileName, createdAt: Date.now() });
@@ -14,4 +15,13 @@ export function storeTranscript(token, buffer, fileName) {
 
 export function getTranscript(token) {
   return transcripts.get(token) || null;
+}
+
+export function bindTranscriptMessage(messageId, token) {
+  messageToToken.set(messageId, token);
+}
+
+export function getTranscriptForMessage(messageId) {
+  const token = messageToToken.get(messageId);
+  return token ? getTranscript(token) : null;
 }
