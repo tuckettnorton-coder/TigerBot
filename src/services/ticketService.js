@@ -7,7 +7,7 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import { TICKET_TYPES } from '../config/ticketTypes.js';
-import { storeTranscript } from './transcriptStore.js';
+import { storeTranscript, bindTranscriptMessage } from './transcriptStore.js';
 
 const LOG_CHANNEL_NAME = '📝│logs';
 const TRANSCRIPT_CHANNEL_NAME = '📝│transcripts';
@@ -308,24 +308,26 @@ export async function closeTicket(channel, actor) {
     .setTimestamp(new Date(closedAt * 1000));
   const downloadRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(transcriptToken)
+       .setCustomId('download_transcript')
       .setLabel('Download Transcript')
       .setEmoji('📄')
       .setStyle(ButtonStyle.Secondary),
   );
 
   // Send exactly one message: the same clean panel and download button used in DMs.
-  await transcriptChannel.send({
+  const transcriptPanelMessage = await transcriptChannel.send({
     embeds: [closureEmbed],
     components: [downloadRow],
   });
+  bindTranscriptMessage(transcriptPanelMessage.id, transcriptToken);
 
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
-    await owner.send({
+    const dmMessage = await owner.send({
       embeds: [closureEmbed],
       components: [downloadRow],
     });
+    bindTranscriptMessage(dmMessage.id, transcriptToken);
 
   } catch (dmError) {
     // Do not let a failed DM prevent the ticket from being closed.
