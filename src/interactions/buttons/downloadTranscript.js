@@ -1,14 +1,10 @@
 import { AttachmentBuilder, MessageFlags } from 'discord.js';
-import { getTranscript } from '../../services/transcriptStore.js';
+import { getTranscriptForMessage } from '../../services/transcriptStore.js';
 
 export default {
-  name: 'transcript:',
+  name: 'download_transcript',
   async execute(interaction) {
-    const token = interaction.customId;
-
-    if (!token.startsWith('transcript:')) return;
-
-    const transcript = getTranscript(token);
+    const transcript = getTranscriptForMessage(interaction.message.id);
     if (!transcript) {
       await interaction.reply({
         content: 'This transcript is no longer available. Please ask a staff member to regenerate it.',
