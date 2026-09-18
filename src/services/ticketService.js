@@ -273,46 +273,49 @@ export async function closeTicket(channel, actor) {
     .setFooter({ text: `Powered by TigerBot • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` })
     .setTimestamp();
 
-  const transcriptLogMessage = await transcriptChannel.send({ files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })] });
+  const transcriptLogMessage = await transcriptChannel.send({
+    files: [new AttachmentBuilder(transcriptBuffer, { name: transcriptFileName })],
+  });
+  const transcriptAttachment = transcriptLogMessage.attachments.first();
+  const closedAt = Math.floor(Date.now() / 1000);
+  const closureEmbed = new EmbedBuilder()
+    .setTitle('Your Ticket Was Closed')
+    .setDescription(`Your support ticket in **Tiger Market** has been closed by ${actorName}.`)
+    .addFields({
+      name: 'Ticket',
+      value: [
+        `> Ticket #${ticketNumber}`,
+        '> Server: Tiger Market',
+        `> Closed by ${actorName}`,
+        `> Closed on <t:${closedAt}:F>`,
+      ].join('\\n'),
+    })
+    .setFooter({ text: 'Powered by TigerBot' })
+    .setTimestamp(new Date(closedAt * 1000));
+  const downloadRow = transcriptAttachment?.url
+    ? new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel('Download Transcript')
+          .setEmoji('📄')
+          .setStyle(ButtonStyle.Link)
+          .setURL(transcriptAttachment.url),
+      )
+    : null;
+
+  // Edit the same transcript message so the channel contains one clean panel
+  // with the download button and the transcript attachment behind it.
+  await transcriptLogMessage.edit({
+    embeds: [closureEmbed],
+    ...(downloadRow ? { components: [downloadRow] } : {}),
+  });
+
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
-    // Send the transcript first so Discord gives us a permanent attachment URL.
-    // The URL button below opens the exact transcript attachment from the DM.
-    const closedAt = Math.floor(Date.now() / 1000);
-    const closureEmbed = new EmbedBuilder()
-      .setTitle('Your Ticket Was Closed')
-      .setDescription(`Your support ticket in **Tiger Market** has been closed by ${actorName}.`)
-      .addFields({
-        name: 'Ticket',
-        value: [
-          `> Ticket #${ticketNumber}`,
-          '> Server: Tiger Market',
-          `> Closed by ${actorName}`,
-          `> Closed on <t:${closedAt}:F>`,
-        ].join('\\n'),
-      })
-      .setFooter({ text: 'Powered by TigerBot' })
-      .setTimestamp(new Date(closedAt * 1000));
-
-    const transcriptAttachment = transcriptLogMessage.attachments.first();
-    const downloadRow = transcriptAttachment?.url
-      ? new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setLabel('Download Transcript')
-            .setEmoji('📄')
-            .setStyle(ButtonStyle.Link)
-            .setURL(transcriptAttachment.url),
-        )
-      : null;
-
     await owner.send({
       embeds: [closureEmbed],
       ...(downloadRow ? { components: [downloadRow] } : {}),
     });
 
-    if (transcriptLogMessage?.deletable) {
-      await transcriptLogMessage.delete().catch(() => {});
-    }
   } catch (dmError) {
     // Do not let a failed DM prevent the ticket from being closed.
     console.warn(`Could not DM transcript to ticket creator ${ticket.openerId}: ${dmError.message}`);
