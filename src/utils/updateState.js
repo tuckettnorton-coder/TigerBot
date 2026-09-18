@@ -1,11 +1,19 @@
-import { getConfigValue, setConfigValue } from '../services/config/guildConfig.js';
+const STATE_PREFIX = 'guild:';
+const STATE_SUFFIX = ':tigerbot:update-state';
 
-const STATE_KEY = '_tigerBotUpdateState';
+function stateKey(guildId) {
+  return STATE_PREFIX + guildId + STATE_SUFFIX;
+}
 
+/**
+ * Persistent update state. This intentionally lives in its own database key
+ * instead of the guild-config object so update data/message IDs cannot be
+ * overwritten by config normalization or unrelated config saves.
+ */
 export async function getUpdateState(client, guildId) {
-  if (!client || !guildId) return {};
+  if (!client?.db || !guildId) return {};
   try {
-    const state = await getConfigValue(client, guildId, STATE_KEY, {});
+    const state = await client.db.get(stateKey(guildId), {});
     return state && typeof state === 'object' ? state : {};
   } catch {
     return {};
@@ -13,16 +21,21 @@ export async function getUpdateState(client, guildId) {
 }
 
 export async function setUpdateState(client, guildId, patch) {
-  if (!client || !guildId) return false;
+  if (!client?.db || !guildId) return false;
   try {
     const current = await getUpdateState(client, guildId);
-    await setConfigValue(client, guildId, STATE_KEY, {
+    const next = {
       ...current,
       ...(patch && typeof patch === 'object' ? patch : {}),
       updatedAt: new Date().toISOString(),
-    });
-    return true;
+    };
+    const saved = await client.db.set(stateKey(guildId), next);
+    return saved !== false;
   } catch {
     return false;
   }
+}
+
+export function getUpdateStateKey(guildId) {
+  return stateKey(guildId);
 }
