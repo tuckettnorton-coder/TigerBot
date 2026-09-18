@@ -11,38 +11,25 @@ async function resetMainTicketMenu(interaction) {
   const message = interaction.message;
   if (!message?.components?.length) return;
 
-  // Discord clients can keep the clicked option visually selected until the
-  // component is forced to rerender. We do that by briefly disabling the
-  // public menu, then immediately restoring it with no default option.
-  const buildComponents = (disabled) => message.components.map((row) => {
+  const components = message.components.map((row) => {
     const data = row.toJSON();
     data.components = data.components.map((component) => {
       if (component.type !== 3 || !Array.isArray(component.options)) return component;
-      const cleanOptions = component.options.map((option) => {
-        const clean = { ...option };
-        delete clean.default;
-        return clean;
-      });
-      return { ...component, disabled, options: cleanOptions };
+      return {
+        ...component,
+        options: component.options.map((option) => ({ ...option, default: false })),
+      };
     });
     return data;
   });
 
-  try {
-    await message.edit({ components: buildComponents(true) });
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    await message.edit({ components: buildComponents(false) });
-  } catch {
-    // Ignore edit failures; the ticket flow can continue normally.
-  }
+  await message.edit({ components }).catch(() => {});
 }
 
 function buildPaidAdPlanMenu() { const p=loadPaidAdPrices(); return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('paid_ad_plan').setPlaceholder('Choose your advertisement plan...').addOptions(new StringSelectMenuOptionBuilder().setLabel(`💎 Premium Bundle — $${Number(p.premium).toFixed(2)}`).setDescription('@everyone • Private Channel • Scheduled • +7 Days').setValue('premium'),new StringSelectMenuOptionBuilder().setLabel(`🚀 Standard Bundle — $${Number(p.standard).toFixed(2)}`).setDescription('Partner Ping • Private Channel • +3 Days').setValue('standard'),new StringSelectMenuOptionBuilder().setLabel(`📢 Basic Bundle — $${Number(p.basic).toFixed(2)}`).setDescription('@here Ping').setValue('basic'))); }
 export default { name:'ticket_select', async execute(interaction) {
   try {
     const typeId=interaction.values?.[0]; const ticket=TICKET_TYPES[typeId]; if(!ticket)return interaction.reply({content:'That ticket type is unavailable.',ephemeral:true});
-    // Reset the main ticket dropdown immediately so it returns to its placeholder after every selection.
-    await resetMainTicketMenu(interaction);
     const existing=await findExistingTicket(interaction.guild,interaction.user.id,ticket.categoryName); if(existing)return interaction.reply({content:`You already have an open ${ticket.label} ticket: ${existing}`,ephemeral:true});
     if(typeId==='advertisement'){setPaidAdDraft(interaction.user.id,{});await interaction.reply({content:'### 💰 Paid Advertisement\n**What paid advertisement would you like?**\n\nChoose one of the current plans below.',components:[buildPaidAdPlanMenu(), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}
     if(typeId==='buying_selling_spawners'){await interaction.reply({content:'### 💸 Buying/Selling Spawners\nFirst, select whether you want to **Buy** or **Sell**.',components:[buildSpawnerTradeMenu(), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}
