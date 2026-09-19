@@ -296,14 +296,18 @@ export async function closeTicket(channel, actor) {
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
     // DM panel uses the exact compact closed-ticket format requested.
-    const dmMessage = await owner.send({
-      content: [
-        '## Ticket Closed',
+    const dmEmbed = new EmbedBuilder()
+      .setTitle('Ticket Closed')
+      .setDescription([
         'Your ticket in **Tiger Market** has been closed.',
         '',
         `**Ticket ID:** ${channel.id}`,
         `-# <t:${closedAt}:f>`,
-      ].join('\\n'),
+      ].join('\\n'))
+      .setFooter({ text: 'Tiger Market • Ticket Support' });
+
+    const dmMessage = await owner.send({
+      embeds: [dmEmbed],
       components: [downloadRow],
     });
     bindTranscriptMessage(dmMessage.id, transcriptToken);
