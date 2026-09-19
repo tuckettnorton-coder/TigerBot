@@ -139,14 +139,13 @@ function isBlockedLinkFilterTarget(message) {
 function findBlockedLink(content) {
   const text = String(content || '');
 
-  // Covers protocol URLs, www links, common domain links, Discord invites,
-  // and Markdown-style links while avoiding ordinary punctuation.
   const patterns = [
-    /(?:https?|ftp|ftps):\\/\\/[^\\s<>()]+/i,
-    /(?:^|[\\s(])www\\.[^\\s<>()]+/i,
-    /(?:^|[\\s(])(?:discord\\.(?:gg|com\\/invite)\\/)[^\\s<>()]+/i,
-    /(?:^|[\\s(])(?:[a-z0-9-]+\\.)+(?:com|net|org|gg|io|co|me|tv|dev|app|xyz|site|store|shop|link|live|online|cloud|us|uk|ca|de|fr|ru|xyz)(?::\\d+)?(?:[/?#][^\\s<>()]*)?/i,
-    /\\[[^\\]]*\\]\\(\\s*(?:https?|ftp|ftps):\\/\\/[^)]+\\)/i,
+    /(?:https?|ftp|ftps):\/\/[^\s<>()]+/i,
+    /(?:^|[\s(])www\.[^\s<>()]+/i,
+    /(?:^|[\s(])discord\.(?:gg|com\/invite)\/[^\s<>()]+/i,
+    /(?:^|[\s(])(?:[a-z0-9-]+\.)+[a-z]{2,63}(?::\d+)?(?:[/?#][^\s<>()]*)?/i,
+    /(?:^|[\s(])(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?(?:[/?#][^\s<>()]*)?/i,
+    /\[[^\]]*\]\(\s*(?:https?|ftp|ftps):\/\/[^)]+\)/i,
   ];
 
   for (const pattern of patterns) {
@@ -192,9 +191,13 @@ async function handleMarketingFilter(message, client) {
     ? 'Prohibited word detected: "' + detectedWord + '"'
     : isDuplicateCharacterViolation
       ? 'Duplicate character limit exceeded: "' + duplicateCharacter + '" repeated ' + DUPLICATE_CHARACTER_MAX + '+ times'
-      : isMessageTooLong
-        ? 'Message character limit exceeded: ' + MAX_MESSAGE_CHARACTER_COUNT + ' characters'
-        : 'Marketing word detected: "' + detectedWord + '"';
+      : isMentionViolation
+        ? 'Blocked mention detected: "' + blockedMention + '"'
+        : isLinkViolation
+          ? 'Blocked link detected: "' + blockedLink + '"'
+          : isMessageTooLong
+            ? 'Message character limit exceeded: ' + MAX_MESSAGE_CHARACTER_COUNT + ' characters'
+            : 'Marketing word detected: "' + detectedWord + '"';
   const moderatorId = client.user?.id || 'TigerBot';
 
   const deleted = await message.delete().then(() => true).catch(error => {
@@ -242,7 +245,7 @@ async function handleMarketingFilter(message, client) {
 
   try {
     const warningMessage = await message.channel.send({
-      content: '<@' + message.author.id + '> Sorry, **' + (isDuplicateCharacterViolation ? 'the same character was repeated too many times' : isMessageTooLong ? 'your message is too long' : '"' + detectedWord + '"') + '** is not allowed here. Your message has been deleted and you have received a warning.',
+      content: '<@' + message.author.id + '> Sorry, **' + (isDuplicateCharacterViolation ? 'the same character was repeated too many times' : isMentionViolation ? 'that mention is not allowed here' : isLinkViolation ? 'links are not allowed here' : isMessageTooLong ? 'your message is too long' : '"' + detectedWord + '"') + '** is not allowed here. Your message has been deleted and you have received a warning.',
       allowedMentions: { users: [message.author.id] },
     });
     setTimeout(() => {
