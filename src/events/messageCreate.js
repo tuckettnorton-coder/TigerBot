@@ -125,10 +125,13 @@ async function handleMarketingFilter(message, client) {
   }
 
   try {
-    await message.channel.send({
+    const warningMessage = await message.channel.send({
       content: '<@' + message.author.id + '> Sorry, **"' + matchedWord + '"** is a marketing word and marketing is not allowed here. Your message has been deleted and you have received a warning.',
       allowedMentions: { users: [message.author.id] },
     });
+    setTimeout(() => {
+      warningMessage.delete().catch(() => {});
+    }, 5000);
   } catch (error) {
     logger.error('Marketing filter could not send warning message:', error);
   }
