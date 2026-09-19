@@ -111,7 +111,7 @@ export async function postPrices(client, prices) {
   try {
     const newMessage = await channel.send({ content: formatPriceMessage(prices) });
     saveMessageId(newMessage.id);
-    await setUpdateState(client, channel.guild.id, { spawnerPriceMessageId: newMessage.id, spawnerPriceChannelId: channel.id });
+    await setUpdateState(client, channel.guild.id, { spawnerPriceMessageId: newMessage.id, spawnerPriceChannelId: channel.id, spawnerPrices: prices, spawnerPriceMessage: formatPriceMessage(prices) });
   } catch (error) {
     const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
     throw new Error(`Could not post the 12 spawner prices: ${apiMessage}`);
