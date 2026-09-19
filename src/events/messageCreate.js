@@ -35,6 +35,8 @@ const MARKETING_FILTER_EXEMPT_ROLES = new Set([
   '1529641819045341',
 ]);
 
+const PROFANITY_FILTER_WORDS = ['nigger', 'fuck', 'shit', 'gay'];
+
 const MARKETING_WORDS = [
   'sell', 'buy', 'selling', 'for sale buy', 'buying',
   'looking to buy trade', 'trading', 'swap price', 'pricing',
@@ -46,6 +48,15 @@ const MARKETING_WORDS = [
   'Services', 'per Block', 'Digging Service', "If you're interested",
   'Message me', 'Text me', 'Sale', 'Dm for money', 'DM me',
 ];
+
+function normalizeProfanityText(content) {
+  return String(content || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+}
+
+function findProfanityWord(content) {
+  const normalized = normalizeProfanityText(content);
+  return PROFANITY_FILTER_WORDS.find(word => normalized.includes(word)) || null;
+}
 
 function normalizeMarketingText(content) {
   return String(content || '')
@@ -75,13 +86,19 @@ function hasMarketingFilterExemption(message) {
 }
 
 async function handleMarketingFilter(message, client) {
-  if (!MARKETING_FILTER_CHANNELS.has(message.channelId)) return false;
-  if (hasMarketingFilterExemption(message)) return false;
-
+  const profanityWord = findProfanityWord(message.content);
   const matchedWord = findMarketingWord(message.content);
-  if (!matchedWord) return false;
+  const isGlobalProfanity = Boolean(profanityWord);
 
-  const reason = 'Marketing word detected: "' + matchedWord + '"';
+  if (!isGlobalProfanity) {
+    if (!MARKETING_FILTER_CHANNELS.has(message.channelId)) return false;
+    if (hasMarketingFilterExemption(message)) return false;
+    if (!matchedWord) return false;
+  }
+
+  const detectedWord = profanityWord || matchedWord;
+
+  const reason = isGlobalProfanity ? 'Prohibited word detected: "' + detectedWord + '"' : 'Marketing word detected: "' + detectedWord + '"';
   const moderatorId = client.user?.id || 'TigerBot';
 
   const deleted = await message.delete().then(() => true).catch(error => {
@@ -116,7 +133,7 @@ async function handleMarketingFilter(message, client) {
           totalWarns: warningResult?.totalCount ?? null,
           warningNumber: warningResult?.totalCount ?? null,
           warningId: warningResult?.id ?? null,
-          automatic: true, matchedMarketingWord: matchedWord, channelId: message.channelId,
+          automatic: true, matchedMarketingWord: matchedWord || null, matchedProhibitedWord: profanityWord || null, channelId: message.channelId,
         },
       },
     });
@@ -126,7 +143,7 @@ async function handleMarketingFilter(message, client) {
 
   try {
     const warningMessage = await message.channel.send({
-      content: '<@' + message.author.id + '> Sorry, **"' + matchedWord + '"** is a marketing word and marketing is not allowed here. Your message has been deleted and you have received a warning.',
+      content: '<@' + message.author.id + '> Sorry, **"' + detectedWord + '"** is not allowed here. Your message has been deleted and you have received a warning.',
       allowedMentions: { users: [message.author.id] },
     });
     setTimeout(() => {
@@ -136,7 +153,7 @@ async function handleMarketingFilter(message, client) {
     logger.error('Marketing filter could not send warning message:', error);
   }
 
-  logger.info('Marketing filter triggered in ' + message.channelId + ' for ' + message.author.tag + ' matching "' + matchedWord + '" (deleted=' + deleted + ')');
+  logger.info('Message filter triggered in ' + message.channelId + ' for ' + message.author.tag + ' matching "' + detectedWord + '" (deleted=' + deleted + ')');
   return true;
 }
 
