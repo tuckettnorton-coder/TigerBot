@@ -38,6 +38,7 @@ const MARKETING_FILTER_EXEMPT_ROLES = new Set([
 const PROFANITY_FILTER_WORDS = ['nigger', 'fuck', 'shit', 'gay'];
 const DUPLICATE_CHARACTER_MAX = 15;
 const DUPLICATE_CHARACTER_FILTER_IDS = new Set(['1504946794730361045']);
+const MAX_MESSAGE_CHARACTER_COUNT = 350;
 
 const MARKETING_WORDS = [
   'sell', 'buy', 'selling', 'for sale buy', 'buying',
@@ -115,9 +116,16 @@ async function handleMarketingFilter(message, client) {
   const matchedWord = findMarketingWord(message.content);
   const duplicateCharacter = findDuplicateCharacter(message);
   const isGlobalProfanity = Boolean(profanityWord);
-  const isDuplicateCharacterViolation = Boolean(duplicateCharacter) && isDuplicateCharacterFilterTarget(message);
+  const isDuplicateCharacterViolation =
+    Boolean(duplicateCharacter) &&
+    isDuplicateCharacterFilterTarget(message) &&
+    !hasMarketingFilterExemption(message);
+  const isMessageTooLong =
+    String(message.content || '').length > MAX_MESSAGE_CHARACTER_COUNT &&
+    isDuplicateCharacterFilterTarget(message) &&
+    !hasMarketingFilterExemption(message);
 
-  if (!isGlobalProfanity && !isDuplicateCharacterViolation) {
+  if (!isGlobalProfanity && !isDuplicateCharacterViolation && !isMessageTooLong) {
     if (!MARKETING_FILTER_CHANNELS.has(message.channelId)) return false;
     if (hasMarketingFilterExemption(message)) return false;
     if (!matchedWord) return false;
@@ -128,7 +136,9 @@ async function handleMarketingFilter(message, client) {
     ? 'Prohibited word detected: "' + detectedWord + '"'
     : isDuplicateCharacterViolation
       ? 'Duplicate character limit exceeded: "' + duplicateCharacter + '" repeated ' + DUPLICATE_CHARACTER_MAX + '+ times'
-      : 'Marketing word detected: "' + detectedWord + '"';
+      : isMessageTooLong
+        ? 'Message character limit exceeded: ' + MAX_MESSAGE_CHARACTER_COUNT + ' characters'
+        : 'Marketing word detected: "' + detectedWord + '"';
   const moderatorId = client.user?.id || 'TigerBot';
 
   const deleted = await message.delete().then(() => true).catch(error => {
@@ -164,6 +174,7 @@ async function handleMarketingFilter(message, client) {
           warningNumber: warningResult?.totalCount ?? null,
           warningId: warningResult?.id ?? null,
           automatic: true, matchedMarketingWord: matchedWord || null, matchedProhibitedWord: profanityWord || null, duplicateCharacter: duplicateCharacter || null, channelId: message.channelId,
+          messageCharacterCount: String(message.content || '').length,
         },
       },
     });
@@ -173,7 +184,7 @@ async function handleMarketingFilter(message, client) {
 
   try {
     const warningMessage = await message.channel.send({
-      content: '<@' + message.author.id + '> Sorry, **' + (isDuplicateCharacterViolation ? 'the same character was repeated too many times' : '"' + detectedWord + '"') + '** is not allowed here. Your message has been deleted and you have received a warning.',
+      content: '<@' + message.author.id + '> Sorry, **' + (isDuplicateCharacterViolation ? 'the same character was repeated too many times' : isMessageTooLong ? 'your message is too long' : '"' + detectedWord + '"') + '** is not allowed here. Your message has been deleted and you have received a warning.',
       allowedMentions: { users: [message.author.id] },
     });
     setTimeout(() => {
@@ -223,8 +234,6 @@ async function handleRepeatMessage(message, client) {
     const config = await client.db.get(REPEAT_MESSAGE_KEY(message.guild.id), null);
     if (!config) return false;
 
-    // Sticky settings are stored per channel, so one guild can have as many
-    // sticky channels as needed. The old single-channel format is migrated on read.
     const channels = config.channels && typeof config.channels === 'object'
       ? config.channels
       : (config.channelId ? {
@@ -238,8 +247,6 @@ async function handleRepeatMessage(message, client) {
     const channelConfig = channels[message.channelId];
     if (!channelConfig?.enabled || !channelConfig.message) return false;
 
-    // Leave the user's message alone, remove this channel's old sticky, and
-    // repost it so the sticky for this channel stays at the bottom.
     if (channelConfig.messageId) {
       const oldSticky = await message.channel.messages.fetch(channelConfig.messageId).catch(() => null);
       if (oldSticky) await oldSticky.delete().catch(() => {});
