@@ -26,7 +26,7 @@ export default {
                 .setDescription('Check whether the automatic welcome footer is enabled.')
         ),
 
-    async execute(interaction, client) {
+    async execute(interaction, guildConfig, client) {
         if (!interaction.guild || !client?.db) {
             return interaction.reply({ content: 'This command can only be used in a server.', ephemeral: true });
         }
