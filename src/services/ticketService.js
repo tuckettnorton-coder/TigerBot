@@ -194,6 +194,7 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
     : [];
 
   const ticketEmbed = new EmbedBuilder().setTitle(ticket.label).addFields({ name: 'Ticket Code', value: `\`${code}\``, inline: true }, ...answerFields).setFooter({ text: 'Tiger Market • Ticket Support' });
+  if (answers.schematic_url) ticketEmbed.addFields({ name: '📐 Schematic Upload', value: '[Download '+String(answers.schematic_name||'schematic').replace(/[\\[\\]]/g,'').slice(0,900)+']('+answers.schematic_url+')', inline: false });
   const ticketActionRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('calculate_ticket').setLabel('Calculate').setEmoji('🧮').setStyle(ButtonStyle.Primary),
