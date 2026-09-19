@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const MAX_COMMANDS = 100;
 const COMMAND_COUNT_WARN_THRESHOLD = 90;
-const PRIORITY_COMMANDS = ['updatepanel'];
+const PRIORITY_COMMANDS = ['updatepanel', 'welcome-sticky'];
 
 function getSubcommandInfo(commandData) {
     const subcommands = [];
