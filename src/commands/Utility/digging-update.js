@@ -128,7 +128,7 @@ export async function postDiggingPrices(client, data) {
   try {
     const newMessage = await channel.send({ content: formatDiggingPriceMessage(data) });
     saveMessageId(newMessage.id);
-    await setUpdateState(client, channel.guild.id, { diggingPriceMessageId: newMessage.id, diggingPriceChannelId: channel.id });
+    await setUpdateState(client, channel.guild.id, { diggingPriceMessageId: newMessage.id, diggingPriceChannelId: channel.id, diggingPrices: data, diggingPriceMessage: formatDiggingPriceMessage(data) });
   } catch (error) {
     const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
     throw new Error(`Could not post the digging prices: ${apiMessage}`);
