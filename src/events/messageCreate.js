@@ -57,16 +57,29 @@ async function handleRepeatMessage(message, client) {
     if (!config?.enabled) return false;
     if (message.channelId !== config.channelId) return false;
 
-    // Every human message in the configured channel triggers the sticky.
-    await message.delete().catch(() => {});
-    await message.channel.send({
+    // Sticky behavior: leave the user's message alone, remove the previous
+    // sticky message, and repost it so the sticky is always at the bottom.
+    if (config.messageId) {
+      const oldSticky = await message.channel.messages.fetch(config.messageId).catch(() => null);
+      if (oldSticky) {
+        await oldSticky.delete().catch(() => {});
+      }
+    }
+
+    const stickyMessage = await message.channel.send({
       content: config.message,
       allowedMentions: { parse: [] },
     });
 
+    await client.db.set(REPEAT_MESSAGE_KEY(message.guild.id), {
+      ...config,
+      messageId: stickyMessage.id,
+      updatedAt: new Date().toISOString(),
+    });
+
     return true;
   } catch (error) {
-    logger.error('Error handling repeat message:', error);
+    logger.error('Error handling sticky message:', error);
     return false;
   }
 }
@@ -127,7 +140,7 @@ async function handlePrefixCommand(message, client) {
       if (restriction.blocked && restriction.reason) {
         const embed = createEmbed({
           title: 'Slash Command Only',
-          description: `${restriction.reason}\nUse `/${resolvedCommandName}` instead.`,
+          description: `${restriction.reason}\nUse \`/${resolvedCommandName}\` instead.`,
           color: 'info',
         });
         await message.channel.send({ embeds: [embed] }).catch(() => {});
