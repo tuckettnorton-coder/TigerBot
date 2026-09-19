@@ -24,6 +24,7 @@ import {
 const MESSAGE_XP_RATE_LIMIT_ATTEMPTS = 12;
 const MESSAGE_XP_RATE_LIMIT_WINDOW_MS = 10000;
 const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
+
 const MARKETING_FILTER_CHANNELS = new Set([
   '1504946935197597878',
   '1526319312078372974',
@@ -264,7 +265,7 @@ export default {
     try {
       if (message.author.bot || !message.guild) return;
 
-      logger.debug(`Message received from ${message.author.tag}: ${message.content}`);\n\n
+      logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
 
       const marketingFiltered = await handleMarketingFilter(message, client);
       if (marketingFiltered) return;
