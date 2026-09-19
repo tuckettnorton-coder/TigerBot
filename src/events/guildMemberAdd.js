@@ -7,6 +7,25 @@ import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
 import { getServerCounters, updateCounter } from '../services/serverstatsService.js';
 import { setBirthday as dbSetBirthday } from '../utils/database.js';
 import { logger } from '../utils/logger.js';
+const WELCOME_STICKY_CHANNEL_ID = '1504917892100001892';
+const WELCOME_STICKY_MESSAGE = 'Make sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>';
+const WELCOME_STICKY_KEY = (guildId) => 'guild:' + guildId + ':welcome-sticky-message';
+
+async function keepWelcomeMessageAtBottom(channel, client) {
+    if (!channel || channel.id !== WELCOME_STICKY_CHANNEL_ID || !client?.db) return;
+    try {
+        const oldMessageId = await client.db.get(WELCOME_STICKY_KEY(channel.guild.id), null);
+        if (oldMessageId) {
+            const oldMessage = await channel.messages.fetch(oldMessageId).catch(() => null);
+            if (oldMessage) await oldMessage.delete().catch(() => {});
+        }
+        const stickyMessage = await channel.send({ content: WELCOME_STICKY_MESSAGE, allowedMentions: { parse: [] } });
+        await client.db.set(WELCOME_STICKY_KEY(channel.guild.id), stickyMessage.id);
+    } catch (error) {
+        logger.debug('Could not keep welcome channel message at bottom:', error);
+    }
+}
+
 
 export default {
   name: Events.GuildMemberAdd,
@@ -78,7 +97,7 @@ export default {
             }
         }
         
-        if (welcomeConfig?.roleIds && welcomeConfig.roleIds.length > 0) {
+        // Keep the welcome-channel footer as the last message after each join.\n        if (welcomeChannelId === WELCOME_STICKY_CHANNEL_ID) {\n            await keepWelcomeMessageAtBottom(channel, member.client);\n        }\n        \n        if (welcomeConfig?.roleIds && welcomeConfig.roleIds.length > 0) {
             const delay = welcomeConfig.autoRoleDelay || 0;
             const singleRoleId = welcomeConfig.roleIds[0];
             
