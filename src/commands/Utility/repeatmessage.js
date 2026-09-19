@@ -3,13 +3,13 @@ import { SlashCommandBuilder, ChannelType, PermissionFlagsBits } from 'discord.j
 const KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
 
 export const data = new SlashCommandBuilder()
-  .setName('repeatmessage')
-  .setDescription('Set a message that TigerBot deletes and reposts whenever someone sends it.')
+  .setName('sticky')
+  .setDescription('Set a sticky message that is reposted when someone sends the same message.')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addChannelOption((option) =>
     option
       .setName('channel')
-      .setDescription('The channel where the trigger message should be watched')
+      .setDescription('The channel where the sticky message should be watched')
       .addChannelTypes(ChannelType.GuildText)
       .setRequired(true),
   )
@@ -39,10 +39,10 @@ export async function execute(interaction, guildConfig, client) {
 
   await interaction.reply({
     content:
-      '✅ **Repeat message enabled.**\n\n' +
+      '✅ **Sticky message enabled.**\n\n' +
       '**Channel:** ' + channel + '\n' +
       '**Message:** ' + message + '\n\n' +
-      'Whenever someone sends that exact message in that channel, TigerBot will delete their message and repost the same message.',
+      'Whenever someone sends that exact message in that channel, TigerBot will delete it and repost the same message.',
     ephemeral: true,
   });
 }
