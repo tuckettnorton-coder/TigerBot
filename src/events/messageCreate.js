@@ -32,7 +32,7 @@ const MARKETING_FILTER_CHANNELS = new Set([
 
 const MARKETING_FILTER_EXEMPT_ROLES = new Set([
   '1513634231480483991',
-  '1529641819040645341',
+  '1529641819045341',
 ]);
 
 const MARKETING_WORDS = [
@@ -62,17 +62,58 @@ const MARKETING_WORDS = [
   'preorder cash',
   'funds paypal',
   'auction',
-  '\$\$\$',
-  'Services',
-  'per Block',
-  'Digging Service',
-  "If you're interested",
-  'Message me',
-  'Text me',
-  'Sale',
-  'Dm for money',
-  'DM me',
-];
+  '$
+export default {
+  name: Events.MessageCreate,
+  async execute(message, client) {
+    try {
+      if (message.author.bot || !message.guild) return;
+
+      logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
+
+      const marketingFiltered = await handleMarketingFilter(message, client);
+      if (marketingFiltered) {
+        return;
+      }
+
+      const repeated = await handleRepeatMessage(message, client);
+      if (repeated) {
+        return;
+      }
+
+      const countingProcessed = await handleCountingGame(message, client);
+      if (countingProcessed) {
+        return;
+      }
+
+      await handlePrefixCommand(message, client);
+      await handleLeveling(message, client);
+    } catch (error) {
+      logger.error('Error in messageCreate event:', error);
+    }
+  }
+};
+
+async function handleRepeatMessage(message, client) {
+  try {
+    if (!client?.db || !message.guild) return false;
+
+    const config = await client.db.get(REPEAT_MESSAGE_KEY(message.guild.id), null);
+    if (!config) return false;
+
+    // Sticky settings are stored per channel, so one guild can have as many
+    // sticky channels as needed. The old single-channel format is migrated on read.
+    const channels = config.channels && typeof config.channels === 'object'
+      ? config.channels
+      : (config.channelId ? {
+          [config.channelId]: {
+            message: config.message,
+            messageId: config.messageId || null,
+            enabled: config.enabled !== false,
+          },
+        } : {});
+
+    const channelConfig = channels[message.channelId];
     if (!channelConfig?.enabled || !channelConfig.message) return false;
 
     // Leave the user's message alone, remove this channel's old sticky, and
@@ -314,9 +355,16 @@ async function handleLeveling(message, client) {
   } catch (error) {
     logger.error('Error handling leveling for message:', error);
   }
-}, 'per block', 'digging service',
-  "if you're interested", 'message me', 'text me', 'sale',
-  'dm for money', 'dm me',
+},
+  'Services',
+  'per Block',
+  'Digging Service',
+  "If you're interested",
+  'Message me',
+  'Text me',
+  'Sale',
+  'Dm for money',
+  'DM me',
 ];
 
 function normalizeMarketingText(content) {
@@ -334,7 +382,8 @@ function findMarketingWord(content) {
     const normalizedWord = normalizeMarketingText(word);
     if (!normalizedWord) continue;
 
-    const escaped = normalizedWord.replace(/[.*+?^$()|[\]\\]/g, '\\const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';');
+    const escaped = normalizedWord.replace(/[.*+?^$()|[\]\\]/g, '\\const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
+');
     const pattern = new RegExp(
       `(^|[^a-z0-9])${escaped.replace(/ /g, '\\\\s+')}(?=$|[^a-z0-9])`,
       'i'
@@ -362,57 +411,68 @@ async function handleMarketingFilter(message, client) {
   if (!matchedWord) return false;
 
   const reason = `Marketing word detected: "${matchedWord}"`;
-  const moderatorId = client.user?.id;
+  const moderatorId = client.user?.id || 'TigerBot';
 
+  // Delete first so a warning/database problem can never prevent moderation.
+  const deleted = await message.delete().then(() => true).catch((error) => {
+    logger.error('Marketing filter could not delete message:', error);
+    return false;
+  });
+
+  let warningResult = null;
   try {
-    const warningResult = await WarningService.addWarning({
+    warningResult = await WarningService.addWarning({
       guildId: message.guild.id,
       userId: message.author.id,
-      moderatorId: moderatorId || 'TigerBot',
+      moderatorId,
       reason,
       timestamp: Date.now(),
     });
+  } catch (error) {
+    logger.error('Marketing filter could not create warning:', error);
+  }
 
+  try {
     await logModerationAction({
       client,
       guild: message.guild,
       event: {
         action: 'User Warned',
         target: `${message.author.tag} (${message.author.id})`,
-        executor: `${client.user?.tag || 'TigerBot'} (${moderatorId || 'TigerBot'})`,
+        executor: `${client.user?.tag || 'TigerBot'} (${moderatorId})`,
         reason,
         metadata: {
           userId: message.author.id,
-          moderatorId: moderatorId || 'TigerBot',
-          totalWarns: warningResult.totalCount,
-          warningNumber: warningResult.totalCount,
-          warningId: warningResult.id,
+          moderatorId,
+          totalWarns: warningResult?.totalCount ?? null,
+          warningNumber: warningResult?.totalCount ?? null,
+          warningId: warningResult?.id ?? null,
           automatic: true,
           matchedMarketingWord: matchedWord,
           channelId: message.channelId,
         },
       },
-    }).catch((error) => {
-      logger.error('Failed to log automatic marketing warning:', error);
     });
+  } catch (error) {
+    logger.error('Marketing filter could not log moderation action:', error);
+  }
 
-    await message.delete();
-
+  try {
     await message.channel.send({
       content: `<@${message.author.id}> Sorry, **"${matchedWord}"** is a marketing word and marketing is not allowed here. Your message has been deleted and you have received a warning.`,
       allowedMentions: { users: [message.author.id] },
     });
-
-    logger.info(
-      `Automatic marketing filter deleted a message from ${message.author.tag} in ${message.channelId} matching "${matchedWord}"`
-    );
-
-    return true;
   } catch (error) {
-    logger.error('Automatic marketing filter failed:', error);
-    return false;
+    logger.error('Marketing filter could not send warning message:', error);
   }
+
+  logger.info(
+    `Marketing filter triggered for ${message.author.tag} in ${message.channelId}: "${matchedWord}" (deleted=${deleted})`
+  );
+
+  return true;
 }
+
 
 export default {
   name: Events.MessageCreate,
