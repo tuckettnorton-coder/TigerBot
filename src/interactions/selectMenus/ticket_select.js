@@ -11,13 +11,18 @@ async function resetMainTicketMenu(interaction) {
   const message = interaction.message;
   if (!message?.components?.length) return;
 
+  // Rebuild the original select-menu state so Discord immediately clears the
+  // user's selection and shows the original placeholder again.
   const components = message.components.map((row) => {
     const data = row.toJSON();
     data.components = data.components.map((component) => {
-      if (component.type !== 3 || !Array.isArray(component.options)) return component;
+      if (component.type !== 3) return component;
       return {
         ...component,
-        options: component.options.map((option) => ({ ...option, default: false })),
+        placeholder: component.placeholder || 'Click for what you need',
+        options: Array.isArray(component.options)
+          ? component.options.map((option) => ({ ...option, default: false }))
+          : component.options,
       };
     });
     return data;
@@ -30,6 +35,9 @@ function buildPaidAdPlanMenu() { const p=loadPaidAdPrices(); return new ActionRo
 export default { name:'ticket_select', async execute(interaction) {
   try {
     const typeId=interaction.values?.[0]; const ticket=TICKET_TYPES[typeId]; if(!ticket)return interaction.reply({content:'That ticket type is unavailable.',ephemeral:true});
+    // Reset the public panel immediately after the selection, before opening
+    // any modal or sending the next-step ephemeral menu.
+    await resetMainTicketMenu(interaction);
     const existing=await findExistingTicket(interaction.guild,interaction.user.id,ticket.categoryName); if(existing)return interaction.reply({content:`You already have an open ${ticket.label} ticket: ${existing}`,ephemeral:true});
     if(typeId==='advertisement'){setPaidAdDraft(interaction.user.id,{});await interaction.reply({content:'### 💰 Paid Advertisement\n**What paid advertisement would you like?**\n\nChoose one of the current plans below.',components:[buildPaidAdPlanMenu(), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}
     if(typeId==='buying_selling_spawners'){await interaction.reply({content:'### 💸 Buying/Selling Spawners\nFirst, select whether you want to **Buy** or **Sell**.',components:[buildSpawnerTradeMenu(), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}
