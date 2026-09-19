@@ -4,7 +4,7 @@ const KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
 
 export const data = new SlashCommandBuilder()
   .setName('sticky')
-  .setDescription('Set a sticky message that always stays at the bottom of the channel.')
+  .setDescription('Set a sticky message that always stays at the bottom of a channel.')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addChannelOption((option) =>
     option
@@ -31,11 +31,22 @@ export async function execute(interaction, guildConfig, client) {
   }
 
   const existing = await client.db.get(KEY(interaction.guildId), null);
-  if (existing?.messageId && existing.channelId === channel.id) {
-    const oldSticky = await channel.messages.fetch(existing.messageId).catch(() => null);
-    if (oldSticky) {
-      await oldSticky.delete().catch(() => {});
-    }
+  const channels = existing?.channels && typeof existing.channels === 'object' ? { ...existing.channels } : {};
+
+  // Automatically migrate the old single-channel sticky into the new multi-channel format.
+  if (existing?.channelId) {
+    channels[existing.channelId] = {
+      message: existing.message,
+      messageId: existing.messageId || null,
+      updatedAt: existing.updatedAt || new Date().toISOString(),
+      enabled: existing.enabled !== false,
+    };
+  }
+
+  const current = channels[channel.id];
+  if (current?.messageId) {
+    const oldSticky = await channel.messages.fetch(current.messageId).catch(() => null);
+    if (oldSticky) await oldSticky.delete().catch(() => {});
   }
 
   const stickyMessage = await channel.send({
@@ -43,12 +54,16 @@ export async function execute(interaction, guildConfig, client) {
     allowedMentions: { parse: [] },
   });
 
-  await client.db.set(KEY(interaction.guildId), {
-    channelId: channel.id,
+  channels[channel.id] = {
     message,
     messageId: stickyMessage.id,
     updatedAt: new Date().toISOString(),
     enabled: true,
+  };
+
+  await client.db.set(KEY(interaction.guildId), {
+    channels,
+    updatedAt: new Date().toISOString(),
   });
 
   await interaction.reply({
@@ -56,7 +71,7 @@ export async function execute(interaction, guildConfig, client) {
       '✅ **Sticky message enabled.**\n\n' +
       '**Channel:** ' + channel + '\n' +
       '**Message:** ' + message + '\n\n' +
-      'Whenever someone sends a message in that channel, TigerBot will delete the old sticky message and repost it so the sticky always stays at the bottom.',
+      'This channel is now part of your sticky system. Run `/sticky` again for other channels; each channel keeps its own sticky at the bottom.',
     ephemeral: true,
   });
 }
