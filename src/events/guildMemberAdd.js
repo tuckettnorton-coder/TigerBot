@@ -97,7 +97,10 @@ export default {
             }
         }
         
-        // Automatically replace the footer after every welcome message, keeping it last.\n        if (welcomeConfig?.enabled && welcomeChannelId === WELCOME_STICKY_CHANNEL_ID && channel) {\n            await keepWelcomeMessageAtBottom(channel, member.client);\n        }\n        \n        if (welcomeConfig?.roleIds && welcomeConfig.roleIds.length > 0) {
+        // Automatically replace the footer after every welcome message, keeping it last.
+        if (welcomeConfig?.enabled && welcomeChannelId === WELCOME_STICKY_CHANNEL_ID && channel) {
+            await keepWelcomeMessageAtBottom(channel, member.client);
+        }\n        \n        if (welcomeConfig?.roleIds && welcomeConfig.roleIds.length > 0) {
             const delay = welcomeConfig.autoRoleDelay || 0;
             const singleRoleId = welcomeConfig.roleIds[0];
             
