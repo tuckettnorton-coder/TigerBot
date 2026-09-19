@@ -51,13 +51,13 @@ export default {
 
 async function handleRepeatMessage(message, client) {
   try {
-    if (!client?.db || !message.content) return false;
+    if (!client?.db || !message.guild) return false;
 
     const config = await client.db.get(REPEAT_MESSAGE_KEY(message.guild.id), null);
     if (!config?.enabled) return false;
     if (message.channelId !== config.channelId) return false;
-    if (message.content !== config.message) return false;
 
+    // Every human message in the configured channel triggers the sticky.
     await message.delete().catch(() => {});
     await message.channel.send({
       content: config.message,
@@ -127,7 +127,7 @@ async function handlePrefixCommand(message, client) {
       if (restriction.blocked && restriction.reason) {
         const embed = createEmbed({
           title: 'Slash Command Only',
-          description: `${restriction.reason}\nUse \`/${resolvedCommandName}\` instead.`,
+          description: `${restriction.reason}\nUse `/${resolvedCommandName}` instead.`,
           color: 'info',
         });
         await message.channel.send({ embeds: [embed] }).catch(() => {});
