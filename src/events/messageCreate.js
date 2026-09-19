@@ -36,6 +36,8 @@ const MARKETING_FILTER_EXEMPT_ROLES = new Set([
 ]);
 
 const PROFANITY_FILTER_WORDS = ['nigger', 'fuck', 'shit', 'gay'];
+const DUPLICATE_CHARACTER_MAX = 15;
+const DUPLICATE_CHARACTER_FILTER_IDS = new Set(['1504946794730361045']);
 
 const MARKETING_WORDS = [
   'sell', 'buy', 'selling', 'for sale buy', 'buying',
@@ -81,6 +83,29 @@ function findMarketingWord(content) {
   return null;
 }
 
+function findDuplicateCharacter(message) {
+  const content = String(message.content || '');
+  let previous = '';
+  let count = 0;
+
+  for (const character of content) {
+    if (character === previous) {
+      count += 1;
+      if (count >= DUPLICATE_CHARACTER_MAX) return character;
+    } else {
+      previous = character;
+      count = 1;
+    }
+  }
+
+  return null;
+}
+
+function isDuplicateCharacterFilterTarget(message) {
+  return DUPLICATE_CHARACTER_FILTER_IDS.has(message.channelId)
+    || DUPLICATE_CHARACTER_FILTER_IDS.has(message.channel?.parentId);
+}
+
 function hasMarketingFilterExemption(message) {
   return Boolean(message.member?.roles?.cache?.some(role => MARKETING_FILTER_EXEMPT_ROLES.has(role.id)));
 }
@@ -88,17 +113,22 @@ function hasMarketingFilterExemption(message) {
 async function handleMarketingFilter(message, client) {
   const profanityWord = findProfanityWord(message.content);
   const matchedWord = findMarketingWord(message.content);
+  const duplicateCharacter = findDuplicateCharacter(message);
   const isGlobalProfanity = Boolean(profanityWord);
+  const isDuplicateCharacterViolation = Boolean(duplicateCharacter) && isDuplicateCharacterFilterTarget(message);
 
-  if (!isGlobalProfanity) {
+  if (!isGlobalProfanity && !isDuplicateCharacterViolation) {
     if (!MARKETING_FILTER_CHANNELS.has(message.channelId)) return false;
     if (hasMarketingFilterExemption(message)) return false;
     if (!matchedWord) return false;
   }
 
   const detectedWord = profanityWord || matchedWord;
-
-  const reason = isGlobalProfanity ? 'Prohibited word detected: "' + detectedWord + '"' : 'Marketing word detected: "' + detectedWord + '"';
+  const reason = isGlobalProfanity
+    ? 'Prohibited word detected: "' + detectedWord + '"'
+    : isDuplicateCharacterViolation
+      ? 'Duplicate character limit exceeded: "' + duplicateCharacter + '" repeated ' + DUPLICATE_CHARACTER_MAX + '+ times'
+      : 'Marketing word detected: "' + detectedWord + '"';
   const moderatorId = client.user?.id || 'TigerBot';
 
   const deleted = await message.delete().then(() => true).catch(error => {
@@ -133,7 +163,7 @@ async function handleMarketingFilter(message, client) {
           totalWarns: warningResult?.totalCount ?? null,
           warningNumber: warningResult?.totalCount ?? null,
           warningId: warningResult?.id ?? null,
-          automatic: true, matchedMarketingWord: matchedWord || null, matchedProhibitedWord: profanityWord || null, channelId: message.channelId,
+          automatic: true, matchedMarketingWord: matchedWord || null, matchedProhibitedWord: profanityWord || null, duplicateCharacter: duplicateCharacter || null, channelId: message.channelId,
         },
       },
     });
@@ -143,7 +173,7 @@ async function handleMarketingFilter(message, client) {
 
   try {
     const warningMessage = await message.channel.send({
-      content: '<@' + message.author.id + '> Sorry, **"' + detectedWord + '"** is not allowed here. Your message has been deleted and you have received a warning.',
+      content: '<@' + message.author.id + '> Sorry, **' + (isDuplicateCharacterViolation ? 'the same character was repeated too many times' : '"' + detectedWord + '"') + '** is not allowed here. Your message has been deleted and you have received a warning.',
       allowedMentions: { users: [message.author.id] },
     });
     setTimeout(() => {
@@ -153,7 +183,7 @@ async function handleMarketingFilter(message, client) {
     logger.error('Marketing filter could not send warning message:', error);
   }
 
-  logger.info('Message filter triggered in ' + message.channelId + ' for ' + message.author.tag + ' matching "' + detectedWord + '" (deleted=' + deleted + ')');
+  logger.info('Message filter triggered in ' + message.channelId + ' for ' + message.author.tag + ' (' + reason + ') (deleted=' + deleted + ')');
   return true;
 }
 
