@@ -25,8 +25,6 @@ const MESSAGE_XP_RATE_LIMIT_ATTEMPTS = 12;
 const MESSAGE_XP_RATE_LIMIT_WINDOW_MS = 10000;
 const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
 
-// Marketing-word filter: intentionally limited to these two channels.
-// Staff and invite-reward roles are exempt from this filter.
 const MARKETING_FILTER_CHANNELS = new Set([
   '1504946935197597878',
   '1526319312078372974',
@@ -34,49 +32,18 @@ const MARKETING_FILTER_CHANNELS = new Set([
 
 const MARKETING_FILTER_EXEMPT_ROLES = new Set([
   '1513634231480483991',
-  '1529640643244485341',
+  '1529641819040645341',
 ]);
 
 const MARKETING_WORDS = [
-  'sell',
-  'buy',
-  'selling',
-  'for sale',
-  'buying',
-  'looking to buy',
-  'trade',
-  'trading',
-  'swap',
-  'price',
-  'pricing',
-  'cost',
-  'offer',
-  'offering',
-  'deals',
-  'service',
-  'services',
-  'commissions',
-  'dm me to buy',
-  'message me for price',
-  'cheap',
-  'discount',
-  'bargain',
-  'payment',
-  'pay',
-  'paid',
-  'vendor',
-  'shop',
-  'store',
-  'available',
-  'in stock',
-  'inventory',
-  'order',
-  'preorder',
-  'cash',
-  'funds',
-  'paypal',
-  'auction',
-  '$
+  'sell', 'buy', 'selling', 'for sale', 'buying', 'looking to buy',
+  'trade', 'trading', 'swap', 'price', 'pricing', 'cost', 'offer',
+  'offering', 'deals', 'service', 'services', 'commissions',
+  'dm me to buy', 'message me for price', 'cheap', 'discount',
+  'bargain', 'payment', 'pay', 'paid', 'vendor', 'shop', 'store',
+  'available', 'in stock', 'inventory', 'order', 'preorder', 'cash',
+  'funds', 'paypal', 'auction', '$
+
 export default {
   name: Events.MessageCreate,
   async execute(message, client) {
@@ -86,9 +53,7 @@ export default {
       logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
 
       const marketingFiltered = await handleMarketingFilter(message, client);
-      if (marketingFiltered) {
-        return;
-      }
+      if (marketingFiltered) return;
 
       const repeated = await handleRepeatMessage(message, client);
       if (repeated) {
@@ -369,15 +334,9 @@ async function handleLeveling(message, client) {
   } catch (error) {
     logger.error('Error handling leveling for message:', error);
   }
-},
-  'per block',
-  'digging service',
-  "if you're interested",
-  'message me',
-  'text me',
-  'sale',
-  'dm for money',
-  'dm me',
+}, 'per block', 'digging service',
+  "if you're interested", 'message me', 'text me', 'sale',
+  'dm for money', 'dm me',
 ];
 
 function normalizeMarketingText(content) {
@@ -391,41 +350,45 @@ function normalizeMarketingText(content) {
 function findMarketingWord(content) {
   const normalized = normalizeMarketingText(content);
 
-  return MARKETING_WORDS.find((word) => {
+  for (const word of MARKETING_WORDS) {
     const normalizedWord = normalizeMarketingText(word);
-    if (!normalizedWord) return false;
+    if (!normalizedWord) continue;
 
-    // Phrase/word matching is case-insensitive. Word-like terms use
-    // boundaries so "buyer" does not accidentally match "buy".
-    const escaped = normalizedWord.replace(/[.*+?^{}()|[\]\\]/g, '\\const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
-');
-    const pattern = /^[a-z0-9]+(?:[ -][a-z0-9]+)*$/i.test(normalizedWord)
-      ? new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i')
-      : new RegExp(escaped, 'i');
+    const escaped = normalizedWord.replace(/[.*+?^$()|[\]\\]/g, '\\const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';');
+    const pattern = new RegExp(
+      `(^|[^a-z0-9])${escaped.replace(/ /g, '\\\\s+')}(?=$|[^a-z0-9])`,
+      'i'
+    );
 
-    return pattern.test(normalized);
-  });
+    if (pattern.test(normalized)) return word;
+  }
+
+  return null;
 }
 
 function hasMarketingFilterExemption(message) {
-  const member = message.member;
-  return Boolean(member?.roles?.cache?.some((role) => MARKETING_FILTER_EXEMPT_ROLES.has(role.id)));
+  return Boolean(
+    message.member?.roles?.cache?.some((role) =>
+      MARKETING_FILTER_EXEMPT_ROLES.has(role.id)
+    )
+  );
 }
 
 async function handleMarketingFilter(message, client) {
+  if (!MARKETING_FILTER_CHANNELS.has(message.channelId)) return false;
+  if (hasMarketingFilterExemption(message)) return false;
+
+  const matchedWord = findMarketingWord(message.content);
+  if (!matchedWord) return false;
+
+  const reason = `Marketing word detected: "${matchedWord}"`;
+  const moderatorId = client.user?.id;
+
   try {
-    if (!MARKETING_FILTER_CHANNELS.has(message.channelId)) return false;
-    if (hasMarketingFilterExemption(message)) return false;
-
-    const matchedWord = findMarketingWord(message.content);
-    if (!matchedWord) return false;
-
-    const reason = `Marketing word detected: "${matchedWord}"`;
-
     const warningResult = await WarningService.addWarning({
       guildId: message.guild.id,
       userId: message.author.id,
-      moderatorId: client.user?.id || 'TigerBot',
+      moderatorId: moderatorId || 'TigerBot',
       reason,
       timestamp: Date.now(),
     });
@@ -436,11 +399,11 @@ async function handleMarketingFilter(message, client) {
       event: {
         action: 'User Warned',
         target: `${message.author.tag} (${message.author.id})`,
-        executor: `${client.user?.tag || 'TigerBot'} (${client.user?.id || 'TigerBot'})`,
+        executor: `${client.user?.tag || 'TigerBot'} (${moderatorId || 'TigerBot'})`,
         reason,
         metadata: {
           userId: message.author.id,
-          moderatorId: client.user?.id || 'TigerBot',
+          moderatorId: moderatorId || 'TigerBot',
           totalWarns: warningResult.totalCount,
           warningNumber: warningResult.totalCount,
           warningId: warningResult.id,
@@ -449,24 +412,24 @@ async function handleMarketingFilter(message, client) {
           channelId: message.channelId,
         },
       },
+    }).catch((error) => {
+      logger.error('Failed to log automatic marketing warning:', error);
     });
+
+    await message.delete();
 
     await message.channel.send({
       content: `<@${message.author.id}> Sorry, **"${matchedWord}"** is a marketing word and marketing is not allowed here. Your message has been deleted and you have received a warning.`,
-      allowedMentions: {
-        users: [message.author.id],
-      },
-    }).catch(() => {});
-
-    await message.delete().catch(() => {});
+      allowedMentions: { users: [message.author.id] },
+    });
 
     logger.info(
-      `Automatic marketing warning: ${message.author.tag} in #${message.channel.name} (${message.channelId}) matched "${matchedWord}"`
+      `Automatic marketing filter deleted a message from ${message.author.tag} in ${message.channelId} matching "${matchedWord}"`
     );
 
     return true;
   } catch (error) {
-    logger.error('Error handling automatic marketing filter:', error);
+    logger.error('Automatic marketing filter failed:', error);
     return false;
   }
 }
