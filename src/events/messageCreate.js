@@ -40,6 +40,13 @@ const DUPLICATE_CHARACTER_MAX = 15;
 const DUPLICATE_CHARACTER_FILTER_IDS = new Set(['1504946794730361045']);
 const MAX_MESSAGE_CHARACTER_COUNT = 350;
 const BLOCKED_MENTION_ROLE_IDS = new Set(['1508954719006232806']);
+const BLOCKED_LINK_FILTER_IDS = new Set([
+  '1504946935197597878',
+  '1505055376188506163',
+  '1509589288042631269',
+  '1526319312078372974',
+  '1508147864881205350',
+]);
 
 const MARKETING_WORDS = [
   'sell', 'buy', 'selling', 'for sale buy', 'buying',
@@ -124,6 +131,32 @@ function findBlockedMention(content) {
   return null;
 }
 
+function isBlockedLinkFilterTarget(message) {
+  return BLOCKED_LINK_FILTER_IDS.has(message.channelId)
+    || BLOCKED_LINK_FILTER_IDS.has(message.channel?.parentId);
+}
+
+function findBlockedLink(content) {
+  const text = String(content || '');
+
+  // Covers protocol URLs, www links, common domain links, Discord invites,
+  // and Markdown-style links while avoiding ordinary punctuation.
+  const patterns = [
+    /(?:https?|ftp|ftps):\\/\\/[^\\s<>()]+/i,
+    /(?:^|[\\s(])www\\.[^\\s<>()]+/i,
+    /(?:^|[\\s(])(?:discord\\.(?:gg|com\\/invite)\\/)[^\\s<>()]+/i,
+    /(?:^|[\\s(])(?:[a-z0-9-]+\\.)+(?:com|net|org|gg|io|co|me|tv|dev|app|xyz|site|store|shop|link|live|online|cloud|us|uk|ca|de|fr|ru|xyz)(?::\\d+)?(?:[/?#][^\\s<>()]*)?/i,
+    /\\[[^\\]]*\\]\\(\\s*(?:https?|ftp|ftps):\\/\\/[^)]+\\)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return match[0].trim();
+  }
+
+  return null;
+}
+
 async function handleMarketingFilter(message, client) {
   const profanityWord = findProfanityWord(message.content);
   const matchedWord = findMarketingWord(message.content);
@@ -138,12 +171,17 @@ async function handleMarketingFilter(message, client) {
     Boolean(blockedMention) &&
     isDuplicateCharacterFilterTarget(message) &&
     !hasMarketingFilterExemption(message);
+  const blockedLink = findBlockedLink(message.content);
+  const isLinkViolation =
+    Boolean(blockedLink) &&
+    isBlockedLinkFilterTarget(message) &&
+    !hasMarketingFilterExemption(message);
   const isMessageTooLong =
     String(message.content || '').length > MAX_MESSAGE_CHARACTER_COUNT &&
     isDuplicateCharacterFilterTarget(message) &&
     !hasMarketingFilterExemption(message);
 
-  if (!isGlobalProfanity && !isDuplicateCharacterViolation && !isMentionViolation && !isMessageTooLong) {
+  if (!isGlobalProfanity && !isDuplicateCharacterViolation && !isMentionViolation && !isLinkViolation && !isMessageTooLong) {
     if (!MARKETING_FILTER_CHANNELS.has(message.channelId)) return false;
     if (hasMarketingFilterExemption(message)) return false;
     if (!matchedWord) return false;
@@ -194,6 +232,7 @@ async function handleMarketingFilter(message, client) {
           automatic: true, matchedMarketingWord: matchedWord || null, matchedProhibitedWord: profanityWord || null, duplicateCharacter: duplicateCharacter || null, channelId: message.channelId,
           messageCharacterCount: String(message.content || '').length,
           blockedMention: blockedMention || null,
+          blockedLink: blockedLink || null,
         },
       },
     });
