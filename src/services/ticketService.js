@@ -259,18 +259,9 @@ export async function closeTicket(channel, actor) {
   const creatorId = ticket.openerId;
   const subject = TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Support Ticket';
 
-  // The transcripts channel is dedicated to ticket transcripts. Remove ALL
-  // previous TigerBot transcript messages first so the channel does not keep
-  // the old "Auto-Generated Transcript" panels or duplicate transcript posts.
-  const existingTranscriptMessages = await transcriptChannel.messages.fetch({ limit: 100 }).catch(() => null);
-  if (existingTranscriptMessages) {
-    const botMessages = existingTranscriptMessages.filter(
-      (message) => message.author?.id === channel.client.user.id,
-    );
-    for (const message of botMessages.values()) {
-      await message.delete().catch(() => {});
-    }
-  }
+  // Keep every previous transcript message in the transcripts channel.
+  // Each closed ticket gets its own persistent transcript entry, so closing
+  // a new ticket never deletes or replaces transcripts from older tickets.
 
   // Store the transcript behind a button instead of uploading it into the
   // transcripts channel. This keeps the channel message identical to the DM.
