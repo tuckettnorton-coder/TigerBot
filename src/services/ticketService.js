@@ -25,9 +25,16 @@ function ticketDefinitionFromCategory(categoryName) {
   return Object.entries(TICKET_TYPES).find(([, ticket]) => ticket.categoryName.toLowerCase() === String(categoryName || '').toLowerCase())?.[0] || null;
 }
 
+const UNIVERSAL_TICKET_STAFF_ROLE_ID = '1513634231480483991';
+
 export function isStaffForTicket(member, ticket) {
   if (!member || !ticket) return false;
   if (member.permissions?.has(PermissionFlagsBits.Administrator)) return true;
+
+  // This role is allowed to use the ticket control buttons on every ticket,
+  // including Close, Calculate, and Add User.
+  if (member.roles?.cache?.has(UNIVERSAL_TICKET_STAFF_ROLE_ID)) return true;
+
   const staffRoles = resolveRoles(member.guild, [
     ...(ticket.pingRoles || []),
     ...(ticket.accessRoles || []),
@@ -243,6 +250,31 @@ function buildTranscriptHtml(channel, actor, messages) {
   return `<!doctype html><html><head><meta charset=\"utf-8\"><title>${escapeHtml(channel.name)}</title><style>body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:24px;max-width:1100px;margin:auto}article{padding:12px 0;border-bottom:1px solid #333}small{color:#aaa}pre{white-space:pre-wrap;font:inherit;margin:6px 0}a{color:#7dd3fc}</style></head><body><h1>${escapeHtml(channel.name)}</h1><p>Closed by ${escapeHtml(actorName)} • ${escapeHtml(new Date().toISOString())}</p>${body}</body></html>`;
 }
 
+export async function closeTicketsForUser(guild, userId) {
+  if (!guild || !userId) return 0;
+
+  try { await guild.channels.fetch(); } catch {}
+
+  const tickets = [...guild.channels.cache.values()].filter((channel) => {
+    if (channel.type !== ChannelType.GuildText) return false;
+    const ticket = getTicketFromChannel(channel);
+    return ticket?.openerId === String(userId);
+  });
+
+  let closed = 0;
+  for (const channel of tickets) {
+    try {
+      // Use the bot user as the actor because the owner has left the server.
+      await closeTicket(channel, guild.client.user);
+      closed += 1;
+    } catch (error) {
+      console.warn(`Could not auto-close ticket ${channel.id} after owner ${userId} left: ${error.message}`);
+    }
+  }
+
+  return closed;
+}
+
 export async function closeTicket(channel, actor) {
   const ticket = getTicketFromChannel(channel);
   if (!ticket) throw new Error('This channel is not a managed ticket.');
@@ -316,7 +348,9 @@ export async function closeTicket(channel, actor) {
   bindTranscriptMessage(transcriptPanelMessage.id, transcriptToken);
 
   try {
-    const owner = await channel.guild.members.fetch(ticket.openerId);
+    // Fetch the user directly so this still works when the ticket owner has
+    // already left the server and is no longer a GuildMember.
+    const owner = await channel.client.users.fetch(ticket.openerId);
     // DM panel uses the exact compact closed-ticket format requested.
     const dmMessage = await owner.send({
       embeds: [transcriptEmbed],
