@@ -61,7 +61,6 @@ function findMarketingWord(content) {
     const normalizedWord = normalizeMarketingText(word);
     if (!normalizedWord) continue;
     const escaped = normalizedWord.replace(/[.*+?^$()|[\]\\]/g, character => '\\' + character);
-');
     const pattern = new RegExp(
       '(^|[^a-z0-9])' + escaped.replace(/ /g, '\\s+') + '(?=$|[^a-z0-9])',
       'i'
