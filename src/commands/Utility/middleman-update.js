@@ -88,7 +88,7 @@ export async function postMiddlemanMessage(client, message) {
   }
 
   saveMessageIds(newMessageIds);
-  await setUpdateState(client, channel.guild.id, { middlemanPriceMessageIds: newMessageIds, middlemanPriceChannelId: channel.id });
+  await setUpdateState(client, channel.guild.id, { middlemanPriceMessageIds: newMessageIds, middlemanPriceChannelId: channel.id, middlemanFees: loadMiddlemanFees(), middlemanPriceMessage: message });
   return newMessageIds;
 }
 
