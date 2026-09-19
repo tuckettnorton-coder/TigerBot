@@ -98,8 +98,11 @@ export default {
         }
         
         // Automatically replace the footer after every welcome message, keeping it last.
-        if (welcomeConfig?.enabled && welcomeChannelId === WELCOME_STICKY_CHANNEL_ID && channel) {
-            await keepWelcomeMessageAtBottom(channel, member.client);
+        // Always refresh the welcome footer automatically after a member joins.
+        // This does not depend on the welcome feature being enabled/configured.
+        const stickyWelcomeChannel = guild.channels.cache.get(WELCOME_STICKY_CHANNEL_ID);
+        if (stickyWelcomeChannel?.isTextBased?.()) {
+            await keepWelcomeMessageAtBottom(stickyWelcomeChannel, member.client);
         }\n        \n        if (welcomeConfig?.roleIds && welcomeConfig.roleIds.length > 0) {
             const delay = welcomeConfig.autoRoleDelay || 0;
             const singleRoleId = welcomeConfig.roleIds[0];
