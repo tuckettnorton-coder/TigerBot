@@ -5,11 +5,6 @@ function stateKey(guildId) {
   return STATE_PREFIX + guildId + STATE_SUFFIX;
 }
 
-/**
- * Persistent update state. This intentionally lives in its own database key
- * instead of the guild-config object so update data/message IDs cannot be
- * overwritten by config normalization or unrelated config saves.
- */
 export async function getUpdateState(client, guildId) {
   if (!client?.db || !guildId) return {};
   try {
@@ -34,6 +29,12 @@ export async function setUpdateState(client, guildId, patch) {
   } catch {
     return false;
   }
+}
+
+/** Read the latest saved value for an individual update type. */
+export async function getLatestUpdateData(client, guildId, key, fallback = null) {
+  const state = await getUpdateState(client, guildId);
+  return state[key] !== undefined ? state[key] : fallback;
 }
 
 export function getUpdateStateKey(guildId) {
