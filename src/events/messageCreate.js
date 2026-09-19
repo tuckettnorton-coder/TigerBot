@@ -131,7 +131,7 @@ async function handleMarketingFilter(message, client) {
     });
     setTimeout(() => {
       warningMessage.delete().catch(() => {});
-    }, 5000);
+    }, 3000);
   } catch (error) {
     logger.error('Marketing filter could not send warning message:', error);
   }
