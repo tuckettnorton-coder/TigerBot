@@ -63,7 +63,14 @@ function scheduleWelcomeStickyRefresh(channel, client) {
                         .find(message => message.author?.id !== client.user?.id)
                     : null;
 
-                if (newestNonTigerBotMessage) {
+                const stickyId = await client.db.get(WELCOME_STICKY_KEY(channel.guild.id), null);
+                const currentSticky = stickyId
+                    ? await channel.messages.fetch(stickyId).catch(() => null)
+                    : null;
+
+                // Only refresh when a newer non-TigerBot message actually arrived.
+                if (newestNonTigerBotMessage &&
+                    (!currentSticky || newestNonTigerBotMessage.createdTimestamp > currentSticky.createdTimestamp)) {
                     await keepWelcomeMessageAtBottom(channel, client);
                 }
             } catch (error) {
