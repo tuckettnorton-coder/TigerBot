@@ -7,6 +7,7 @@ import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
 import { getServerCounters, updateCounter } from '../services/serverstatsService.js';
 import { setBirthday as dbSetBirthday } from '../utils/database.js';
 import { logger } from '../utils/logger.js';
+
 export default {
   name: Events.GuildMemberAdd,
   once: false,
@@ -20,9 +21,9 @@ export default {
         const welcomeConfig = await getWelcomeConfig(member.client, guild.id);
         
         const welcomeChannelId = welcomeConfig?.channelId;
-        const channel = welcomeChannelId ? guild.channels.cache.get(welcomeChannelId) : null;
 
         if (welcomeConfig?.enabled && welcomeChannelId) {
+            const channel = guild.channels.cache.get(welcomeChannelId);
             const me = guild.members.me;
             const permissions = channel?.isTextBased?.() && me ? channel.permissionsFor(me) : null;
             // Skip only the welcome message if permissions are missing; the rest of the
