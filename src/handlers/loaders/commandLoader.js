@@ -178,11 +178,12 @@ async function registerGlobalCommands(client, clientId, commands, totalSubcomman
         await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
     }
 
-    await client.rest.put(`/applications/${clientId}/commands`, { body: commandsToRegister });
-    logger.info(`Successfully registered ${commandsToRegister.length} global commands`);
+    // Keep commands guild-scoped so Discord does not show both a global and guild copy.
+    // Clear the global command list to remove any stale duplicate global commands.
+    await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
+    logger.info('Cleared global commands to prevent duplicate slash commands');
 
-    // Global commands can take time to propagate. Also register to every guild
-    // the bot is currently in so newly added commands appear immediately.
+    // Register commands directly in each guild for immediate availability.
     for (const guild of client.guilds.cache.values()) {
         try {
             await client.rest.put(`/applications/${clientId}/guilds/${guild.id}/commands`, { body: commandsToRegister });
