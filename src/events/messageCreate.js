@@ -39,6 +39,7 @@ const PROFANITY_FILTER_WORDS = ['nigger', 'fuck', 'shit', 'gay'];
 const DUPLICATE_CHARACTER_MAX = 15;
 const DUPLICATE_CHARACTER_FILTER_IDS = new Set(['1504946794730361045']);
 const MAX_MESSAGE_CHARACTER_COUNT = 350;
+const BLOCKED_MENTION_ROLE_IDS = new Set(['1508954719006232806']);
 
 const MARKETING_WORDS = [
   'sell', 'buy', 'selling', 'for sale buy', 'buying',
@@ -111,6 +112,18 @@ function hasMarketingFilterExemption(message) {
   return Boolean(message.member?.roles?.cache?.some(role => MARKETING_FILTER_EXEMPT_ROLES.has(role.id)));
 }
 
+function findBlockedMention(content) {
+  const text = String(content || '');
+  if (text.includes('@everyone')) return '@everyone';
+  if (text.includes('@here')) return '@here';
+
+  for (const roleId of BLOCKED_MENTION_ROLE_IDS) {
+    if (text.includes('<@&' + roleId + '>')) return '<@&' + roleId + '>';
+  }
+
+  return null;
+}
+
 async function handleMarketingFilter(message, client) {
   const profanityWord = findProfanityWord(message.content);
   const matchedWord = findMarketingWord(message.content);
@@ -120,12 +133,17 @@ async function handleMarketingFilter(message, client) {
     Boolean(duplicateCharacter) &&
     isDuplicateCharacterFilterTarget(message) &&
     !hasMarketingFilterExemption(message);
+  const blockedMention = findBlockedMention(message.content);
+  const isMentionViolation =
+    Boolean(blockedMention) &&
+    isDuplicateCharacterFilterTarget(message) &&
+    !hasMarketingFilterExemption(message);
   const isMessageTooLong =
     String(message.content || '').length > MAX_MESSAGE_CHARACTER_COUNT &&
     isDuplicateCharacterFilterTarget(message) &&
     !hasMarketingFilterExemption(message);
 
-  if (!isGlobalProfanity && !isDuplicateCharacterViolation && !isMessageTooLong) {
+  if (!isGlobalProfanity && !isDuplicateCharacterViolation && !isMentionViolation && !isMessageTooLong) {
     if (!MARKETING_FILTER_CHANNELS.has(message.channelId)) return false;
     if (hasMarketingFilterExemption(message)) return false;
     if (!matchedWord) return false;
@@ -175,6 +193,7 @@ async function handleMarketingFilter(message, client) {
           warningId: warningResult?.id ?? null,
           automatic: true, matchedMarketingWord: matchedWord || null, matchedProhibitedWord: profanityWord || null, duplicateCharacter: duplicateCharacter || null, channelId: message.channelId,
           messageCharacterCount: String(message.content || '').length,
+          blockedMention: blockedMention || null,
         },
       },
     });
