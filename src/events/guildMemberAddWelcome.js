@@ -3,16 +3,16 @@ import { logger } from '../utils/logger.js';
 const WELCOME_CHANNEL_ID = '1504917892100001892';
 
 const WELCOME_MESSAGES = [
-  'Welcome to **Tiger Market**, {user}! Glad to have you here! You are our **{member_count}th member!**',
-  'Welcome, {user}! Enjoy your stay in **Tiger Market**! You are our **{member_count}th member!**',
-  'Hey {user}, welcome to the community! You are our **{member_count}th member!**',
-  'Welcome to **Tiger Market**, {user}! Have fun! You are our **{member_count}th member!**',
-  '{user} just joined! Welcome to Tiger Market! You are our **{member_count}th member!**',
-  'Welcome in, {user}! Make yourself at home! You are our **{member_count}th member!**',
-  'Glad to have you here, {user}! Welcome! You are our **{member_count}th member!**',
-  'Welcome to **Tiger Market**, {user}! Happy trading! You are our **{member_count}th member!**',
-  '{user}, welcome to the family! Enjoy the server! You are our **{member_count}th member!**',
-  'Welcome, {user}! Thanks for joining **Tiger Market**! You are our **{member_count}th member!**',
+  'Welcome to **Tiger Market**, {user}! Glad to have you here! You are our **{member_count}th member!**\n\nMake sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>',
+  'Welcome, {user}! Enjoy your stay in **Tiger Market**! You are our **{member_count}th member!**\n\nMake sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>',
+  'Hey {user}, welcome to the community! You are our **{member_count}th member!**\n\nMake sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>',
+  'Welcome to **Tiger Market**, {user}! Have fun! You are our **{member_count}th member!**\n\nMake sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>',
+  '{user} just joined! Welcome to Tiger Market! You are our **{member_count}th member!**\n\nMake sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>',
+  'Welcome in, {user}! Make yourself at home! You are our **{member_count}th member!**\n\nMake sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>',
+  'Glad to have you here, {user}! Welcome! You are our **{member_count}th member!**\n\nMake sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>',
+  'Welcome to **Tiger Market**, {user}! Happy trading! You are our **{member_count}th member!**\n\nMake sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>',
+  '{user}, welcome to the family! Enjoy the server! You are our **{member_count}th member!**\n\nMake sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>',
+  'Welcome, {user}! Thanks for joining **Tiger Market**! You are our **{member_count}th member!**\n\nMake sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>',
 ];
 
 export default {
