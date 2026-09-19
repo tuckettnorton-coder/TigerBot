@@ -10,6 +10,7 @@ import { logger } from '../utils/logger.js';
 const WELCOME_STICKY_CHANNEL_ID = '1504917892100001892';
 const WELCOME_STICKY_MESSAGE = 'Make sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>';
 const WELCOME_STICKY_KEY = (guildId) => 'guild:' + guildId + ':welcome-sticky-message';
+const WELCOME_STICKY_ENABLED_KEY = (guildId) => 'guild:' + guildId + ':welcome-sticky-enabled';
 
 async function keepWelcomeMessageAtBottom(channel, client) {
     if (!channel || channel.id !== WELCOME_STICKY_CHANNEL_ID || !client?.db) return;
@@ -98,10 +99,10 @@ export default {
         }
         
         // Automatically replace the footer after every welcome message, keeping it last.
-        // Always refresh the welcome footer automatically after a member joins.
-        // This does not depend on the welcome feature being enabled/configured.
+        // Refresh the footer only after it has been enabled with /welcome-sticky enable.
+        const stickyEnabled = await member.client.db.get(WELCOME_STICKY_ENABLED_KEY(guild.id), false);
         const stickyWelcomeChannel = guild.channels.cache.get(WELCOME_STICKY_CHANNEL_ID);
-        if (stickyWelcomeChannel?.isTextBased?.()) {
+        if (stickyEnabled && stickyWelcomeChannel?.isTextBased?.()) {
             await keepWelcomeMessageAtBottom(stickyWelcomeChannel, member.client);
         }\n        \n        if (welcomeConfig?.roleIds && welcomeConfig.roleIds.length > 0) {
             const delay = welcomeConfig.autoRoleDelay || 0;
