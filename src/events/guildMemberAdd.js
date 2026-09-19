@@ -40,9 +40,9 @@ export default {
         const welcomeConfig = await getWelcomeConfig(member.client, guild.id);
         
         const welcomeChannelId = welcomeConfig?.channelId;
+        const channel = welcomeChannelId ? guild.channels.cache.get(welcomeChannelId) : null;
 
         if (welcomeConfig?.enabled && welcomeChannelId) {
-            const channel = guild.channels.cache.get(welcomeChannelId);
             const me = guild.members.me;
             const permissions = channel?.isTextBased?.() && me ? channel.permissionsFor(me) : null;
             // Skip only the welcome message if permissions are missing; the rest of the
@@ -97,7 +97,7 @@ export default {
             }
         }
         
-        // Keep the welcome-channel footer as the last message after each join.\n        if (welcomeChannelId === WELCOME_STICKY_CHANNEL_ID) {\n            await keepWelcomeMessageAtBottom(channel, member.client);\n        }\n        \n        if (welcomeConfig?.roleIds && welcomeConfig.roleIds.length > 0) {
+        // Automatically replace the footer after every welcome message, keeping it last.\n        if (welcomeConfig?.enabled && welcomeChannelId === WELCOME_STICKY_CHANNEL_ID && channel) {\n            await keepWelcomeMessageAtBottom(channel, member.client);\n        }\n        \n        if (welcomeConfig?.roleIds && welcomeConfig.roleIds.length > 0) {
             const delay = welcomeConfig.autoRoleDelay || 0;
             const singleRoleId = welcomeConfig.roleIds[0];
             
