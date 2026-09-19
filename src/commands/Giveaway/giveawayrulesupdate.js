@@ -138,7 +138,7 @@ export async function postGiveawayRules(client, data) {
   try {
     const newMessage = await channel.send({ content: formatGiveawayRulesMessage(data) });
     saveMessageId(newMessage.id);
-    await setUpdateState(client, channel.guild.id, { giveawayRulesMessageId: newMessage.id, giveawayRulesChannelId: channel.id });
+    await setUpdateState(client, channel.guild.id, { giveawayRulesMessageId: newMessage.id, giveawayRulesChannelId: channel.id, giveawayRules: data, giveawayRulesMessage: formatGiveawayRulesMessage(data) });
   } catch (error) {
     const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
     throw new Error(`Could not post the giveaway rules: ${apiMessage}`);
