@@ -133,7 +133,7 @@ export async function postPartnerRules(client, data) {
   try {
     const newMessage = await channel.send({ content: formatPartnerRulesMessage(data) });
     saveMessageId(newMessage.id);
-    await setUpdateState(client, channel.guild.id, { partnerRulesMessageId: newMessage.id, partnerRulesChannelId: channel.id });
+    await setUpdateState(client, channel.guild.id, { partnerRulesMessageId: newMessage.id, partnerRulesChannelId: channel.id, partnerRules: data, partnerRulesMessage: formatPartnerRulesMessage(data) });
   } catch (error) {
     const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
     throw new Error(`Could not post the partner rules: ${apiMessage}`);
