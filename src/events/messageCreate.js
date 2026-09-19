@@ -49,7 +49,7 @@ const BLOCKED_LINK_FILTER_IDS = new Set([
 ]);
 
 const MARKETING_WORDS = [
-  'sell', 'buy', 'selling', 'for sale buy', 'buying',
+  'sell', 'buy', 'selling', 'trade', 'spawner', 'skeleton', 'Skelly', 'creeper', 'for sale buy', 'buying',
   'looking to buy trade', 'trading', 'swap price', 'pricing',
   'cost offer', 'offering', 'deals service', 'services',
   'commissions dm me to buy', 'message me for price cheap',
