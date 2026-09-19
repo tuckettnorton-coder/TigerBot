@@ -62,7 +62,7 @@ export default { name:'ticket_form', async execute(interaction,client,args){try{
      await interaction.deferReply({ephemeral:true});const result=await createTicketChannel({guild:interaction.guild,user:interaction.user,typeId,answers});if(result.existing)return interaction.editReply(`You already have an open ticket: ${result.existing}`);
      if(building)await addCalculationToPanel(result.channel,ticket.label,'🧮 Automatic Building Price Calculation',buildBuildingCalculationMessage(building));
      if(digging)await addCalculationToPanel(result.channel,ticket.label,'🧮 Automatic Digging Price Calculation',buildDiggingCalculationMessage(digging));
-     if(schematic==='yes')await result.channel.send('📐 **Schematic Needed**\nPlease put your schematic in this ticket once created.');
+     if(schematic==='yes')await result.channel.send('📐 **Upload a Schematic**\nPlease upload your schematic here as a **ZIP file containing the schematic folder**. Once uploaded, TigerBot will add it to the ticket panel with a download button.');
      const displayName=interaction.member?.displayName||interaction.user.globalName||interaction.user.username;await logTicket(interaction.guild,`🎫 **Ticket opened** • ${ticket.label} • ${displayName} • ${result.channel}`);clearBuildingDraft(interaction.user.id);await resetMainTicketPanel(interaction.user.id);await clearTicketEphemeral(interaction.user.id);const total=(building?.total||0)+(digging?.total||0);const confirmation=`✅ Ticket created: ${result.channel}${total?`\n💰 **Automatic total: ${new Intl.NumberFormat('en-US').format(total)}**`:''}`;await interaction.editReply(confirmation);clearTicketEphemeralLater(interaction);return;
    }
  }
