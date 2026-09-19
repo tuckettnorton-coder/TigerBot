@@ -60,7 +60,7 @@ function findMarketingWord(content) {
   for (const word of MARKETING_WORDS) {
     const normalizedWord = normalizeMarketingText(word);
     if (!normalizedWord) continue;
-    const escaped = normalizedWord.replace(/[.*+?^$()|[\]\\]/g, '\\const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
+    const escaped = normalizedWord.replace(/[.*+?^$()|[\]\\]/g, character => '\\' + character);
 ');
     const pattern = new RegExp(
       '(^|[^a-z0-9])' + escaped.replace(/ /g, '\\s+') + '(?=$|[^a-z0-9])',
