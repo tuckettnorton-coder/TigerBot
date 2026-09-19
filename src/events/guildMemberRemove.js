@@ -7,6 +7,7 @@ import { getServerCounters, updateCounter } from '../services/serverstatsService
 import { getGuildBirthdays, deleteBirthday } from '../utils/database.js';
 import { deleteUserLevelData } from '../services/leveling/leveling.js';
 import { logger } from '../utils/logger.js';
+import { closeTicketsForUser } from '../services/ticketService.js';
 
 export default {
   name: Events.GuildMemberRemove,
@@ -15,6 +16,18 @@ export default {
   async execute(member) {
     try {
         const { guild, user } = member;
+
+        // Automatically close every open ticket owned by a member who leaves.
+        // The ticket service generates/saves the transcript, attempts the DM,
+        // and deletes the ticket channel only after the transcript is saved.
+        try {
+            const closedTickets = await closeTicketsForUser(guild, user.id);
+            if (closedTickets > 0) {
+                logger.info(`Auto-closed ${closedTickets} ticket(s) because ${user.tag} left ${guild.name}`);
+            }
+        } catch (error) {
+            logger.error(`Failed to auto-close tickets for departing user ${user.id}:`, error);
+        }
         
         const welcomeConfig = await getWelcomeConfig(member.client, guild.id);
         
