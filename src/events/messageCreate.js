@@ -24,26 +24,6 @@ import {
 const MESSAGE_XP_RATE_LIMIT_ATTEMPTS = 12;
 const MESSAGE_XP_RATE_LIMIT_WINDOW_MS = 10000;
 const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
-const WELCOME_STICKY_CHANNEL_ID = '1504917892100001892';
-const WELCOME_STICKY_MESSAGE = 'Make sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>';
-const WELCOME_STICKY_KEY = (guildId) => 'guild:' + guildId + ':welcome-sticky-message';
-
-async function keepWelcomeMessageAtBottom(message, client) {
-  if (!message.guild || message.channelId !== WELCOME_STICKY_CHANNEL_ID || !client?.db) return;
-  try {
-    const oldMessageId = await client.db.get(WELCOME_STICKY_KEY(message.guild.id), null);
-    if (oldMessageId) {
-      const oldMessage = await message.channel.messages.fetch(oldMessageId).catch(() => null);
-      if (oldMessage) await oldMessage.delete().catch(() => {});
-    }
-    const stickyMessage = await message.channel.send({ content: WELCOME_STICKY_MESSAGE, allowedMentions: { parse: [] } });
-    await client.db.set(WELCOME_STICKY_KEY(message.guild.id), stickyMessage.id);
-  } catch (error) {
-    logger.debug('Could not keep welcome channel message at bottom:', error);
-  }
-}
-
-
 const MARKETING_FILTER_CHANNELS = new Set([
   '1504946935197597878',
   '1526319312078372974',
