@@ -42,3 +42,27 @@ export function buildSpawnerMultiCalculationMessage(results) {
   lines.push('', `### 💰 **Grand Total: ${formatResult(total)}**`, '', 'This total was calculated automatically from the current prices in the spawner price system.');
   return lines.join('\n');
 }
+
+
+const spawnerDrafts = new Map();
+const SPAWNER_DRAFT_TTL = 15 * 60 * 1000;
+
+export function setSpawnerDraft(userId, patch) {
+  const current = spawnerDrafts.get(userId) || { entries: [] };
+  const next = { ...current, ...patch, updatedAt: Date.now() };
+  spawnerDrafts.set(userId, next);
+  return next;
+}
+
+export function getSpawnerDraft(userId) {
+  const draft = spawnerDrafts.get(userId);
+  if (!draft || Date.now() - draft.updatedAt > SPAWNER_DRAFT_TTL) {
+    spawnerDrafts.delete(userId);
+    return null;
+  }
+  return draft;
+}
+
+export function clearSpawnerDraft(userId) {
+  spawnerDrafts.delete(userId);
+}
