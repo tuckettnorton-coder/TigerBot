@@ -36,63 +36,43 @@ const MARKETING_FILTER_EXEMPT_ROLES = new Set([
 ]);
 
 const MARKETING_WORDS = [
-  'sell', 'buy', 'selling', 'for sale', 'buying', 'looking to buy',
-  'trade', 'trading', 'swap', 'price', 'pricing', 'cost', 'offer',
-  'offering', 'deals', 'service', 'services', 'commissions',
-  'dm me to buy', 'message me for price', 'cheap', 'discount',
-  'bargain', 'payment', 'pay', 'paid', 'vendor', 'shop', 'store',
-  'available', 'in stock', 'inventory', 'order', 'preorder', 'cash',
-  'funds', 'paypal', 'auction', '$
-
-export default {
-  name: Events.MessageCreate,
-  async execute(message, client) {
-    try {
-      if (message.author.bot || !message.guild) return;
-
-      logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
-
-      const marketingFiltered = await handleMarketingFilter(message, client);
-      if (marketingFiltered) return;
-
-      const repeated = await handleRepeatMessage(message, client);
-      if (repeated) {
-        return;
-      }
-
-      const countingProcessed = await handleCountingGame(message, client);
-      if (countingProcessed) {
-        return;
-      }
-
-      await handlePrefixCommand(message, client);
-      await handleLeveling(message, client);
-    } catch (error) {
-      logger.error('Error in messageCreate event:', error);
-    }
-  }
-};
-
-async function handleRepeatMessage(message, client) {
-  try {
-    if (!client?.db || !message.guild) return false;
-
-    const config = await client.db.get(REPEAT_MESSAGE_KEY(message.guild.id), null);
-    if (!config) return false;
-
-    // Sticky settings are stored per channel, so one guild can have as many
-    // sticky channels as needed. The old single-channel format is migrated on read.
-    const channels = config.channels && typeof config.channels === 'object'
-      ? config.channels
-      : (config.channelId ? {
-          [config.channelId]: {
-            message: config.message,
-            messageId: config.messageId || null,
-            enabled: config.enabled !== false,
-          },
-        } : {});
-
-    const channelConfig = channels[message.channelId];
+  'sell',
+  'buy',
+  'selling',
+  'for sale buy',
+  'buying',
+  'looking to buy trade',
+  'trading',
+  'swap price',
+  'pricing',
+  'cost offer',
+  'offering',
+  'deals service',
+  'services',
+  'commissions dm me to buy',
+  'message me for price cheap',
+  'discount',
+  'bargain payment',
+  'pay',
+  'paid vendor',
+  'shop',
+  'store available',
+  'in stock',
+  'inventory order',
+  'preorder cash',
+  'funds paypal',
+  'auction',
+  '\$\$\$',
+  'Services',
+  'per Block',
+  'Digging Service',
+  "If you're interested",
+  'Message me',
+  'Text me',
+  'Sale',
+  'Dm for money',
+  'DM me',
+];
     if (!channelConfig?.enabled || !channelConfig.message) return false;
 
     // Leave the user's message alone, remove this channel's old sticky, and
