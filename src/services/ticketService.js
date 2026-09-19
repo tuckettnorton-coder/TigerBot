@@ -47,7 +47,14 @@ export function getTicketFromChannel(channel) {
   const codeMatch = channel.name.match(/-(\d{4})$/);
   const code = codeMatch?.[1] || null;
   const categoryName = channel.parent?.name || null;
-  const typeId = ticketDefinitionFromCategory(categoryName);
+  // Building and Digging tickets share the same Discord category, so the
+  // category alone cannot identify the ticket type. Use the channel prefix
+  // first, then fall back to the category for older/other ticket channels.
+  const typeFromChannelName =
+    channel.name.startsWith('building-') ? 'building_services' :
+    channel.name.startsWith('digging-') ? 'digging_services' :
+    null;
+  const typeId = typeFromChannelName || ticketDefinitionFromCategory(categoryName);
   const openerOverwrite = channel.permissionOverwrites?.cache.find((overwrite) => {
     if (overwrite.type !== 1) return false;
     if (!overwrite.allow?.has(PermissionFlagsBits.ViewChannel)) return false;
