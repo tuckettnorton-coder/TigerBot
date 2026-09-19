@@ -269,30 +269,14 @@ export async function closeTicket(channel, actor) {
   storeTranscript(transcriptToken, transcriptBuffer, transcriptFileName);
 
   const closedAt = Math.floor(Date.now() / 1000);
+  // Server transcript panel: keep the panel clean and show only the full ticket ID.
   const transcriptEmbed = new EmbedBuilder()
     .setTitle('Auto-Generated Transcript')
     .setDescription(`Transcript automatically generated for ticket #${ticketNumber}`)
-    .addFields(
-      {
-        name: 'Ticket',
-        value: [
-          `> Ticket #${ticketNumber}`,
-          `> Created by <@${creatorId}>`,
-          `> ${messages.length} message${messages.length === 1 ? '' : 's'}`,
-        ].join('\\n'),
-      },
-      {
-        name: 'Generation',
-        value: [
-          `> Duration: ${durationMinutes} minute${durationMinutes === 1 ? '' : 's'}`,
-          '> Status: Closed (Auto-transcript)',
-        ].join('\\n'),
-      },
-      {
-        name: 'Subject',
-        value: `> ${subject.slice(0, 1024)}`,
-      },
-    )
+    .addFields({
+      name: 'ID',
+      value: `> ${channel.id}`,
+    })
     .setFooter({ text: `Powered by TicketCord.com • <t:${closedAt}:f>` });
   const downloadRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -311,8 +295,15 @@ export async function closeTicket(channel, actor) {
 
   try {
     const owner = await channel.guild.members.fetch(ticket.openerId);
+    // DM panel uses the exact compact closed-ticket format requested.
     const dmMessage = await owner.send({
-      embeds: [transcriptEmbed],
+      content: [
+        '## Ticket Closed',
+        'Your ticket in **Tiger Market** has been closed.',
+        '',
+        `**Ticket ID:** ${channel.id}`,
+        `-# <t:${closedAt}:f>`,
+      ].join('\\n'),
       components: [downloadRow],
     });
     bindTranscriptMessage(dmMessage.id, transcriptToken);
