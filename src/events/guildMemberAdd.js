@@ -7,83 +7,6 @@ import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
 import { getServerCounters, updateCounter } from '../services/serverstatsService.js';
 import { setBirthday as dbSetBirthday } from '../utils/database.js';
 import { logger } from '../utils/logger.js';
-const WELCOME_STICKY_CHANNEL_ID = '1504917892100001892';
-const WELCOME_STICKY_MESSAGE = 'Make sure to check out <#1504948495948452001> <#1513625068239065158> <#1513625388503535657> <#1519838464374476991> <#1547003075108147210>';
-const WELCOME_STICKY_KEY = (guildId) => 'guild:' + guildId + ':welcome-sticky-message';
-const WELCOME_STICKY_ENABLED_KEY = (guildId) => 'guild:' + guildId + ':welcome-sticky-enabled';
-
-async function keepWelcomeMessageAtBottom(channel, client) {
-    if (!channel || channel.id !== WELCOME_STICKY_CHANNEL_ID || !client?.db) return;
-
-    try {
-        const me = channel.guild?.members?.me;
-        const permissions = me ? channel.permissionsFor(me) : null;
-        if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages])) {
-            logger.warn('Welcome sticky cannot refresh because TigerBot is missing View Channel, Send Messages, or Manage Messages in the welcome channel.');
-            return;
-        }
-
-        const oldMessageId = await client.db.get(WELCOME_STICKY_KEY(channel.guild.id), null);
-        if (oldMessageId) {
-            const oldMessage = await channel.messages.fetch(oldMessageId).catch(() => null);
-            if (oldMessage) {
-                await oldMessage.delete().catch((error) => {
-                    logger.warn('Welcome sticky could not delete the previous sticky message:', error);
-                });
-            }
-        }
-
-        const stickyMessage = await channel.send({
-            content: WELCOME_STICKY_MESSAGE,
-            allowedMentions: { parse: [] },
-        });
-
-        await client.db.set(WELCOME_STICKY_KEY(channel.guild.id), stickyMessage.id);
-        logger.info('Welcome sticky refreshed in #' + channel.name + ' after a welcome message.');
-    } catch (error) {
-        logger.error('Could not keep welcome channel message at bottom:', error);
-    }
-}
-
-function scheduleWelcomeStickyRefresh(channel, client) {
-    if (!channel?.isTextBased?.() || !client?.db) return;
-
-    // TicketBot may send its welcome message shortly after TigerBot receives
-    // GuildMemberAdd, so retry after the welcome message has had time to arrive.
-    for (const delay of [1000, 3000, 6000, 10000]) {
-        const timeout = setTimeout(async () => {
-            try {
-                const enabled = await client.db.get(WELCOME_STICKY_ENABLED_KEY(channel.guild.id), false);
-                if (!enabled) return;
-
-                const recent = await channel.messages.fetch({ limit: 10 }).catch(() => null);
-                const newestNonTigerBotMessage = recent
-                    ? [...recent.values()]
-                        .sort((a, b) => b.createdTimestamp - a.createdTimestamp)
-                        .find(message => message.author?.id !== client.user?.id)
-                    : null;
-
-                const stickyId = await client.db.get(WELCOME_STICKY_KEY(channel.guild.id), null);
-                const currentSticky = stickyId
-                    ? await channel.messages.fetch(stickyId).catch(() => null)
-                    : null;
-
-                // Only refresh when a newer non-TigerBot message actually arrived.
-                if (newestNonTigerBotMessage &&
-                    (!currentSticky || newestNonTigerBotMessage.createdTimestamp > currentSticky.createdTimestamp)) {
-                    await keepWelcomeMessageAtBottom(channel, client);
-                }
-            } catch (error) {
-                logger.error('Welcome sticky scheduled refresh failed:', error);
-            }
-        }, delay);
-
-        if (typeof timeout.unref === 'function') {
-            timeout.unref();
-        }
-    }
-}
-
 export default {
   name: Events.GuildMemberAdd,
   once: false,
@@ -154,14 +77,7 @@ export default {
             }
         }
         
-        // Automatically replace the footer after every welcome message, keeping it last.
-        // Refresh the footer only after it has been enabled with /welcome-sticky enable.
-        const stickyEnabled = await member.client.db.get(WELCOME_STICKY_ENABLED_KEY(guild.id), false);
-        const stickyWelcomeChannel = guild.channels.cache.get(WELCOME_STICKY_CHANNEL_ID);
-        if (stickyEnabled && stickyWelcomeChannel?.isTextBased?.()) {
-            await keepWelcomeMessageAtBottom(stickyWelcomeChannel, member.client);
-            scheduleWelcomeStickyRefresh(stickyWelcomeChannel, member.client);
-        }\n        \n        if (welcomeConfig?.roleIds && welcomeConfig.roleIds.length > 0) {
+        if (welcomeConfig?.roleIds && welcomeConfig.roleIds.length > 0) {
             const delay = welcomeConfig.autoRoleDelay || 0;
             const singleRoleId = welcomeConfig.roleIds[0];
             
