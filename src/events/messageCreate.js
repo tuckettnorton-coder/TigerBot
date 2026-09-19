@@ -54,26 +54,46 @@ async function handleRepeatMessage(message, client) {
     if (!client?.db || !message.guild) return false;
 
     const config = await client.db.get(REPEAT_MESSAGE_KEY(message.guild.id), null);
-    if (!config?.enabled) return false;
-    if (message.channelId !== config.channelId) return false;
+    if (!config) return false;
 
-    // Sticky behavior: leave the user's message alone, remove the previous
-    // sticky message, and repost it so the sticky is always at the bottom.
-    if (config.messageId) {
-      const oldSticky = await message.channel.messages.fetch(config.messageId).catch(() => null);
-      if (oldSticky) {
-        await oldSticky.delete().catch(() => {});
-      }
+    // Sticky settings are stored per channel, so one guild can have as many
+    // sticky channels as needed. The old single-channel format is migrated on read.
+    const channels = config.channels && typeof config.channels === 'object'
+      ? config.channels
+      : (config.channelId ? {
+          [config.channelId]: {
+            message: config.message,
+            messageId: config.messageId || null,
+            enabled: config.enabled !== false,
+          },
+        } : {});
+
+    const channelConfig = channels[message.channelId];
+    if (!channelConfig?.enabled || !channelConfig.message) return false;
+
+    // Leave the user's message alone, remove this channel's old sticky, and
+    // repost it so the sticky for this channel stays at the bottom.
+    if (channelConfig.messageId) {
+      const oldSticky = await message.channel.messages.fetch(channelConfig.messageId).catch(() => null);
+      if (oldSticky) await oldSticky.delete().catch(() => {});
     }
 
     const stickyMessage = await message.channel.send({
-      content: config.message,
+      content: channelConfig.message,
       allowedMentions: { parse: [] },
     });
 
     await client.db.set(REPEAT_MESSAGE_KEY(message.guild.id), {
       ...config,
-      messageId: stickyMessage.id,
+      channels: {
+        ...channels,
+        [message.channelId]: {
+          ...channelConfig,
+          messageId: stickyMessage.id,
+          updatedAt: new Date().toISOString(),
+          enabled: true,
+        },
+      },
       updatedAt: new Date().toISOString(),
     });
 
