@@ -21,6 +21,7 @@ import {
 
 const MESSAGE_XP_RATE_LIMIT_ATTEMPTS = 12;
 const MESSAGE_XP_RATE_LIMIT_WINDOW_MS = 10000;
+const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
 
 export default {
   name: Events.MessageCreate,
@@ -30,19 +31,45 @@ export default {
 
       logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
 
+      const repeated = await handleRepeatMessage(message, client);
+      if (repeated) {
+        return;
+      }
+
       const countingProcessed = await handleCountingGame(message, client);
       if (countingProcessed) {
         return;
       }
 
       await handlePrefixCommand(message, client);
-
       await handleLeveling(message, client);
     } catch (error) {
       logger.error('Error in messageCreate event:', error);
     }
   }
 };
+
+async function handleRepeatMessage(message, client) {
+  try {
+    if (!client?.db || !message.content) return false;
+
+    const config = await client.db.get(REPEAT_MESSAGE_KEY(message.guild.id), null);
+    if (!config?.enabled) return false;
+    if (message.channelId !== config.channelId) return false;
+    if (message.content !== config.message) return false;
+
+    await message.delete().catch(() => {});
+    await message.channel.send({
+      content: config.message,
+      allowedMentions: { parse: [] },
+    });
+
+    return true;
+  } catch (error) {
+    logger.error('Error handling repeat message:', error);
+    return false;
+  }
+}
 
 async function handlePrefixCommand(message, client) {
   try {
