@@ -104,11 +104,8 @@ export function getServerCountersKey(guildId) {
     return `guild:${guildId}:counters`;
 }
 
-export function getGiveawayEntryKey(userId, giveawayId) {
-    return `giveaway:${userId}:${giveawayId}`;
 }
 
-export function getGiveawayLockKey(messageId) {
     return `giveaway:lock:${messageId}`;
 }
 
