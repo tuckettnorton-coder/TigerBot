@@ -1,27 +1,76 @@
+import { db } from '../utils/database.js';
+
 const transcripts = new Map();
 const messageToToken = new Map();
+const TRANSCRIPT_PREFIX = 'transcripts:';
+const MESSAGE_PREFIX = 'transcript_messages:';
 
-export function storeTranscript(token, buffer, fileName) {
-  transcripts.set(token, { buffer, fileName, createdAt: Date.now() });
+function encode(buffer) {
+  return Buffer.from(buffer).toString('base64');
+}
 
-  // Keep memory bounded. Transcripts older than 24 hours are removed.
-  setTimeout(() => {
-    const entry = transcripts.get(token);
-    if (entry && Date.now() - entry.createdAt >= 24 * 60 * 60 * 1000) {
-      transcripts.delete(token);
+function decode(value) {
+  return Buffer.from(value, 'base64');
+}
+
+export async function storeTranscript(token, buffer, fileName) {
+  const entry = { buffer, fileName, createdAt: Date.now() };
+  transcripts.set(token, entry);
+  try {
+    if (!db.initialized) await db.initialize();
+    if (db.isAvailable?.() && typeof db.set === 'function') {
+      await db.set(`${TRANSCRIPT_PREFIX}${token}`, { fileName, createdAt: entry.createdAt, buffer: encode(buffer) });
     }
-  }, 24 * 60 * 60 * 1000).unref?.();
+  } catch (error) {
+    console.warn(`Could not persist transcript ${token}: ${error.message}`);
+  }
 }
 
-export function getTranscript(token) {
-  return transcripts.get(token) || null;
+export async function getTranscript(token) {
+  if (!token) return null;
+  const cached = transcripts.get(token);
+  if (cached) return cached;
+  try {
+    if (!db.initialized) await db.initialize();
+    if (db.isAvailable?.() && typeof db.get === 'function') {
+      const saved = await db.get(`${TRANSCRIPT_PREFIX}${token}`, null);
+      if (saved?.buffer && saved?.fileName) {
+        const entry = { buffer: decode(saved.buffer), fileName: saved.fileName, createdAt: Number(saved.createdAt) || Date.now() };
+        transcripts.set(token, entry);
+        return entry;
+      }
+    }
+  } catch (error) {
+    console.warn(`Could not load transcript ${token}: ${error.message}`);
+  }
+  return null;
 }
 
-export function bindTranscriptMessage(messageId, token) {
+export async function bindTranscriptMessage(messageId, token) {
   messageToToken.set(messageId, token);
+  try {
+    if (!db.initialized) await db.initialize();
+    if (db.isAvailable?.() && typeof db.set === 'function') {
+      await db.set(`${MESSAGE_PREFIX}${messageId}`, token);
+    }
+  } catch (error) {
+    console.warn(`Could not persist transcript message mapping ${messageId}: ${error.message}`);
+  }
 }
 
-export function getTranscriptForMessage(messageId) {
-  const token = messageToToken.get(messageId);
+export async function getTranscriptForMessage(messageId) {
+  if (!messageId) return null;
+  let token = messageToToken.get(messageId);
+  if (!token) {
+    try {
+      if (!db.initialized) await db.initialize();
+      if (db.isAvailable?.() && typeof db.get === 'function') {
+        token = await db.get(`${MESSAGE_PREFIX}${messageId}`, null);
+        if (token) messageToToken.set(messageId, token);
+      }
+    } catch (error) {
+      console.warn(`Could not load transcript mapping ${messageId}: ${error.message}`);
+    }
+  }
   return token ? getTranscript(token) : null;
 }
