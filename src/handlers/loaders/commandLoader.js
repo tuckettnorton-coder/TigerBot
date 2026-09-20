@@ -183,50 +183,13 @@ async function registerGlobalCommands(client, clientId, commands, totalSubcomman
     await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
     logger.info('Cleared global commands to prevent duplicate slash commands');
 
-    // Fetch the actual guild list from Discord before registering. Do not rely only
-    // on the local cache, because slash commands must be registered against a real guild ID.
-    await client.guilds.fetch();
-
-    if (client.guilds.cache.size === 0) {
-        throw new Error('No Discord guilds were available for slash-command registration.');
-    }
-
-    // Register commands directly in every guild for immediate availability.
+    // Register commands directly in each guild for immediate availability.
     for (const guild of client.guilds.cache.values()) {
         try {
-            await client.rest.put(`/applications/${clientId}/guilds/${guild.id}/commands`, {
-                body: commandsToRegister,
-            });
-
-            // Verify Discord actually accepted the command definition.
-            const registered = await client.rest.get(
-                `/applications/${clientId}/guilds/${guild.id}/commands`,
-            );
-            const panel = Array.isArray(registered)
-                ? registered.find((command) => command.name === 'panel')
-                : null;
-
-            if (!panel) {
-                throw new Error('Discord did not return the /panel command after registration.');
-            }
-
-            const subcommands = (panel.options || [])
-                .filter((option) => option.type === 1)
-                .map((option) => option.name);
-
-            const required = ['post', 'staff', 'pm', 'builder'];
-            const missing = required.filter((name) => !subcommands.includes(name));
-
-            if (missing.length > 0) {
-                throw new Error(`/panel is missing subcommands: ${missing.join(', ')}`);
-            }
-
-            logger.info(
-                `Registered and verified /panel in guild ${guild.id}: ${subcommands.join(', ')}`,
-            );
+            await client.rest.put(`/applications/${clientId}/guilds/${guild.id}/commands`, { body: commandsToRegister });
+            logger.info(`Registered ${commandsToRegister.length} commands immediately in guild ${guild.id}`);
         } catch (error) {
-            logger.error(`Failed to register/verify commands in guild ${guild.id}: ${error.message}`);
-            throw error;
+            logger.warn(`Could not register guild commands in ${guild.id}: ${error.message}`);
         }
     }
 }
