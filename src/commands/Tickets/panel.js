@@ -7,6 +7,7 @@ import {
 } from 'discord.js';
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 import { ensureTicketInfrastructure } from '../../services/ticketService.js';
+import { publicPanel } from '../Community/modules/tigerApplications.js';
 
 const TICKET_PANEL_DESCRIPTION = [
   '**Staff members will never contact you via direct messages to trade spawners.**',
@@ -28,11 +29,21 @@ export default {
     .setName('panel')
     .setDescription('Manage the TigerBot ticket panel')
     .setDMPermission(false)
-    .addSubcommand((sub) => sub.setName('post').setDescription('Post the Tiger Market ticket selection panel')),
+    .addSubcommand((sub) => sub.setName('post').setDescription('Post the Tiger Market ticket selection panel'))
+    .addSubcommand((sub) => sub.setName('staff').setDescription('Post the Staff application panel'))
+    .addSubcommand((sub) => sub.setName('pm').setDescription('Post the Partner Manager application panel'))
+    .addSubcommand((sub) => sub.setName('builder').setDescription('Post the Builder/Digger application panel')),
 
   async execute(interaction) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
       await interaction.reply({ content: 'You need Manage Server to post the ticket panel.', ephemeral: true });
+      return;
+    }
+
+    const subcommand = interaction.options.getSubcommand();
+
+    if (subcommand !== 'post') {
+      await interaction.reply({ ...publicPanel(subcommand), ephemeral: false });
       return;
     }
 
