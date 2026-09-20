@@ -259,31 +259,6 @@ export const botConfig = {
   },
 
   // =========================
-  // GIVEAWAY SETTINGS
-  // =========================
-  giveaways: {
-    // Default giveaway duration in milliseconds.
-    // 86400000 = 24 hours.
-    defaultDuration: 86400000,
-
-    // Allowed winner count range.
-    minimumWinners: 1,
-    maximumWinners: 10,
-
-    // Allowed giveaway duration range in milliseconds.
-    // 300000 = 5 minutes.
-    minimumDuration: 300000,
-    // 2592000000 = 30 days.
-    maximumDuration: 2592000000,
-
-    // Role IDs allowed to host giveaways.
-    allowedRoles: [],
-
-    // Role IDs that bypass giveaway restrictions.
-    bypassRoles: [],
-  },
-
-  // =========================
   // BIRTHDAY SETTINGS
   // =========================
   birthday: {
@@ -450,14 +425,12 @@ export const botConfig = {
   features: {
     // Core systems.
     economy: true,
-    leveling: true,
     moderation: true,
     logging: true,
     welcome: true,
 
     // Community engagement systems.
     tickets: true,
-    giveaways: true,
     birthday: true,
     counter: true,
 
@@ -534,9 +507,7 @@ const COMMAND_CATEGORY_FEATURE_MAP = {
   community: "community",
   economy: "economy",
   fun: "fun",
-  giveaway: "giveaways",
   jointocreate: "joinToCreate",
-  leveling: "leveling",
   logging: "logging",
   moderation: "moderation",
   music: "music",
