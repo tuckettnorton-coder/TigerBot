@@ -50,7 +50,6 @@ export const tableStatements = [
         FOREIGN KEY (user_id) REFERENCES ${t.users}(id) ON DELETE CASCADE
     )`,
 
-    `CREATE TABLE IF NOT EXISTS ${t.giveaways} (
         id SERIAL PRIMARY KEY,
         guild_id VARCHAR(20),
         message_id VARCHAR(20) NOT NULL,
