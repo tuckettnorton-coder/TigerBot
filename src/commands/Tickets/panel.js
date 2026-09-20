@@ -42,8 +42,19 @@ export default {
     const subcommand = interaction.options.getSubcommand();
 
     if (subcommand !== 'post') {
-      const { publicPanel } = await import('../Community/modules/tigerApplications.js');
-      await interaction.reply({ ...publicPanel(subcommand), ephemeral: false });
+      try {
+        const { publicPanel } = await import('../Community/modules/tigerApplications.js');
+        await interaction.channel.send(publicPanel(subcommand));
+        await interaction.reply({
+          content: `✅ ${subcommand === 'staff' ? 'Staff' : subcommand === 'pm' ? 'Partner Manager' : 'Builder/Digger'} application panel posted.`,
+          ephemeral: true,
+        });
+      } catch (error) {
+        await interaction.reply({
+          content: `❌ I could not post the application panel: ${error.message}`,
+          ephemeral: true,
+        }).catch(() => {});
+      }
       return;
     }
 
