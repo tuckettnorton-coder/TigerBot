@@ -340,12 +340,27 @@ export async function closeTicket(channel, actor) {
       },
     )
     .setFooter({ text: `Powered by TicketCord.com • <t:${closedAt}:f>` });
+  const publicDomain = process.env.PUBLIC_URL
+    || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null)
+    || process.env.RENDER_EXTERNAL_URL
+    || process.env.APP_URL
+    || null;
+  const downloadUrl = publicDomain
+    ? `${String(publicDomain).replace(/\\/$/, '')}/transcripts/${encodeURIComponent(transcriptToken)}`
+    : null;
+
   const downloadRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-       .setCustomId('download_transcript')
-      .setLabel('Download Transcript')
-      .setEmoji('📄')
-      .setStyle(ButtonStyle.Secondary),
+    downloadUrl
+      ? new ButtonBuilder()
+          .setLabel('Download Transcript')
+          .setEmoji('📄')
+          .setStyle(ButtonStyle.Link)
+          .setURL(downloadUrl)
+      : new ButtonBuilder()
+          .setCustomId('download_transcript')
+          .setLabel('Download Transcript')
+          .setEmoji('📄')
+          .setStyle(ButtonStyle.Secondary),
   );
 
   // Send exactly one message: the same clean panel and download button used in DMs.
