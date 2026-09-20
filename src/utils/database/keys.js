@@ -104,10 +104,6 @@ export function getServerCountersKey(guildId) {
     return `guild:${guildId}:counters`;
 }
 
-}
-
-    return `giveaway:lock:${messageId}`;
-}
 
 /**
  * Legacy key patterns mapped to canonical builders.
