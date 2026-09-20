@@ -7,7 +7,6 @@ import {
 } from 'discord.js';
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 import { ensureTicketInfrastructure } from '../../services/ticketService.js';
-import { publicPanel } from '../Community/modules/tigerApplications.js';
 
 const TICKET_PANEL_DESCRIPTION = [
   '**Staff members will never contact you via direct messages to trade spawners.**',
@@ -27,7 +26,7 @@ const TICKET_PANEL_DESCRIPTION = [
 export default {
   data: new SlashCommandBuilder()
     .setName('panel')
-    .setDescription('Manage Tiger Market ticket and application panels')
+    .setDescription('Manage the TigerBot ticket panel')
     .setDMPermission(false)
     .addSubcommand((sub) => sub.setName('post').setDescription('Post the Tiger Market ticket selection panel'))
     .addSubcommand((sub) => sub.setName('staff').setDescription('Post the Staff application panel'))
@@ -43,6 +42,7 @@ export default {
     const subcommand = interaction.options.getSubcommand();
 
     if (subcommand !== 'post') {
+      const { publicPanel } = await import('../Community/modules/tigerApplications.js');
       await interaction.reply({ ...publicPanel(subcommand), ephemeral: false });
       return;
     }
