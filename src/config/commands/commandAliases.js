@@ -33,14 +33,6 @@ export const commandAliases = {
     'purge': 'purge',
     'untimeout': 'untimeout',
     'unmute': 'untimeout',
-
-    'rank': 'rank',
-    'lvl': 'rank',
-    'xp': 'rank',
-    'leaderboard': 'leaderboard',
-    'lb': 'leaderboard',
-    'top': 'leaderboard',
-
     'shop': 'shop',
     'buy': 'buy',
     'inventory': 'inventory',
