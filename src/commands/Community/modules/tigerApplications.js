@@ -20,8 +20,42 @@ export async function startApplication(client,guild,user,type){const c=APP_CONFI
 export async function beginApplication(client,a){a.startedAt=Date.now();a.status='in_progress';a.currentQuestion=0;await saveApplication(client,a);await sendQuestion(client,a)}
 export async function cancelApplication(client,a){a.status='cancelled';a.cancelledAt=Date.now();a.answers=[];a.completedAt=null;a.durationMs=null;await saveApplication(client,a);await client.db.delete?.(ak(a.guildId,a.userId,a.type)).catch?.(()=>{})}
 export async function recordAnswer(client,a,text){if(a.status!=='in_progress')return;const q=APP_CONFIG[a.type].questions[a.currentQuestion],answer=String(text||'').trim();if(!q||!answer)return;a.answers.push({question:q,answer});if(/^What is your Minecraft IGN/i.test(q)||/^What is your Minecraft username/i.test(q))a.minecraftIgn=answer;a.currentQuestion++;if(a.currentQuestion>=APP_CONFIG[a.type].questions.length){a.status='completed';await saveApplication(client,a);return sendCompletion(client,a)}await saveApplication(client,a);await sendQuestion(client,a)}
-export async function submitApplication(client,a){if(a.status!=='completed')return;a.status='pending';a.completedAt=Date.now();a.durationMs=a.completedAt-a.startedAt;await saveApplication(client,a);await client.db.delete?.(ak(a.guildId,a.userId,a.type)).catch?.(()=>{});const ch=await client.channels.fetch(PENDING).catch(()=>null);if(!ch?.isTextBased())throw new Error('Pending application channel is unavailable.');const es=buildEmbeds(a,'🟡 Pending'),ids=[];for(let i=0;i<es.length;i++){const m=await ch.send({embeds:[es[i]],components:i===es.length-1?[reviewButtons(a.id)]:[]});ids.push(m.id)}a.pendingMessageIds=ids;await saveApplication(client,a)}
+export async function submitApplication(client,a){
+  if(a.status!=='completed')return;
+  a.completedAt=Date.now();
+  a.durationMs=a.completedAt-a.startedAt;
+  a.status='pending';
+  const ch=await client.channels.fetch(PENDING).catch(()=>null);
+  if(!ch?.isTextBased()){a.status='completed';await saveApplication(client,a);throw new Error('Pending application channel is unavailable.');}
+  const es=buildEmbeds(a,'🟡 Pending'),ids=[];
+  try{
+    for(let i=0;i<es.length;i++){const m=await ch.send({embeds:[es[i]],components:i===es.length-1?[reviewButtons(a.id)]:[]});ids.push(m.id);}
+  }catch(e){
+    a.status='completed';a.pendingMessageIds=[];await saveApplication(client,a);throw e;
+  }
+  a.pendingMessageIds=ids;await saveApplication(client,a);await client.db.delete?.(ak(a.guildId,a.userId,a.type)).catch?.(()=>{});
+}
 function buildEmbeds(a,status){const c=APP_CONFIG[a.type],all=[['Applicant','<@'+a.userId+'>'],['Discord Username',a.username||'Unknown'],['Display Name',a.displayName||'Unknown'],['Discord User ID',a.userId],...(a.minecraftIgn?[['Minecraft IGN',a.minecraftIgn]]:[]),['Application Type',c.label],['Application ID',a.id],['Status',status],['Started',a.startedAt?formatDate(a.startedAt):'Not started'],['Completed',a.completedAt?formatDate(a.completedAt):'Not completed'],['Time Taken',a.durationMs!=null?durationText(a.durationMs):'Not completed']];a.answers.forEach((x,i)=>all.push(['Question '+(i+1),x.question],['Answer',x.answer]));if(a.status==='approved')all.push(['Accepted By','<@'+a.reviewedBy+'>'],['Acceptance Reason',a.reviewReason],['Acceptance Date/Time',formatDate(a.reviewedAt)]);if(a.status==='denied')all.push(['Denied By','<@'+a.reviewedBy+'>'],['Denial Reason',a.reviewReason],['Date/Time Denied',formatDate(a.reviewedAt)],['Next Eligible Application Date',formatDate(a.cooldownUntil)]);const out=[];let e=new EmbedBuilder().setTitle(c.label+' Application — '+a.id).setTimestamp(),n=0,len=0;for(const f of all){const name=String(f[0]).slice(0,256),value=String(f[1]||'No answer').slice(0,1024);if(n>=20||len+name.length+value.length>5000){out.push(e);e=new EmbedBuilder().setTitle(c.label+' Application — '+a.id+' (continued)').setTimestamp();n=0;len=0}e.addFields({name,value,inline:false});n++;len+=name.length+value.length}out.push(e);return out}
+function buildEmbeds(a,status){
+  const c=APP_CONFIG[a.type];
+  const all=[['Applicant','<@'+a.userId+'>'],['Discord Username',a.username||'Unknown'],['Display Name',a.displayName||'Unknown'],['Discord User ID',a.userId],...(a.minecraftIgn?[['Minecraft IGN',a.minecraftIgn]]:[]),['Application Type',c.label],['Application ID',a.id],['Status',status],['Started',a.startedAt?formatDate(a.startedAt):'Not started'],['Completed',a.completedAt?formatDate(a.completedAt):'Not completed'],['Time Taken',a.durationMs!=null?durationText(a.durationMs):'Not completed']];
+  a.answers.forEach((x,i)=>all.push(['Question '+(i+1),x.question],['Answer',x.answer]));
+  if(a.status==='approved')all.push(['Accepted By','<@'+a.reviewedBy+'>'],['Acceptance Reason',a.reviewReason],['Acceptance Date/Time',formatDate(a.reviewedAt)]);
+  if(a.status==='denied')all.push(['Denied By','<@'+a.reviewedBy+'>'],['Denial Reason',a.reviewReason],['Date/Time Denied',formatDate(a.reviewedAt)],['Next Eligible Application Date',formatDate(a.cooldownUntil)]);
+  const out=[];let e=new EmbedBuilder().setTitle(c.label+' Application — '+a.id).setTimestamp(),n=0,len=0;
+  const add=(name,value)=>{
+    const text=String(value||'No answer');
+    const pieces=text.match(/[\s\S]{1,1000}/g)||['No answer'];
+    for(let x=0;x<pieces.length;x++){
+      const fieldName=x===0?String(name).slice(0,256):String(name).slice(0,245)+' (continued)';
+      const piece=pieces[x];
+      if(n>=20||len+fieldName.length+piece.length>5000){out.push(e);e=new EmbedBuilder().setTitle(c.label+' Application — '+a.id+' (continued)').setTimestamp();n=0;len=0;}
+      e.addFields({name:fieldName,value:piece,inline:false});n++;len+=fieldName.length+piece.length;
+    }
+  };
+  for(const f of all)add(f[0],f[1]);
+  out.push(e);return out;
+}
 function reviewButtons(id){return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('tigerapp:accept:'+id).setLabel('Accept').setEmoji('✅').setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId('tigerapp:deny:'+id).setLabel('Deny').setEmoji('❌').setStyle(ButtonStyle.Danger))}
 function introButtons(t,guildId){return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('tigerapp:start:'+t+':'+guildId).setLabel('Start Application').setEmoji('📝').setStyle(ButtonStyle.Primary),new ButtonBuilder().setCustomId('tigerapp:cancelintro:'+t).setLabel('Cancel').setEmoji('❌').setStyle(ButtonStyle.Secondary))}
 function cancelButton(id){return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('tigerapp:cancel:'+id).setLabel('Cancel Application').setEmoji('❌').setStyle(ButtonStyle.Danger))}
