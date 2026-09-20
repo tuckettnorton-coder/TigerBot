@@ -27,7 +27,7 @@ const TICKET_PANEL_DESCRIPTION = [
 export default {
   data: new SlashCommandBuilder()
     .setName('panel')
-    .setDescription('Manage the TigerBot ticket panel')
+    .setDescription('Manage Tiger Market ticket and application panels')
     .setDMPermission(false)
     .addSubcommand((sub) => sub.setName('post').setDescription('Post the Tiger Market ticket selection panel'))
     .addSubcommand((sub) => sub.setName('staff').setDescription('Post the Staff application panel'))
