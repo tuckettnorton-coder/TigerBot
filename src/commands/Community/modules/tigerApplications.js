@@ -22,8 +22,8 @@ export async function cancelApplication(client,a){a.status='cancelled';a.cancell
 export async function recordAnswer(client,a,text){if(a.status!=='in_progress')return;const q=APP_CONFIG[a.type].questions[a.currentQuestion],answer=String(text||'').trim();if(!q||!answer)return;a.answers.push({question:q,answer});if(/^What is your Minecraft IGN/i.test(q)||/^What is your Minecraft username/i.test(q))a.minecraftIgn=answer;a.currentQuestion++;if(a.currentQuestion>=APP_CONFIG[a.type].questions.length){a.status='completed';await saveApplication(client,a);return sendCompletion(client,a)}await saveApplication(client,a);await sendQuestion(client,a)}
 export async function submitApplication(client,a){
   if(a.status!=='completed')return;
-  a.completedAt=Date.now();
-  a.durationMs=a.completedAt-a.startedAt;
+  if(!a.completedAt)a.completedAt=Date.now();
+  if(a.durationMs==null)a.durationMs=a.completedAt-a.startedAt;
   a.status='pending';
   const ch=await client.channels.fetch(PENDING).catch(()=>null);
   if(!ch?.isTextBased()){a.status='completed';await saveApplication(client,a);throw new Error('Pending application channel is unavailable.');}
