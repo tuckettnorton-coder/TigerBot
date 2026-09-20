@@ -16,7 +16,6 @@ import { initializeMusic } from './services/music/riffySetup.js';
 import { shutdownMusic } from './services/music/playerHandler.js';
 import pkg from '../package.json' assert { type: 'json' };
 import { EXPECTED_SCHEMA_VERSION, EXPECTED_SCHEMA_LABEL } from './config/database/schemaVersion.js';
-import { getTranscript } from './services/transcriptStore.js';
 
 class TitanBot extends Client {
   constructor() {
@@ -154,15 +153,6 @@ class TitanBot extends Client {
       times.push(now);
       requestCounts.set(ip, times);
       next();
-    });
-
-    app.get('/transcripts/:token', (req, res) => {
-      const transcript = getTranscript(req.params.token);
-      if (!transcript) return res.status(404).send('Transcript not found or expired.');
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${String(transcript.fileName).replace(/["\\\\]/g, '')}"`);
-      res.setHeader('Cache-Control', 'private, no-store');
-      return res.send(transcript.buffer);
     });
 
     app.get('/health', (req, res) => {
