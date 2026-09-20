@@ -36,26 +36,6 @@ export async function submitApplication(client,a){
   a.pendingMessageIds=ids;await saveApplication(client,a);await client.db.delete?.(ak(a.guildId,a.userId,a.type)).catch?.(()=>{});
 }
 function buildEmbeds(a,status){const c=APP_CONFIG[a.type],all=[['Applicant','<@'+a.userId+'>'],['Discord Username',a.username||'Unknown'],['Display Name',a.displayName||'Unknown'],['Discord User ID',a.userId],...(a.minecraftIgn?[['Minecraft IGN',a.minecraftIgn]]:[]),['Application Type',c.label],['Application ID',a.id],['Status',status],['Started',a.startedAt?formatDate(a.startedAt):'Not started'],['Completed',a.completedAt?formatDate(a.completedAt):'Not completed'],['Time Taken',a.durationMs!=null?durationText(a.durationMs):'Not completed']];a.answers.forEach((x,i)=>all.push(['Question '+(i+1),x.question],['Answer',x.answer]));if(a.status==='approved')all.push(['Accepted By','<@'+a.reviewedBy+'>'],['Acceptance Reason',a.reviewReason],['Acceptance Date/Time',formatDate(a.reviewedAt)]);if(a.status==='denied')all.push(['Denied By','<@'+a.reviewedBy+'>'],['Denial Reason',a.reviewReason],['Date/Time Denied',formatDate(a.reviewedAt)],['Next Eligible Application Date',formatDate(a.cooldownUntil)]);const out=[];let e=new EmbedBuilder().setTitle(c.label+' Application — '+a.id).setTimestamp(),n=0,len=0;for(const f of all){const name=String(f[0]).slice(0,256),value=String(f[1]||'No answer').slice(0,1024);if(n>=20||len+name.length+value.length>5000){out.push(e);e=new EmbedBuilder().setTitle(c.label+' Application — '+a.id+' (continued)').setTimestamp();n=0;len=0}e.addFields({name,value,inline:false});n++;len+=name.length+value.length}out.push(e);return out}
-function buildEmbeds(a,status){
-  const c=APP_CONFIG[a.type];
-  const all=[['Applicant','<@'+a.userId+'>'],['Discord Username',a.username||'Unknown'],['Display Name',a.displayName||'Unknown'],['Discord User ID',a.userId],...(a.minecraftIgn?[['Minecraft IGN',a.minecraftIgn]]:[]),['Application Type',c.label],['Application ID',a.id],['Status',status],['Started',a.startedAt?formatDate(a.startedAt):'Not started'],['Completed',a.completedAt?formatDate(a.completedAt):'Not completed'],['Time Taken',a.durationMs!=null?durationText(a.durationMs):'Not completed']];
-  a.answers.forEach((x,i)=>all.push(['Question '+(i+1),x.question],['Answer',x.answer]));
-  if(a.status==='approved')all.push(['Accepted By','<@'+a.reviewedBy+'>'],['Acceptance Reason',a.reviewReason],['Acceptance Date/Time',formatDate(a.reviewedAt)]);
-  if(a.status==='denied')all.push(['Denied By','<@'+a.reviewedBy+'>'],['Denial Reason',a.reviewReason],['Date/Time Denied',formatDate(a.reviewedAt)],['Next Eligible Application Date',formatDate(a.cooldownUntil)]);
-  const out=[];let e=new EmbedBuilder().setTitle(c.label+' Application — '+a.id).setTimestamp(),n=0,len=0;
-  const add=(name,value)=>{
-    const text=String(value||'No answer');
-    const pieces=text.match(/[\s\S]{1,1000}/g)||['No answer'];
-    for(let x=0;x<pieces.length;x++){
-      const fieldName=x===0?String(name).slice(0,256):String(name).slice(0,245)+' (continued)';
-      const piece=pieces[x];
-      if(n>=20||len+fieldName.length+piece.length>5000){out.push(e);e=new EmbedBuilder().setTitle(c.label+' Application — '+a.id+' (continued)').setTimestamp();n=0;len=0;}
-      e.addFields({name:fieldName,value:piece,inline:false});n++;len+=fieldName.length+piece.length;
-    }
-  };
-  for(const f of all)add(f[0],f[1]);
-  out.push(e);return out;
-}
 function reviewButtons(id){return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('tigerapp:accept:'+id).setLabel('Accept').setEmoji('✅').setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId('tigerapp:deny:'+id).setLabel('Deny').setEmoji('❌').setStyle(ButtonStyle.Danger))}
 function introButtons(t,guildId){return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('tigerapp:start:'+t+':'+guildId).setLabel('Start Application').setEmoji('📝').setStyle(ButtonStyle.Primary),new ButtonBuilder().setCustomId('tigerapp:cancelintro:'+t).setLabel('Cancel').setEmoji('❌').setStyle(ButtonStyle.Secondary))}
 function cancelButton(id){return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('tigerapp:cancel:'+id).setLabel('Cancel Application').setEmoji('❌').setStyle(ButtonStyle.Danger))}
