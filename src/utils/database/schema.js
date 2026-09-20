@@ -77,7 +77,7 @@ export const tableStatements = [
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (guild_id) REFERENCES ${t.guilds}(id) ON DELETE CASCADE
-    )`
+    )`,
 
     `CREATE TABLE IF NOT EXISTS ${t.economy} (
         guild_id VARCHAR(20),
