@@ -1,3 +1,0 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { publicPanel } from './modules/tigerApplications.js';
-export default {data:new SlashCommandBuilder().setName('panel').setDescription('Post an application panel').setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild).addSubcommand(s=>s.setName('staff').setDescription('Post the Staff application panel')).addSubcommand(s=>s.setName('pm').setDescription('Post the Partner Manager application panel')).addSubcommand(s=>s.setName('builder').setDescription('Post the Builder/Digger application panel')),category:'Community',execute:async i=>i.reply(publicPanel(i.options.getSubcommand()))};
