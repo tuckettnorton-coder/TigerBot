@@ -53,7 +53,7 @@ const MARKETING_WORDS = [
   'store available', 'in stock', 'inventory order', 'preorder cash',
   'funds paypal', 'auction', String.fromCharCode(36) + String.fromCharCode(36) + String.fromCharCode(36),
   'Services', 'per Block', 'Digging Service', "If you're interested",
-  'Message me', 'Text me', 'Sale', 'Dm for money', 'DM me',
+  'Message me', 'Text me', 'Sale', 'Dm for money', 'DM me', 'DM', 'giveaway', 'free money',
 ];
 
 function normalizeProfanityText(content) {
