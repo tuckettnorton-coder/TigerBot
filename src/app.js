@@ -1,5 +1,5 @@
 ﻿import 'dotenv/config';
-import { Client, Collection, GatewayIntentBits } from 'discord.js';
+import { Client, Collection, GatewayIntentBits, Events } from 'discord.js';
 import { REST } from '@discordjs/rest';
 import express from 'express';
 import cron from 'node-cron';
@@ -322,6 +322,11 @@ class TitanBot extends Client {
 
   async registerCommands() {
     try {
+      // login() does not guarantee the guild cache is populated yet. Wait for Ready
+      // so guild-scoped commands are registered in the actual servers immediately.
+      if (!this.isReady()) {
+        await new Promise((resolve) => this.once(Events.ClientReady, resolve));
+      }
       await registerSlashCommands(this, { clientId: this.config.bot.clientId });
     } catch (error) {
       logger.error('Error registering commands:', error);
