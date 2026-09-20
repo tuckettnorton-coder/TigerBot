@@ -54,6 +54,12 @@ export default {
         InteractionHelper.patchInteractionResponses(interaction);
         ResponseCoordinator.attach(interaction);
 
+        // TigerBot application buttons/modals are handled by tigerApplicationInteractions.js.
+        // Skip the generic component router so it does not report them as unavailable.
+        if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId?.startsWith('tigerapp:')) {
+          return;
+        }
+
         if (interaction.isChatInputCommand()) {
           try {
             logger.info(`Command executed: /${interaction.commandName} by ${interaction.user.tag}`, {
