@@ -306,7 +306,7 @@ export async function closeTicket(channel, actor) {
   // Store the transcript behind a button instead of uploading it into the
   // transcripts channel. This keeps the channel message identical to the DM.
   const transcriptToken = `transcript:${channel.id}:${Date.now()}`;
-  storeTranscript(transcriptToken, transcriptBuffer, transcriptFileName);
+  await storeTranscript(transcriptToken, transcriptBuffer, transcriptFileName);
 
   const closedAt = Math.floor(Date.now() / 1000);
   // Keep the original transcript panel exactly as it was, with the full
@@ -353,7 +353,7 @@ export async function closeTicket(channel, actor) {
     embeds: [transcriptEmbed],
     components: [downloadRow],
   });
-  bindTranscriptMessage(transcriptPanelMessage.id, transcriptToken);
+  await bindTranscriptMessage(transcriptPanelMessage.id, transcriptToken);
 
   try {
     // Fetch the user directly so this still works when the ticket owner has
@@ -364,7 +364,7 @@ export async function closeTicket(channel, actor) {
       embeds: [transcriptEmbed],
       components: [downloadRow],
     });
-    bindTranscriptMessage(dmMessage.id, transcriptToken);
+    await bindTranscriptMessage(dmMessage.id, transcriptToken);
 
   } catch (dmError) {
     // Do not let a failed DM prevent the ticket from being closed.
