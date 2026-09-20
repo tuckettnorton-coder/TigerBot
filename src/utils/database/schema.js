@@ -50,17 +50,6 @@ export const tableStatements = [
         FOREIGN KEY (user_id) REFERENCES ${t.users}(id) ON DELETE CASCADE
     )`,
 
-        id SERIAL PRIMARY KEY,
-        guild_id VARCHAR(20),
-        message_id VARCHAR(20) NOT NULL,
-        data JSONB NOT NULL,
-        ends_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (guild_id) REFERENCES ${t.guilds}(id) ON DELETE CASCADE,
-        UNIQUE(guild_id, message_id)
-    )`,
-
     `CREATE TABLE IF NOT EXISTS ${t.tickets} (
         guild_id VARCHAR(20),
         channel_id VARCHAR(20) PRIMARY KEY,
