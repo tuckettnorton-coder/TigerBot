@@ -180,81 +180,74 @@ function prepareCommandsForRegistration(commands) {
 }
 
 async function registerGlobalCommands(client, clientId, commands, totalSubcommands) {
-    if (!clientId) throw new Error('CLIENT_ID is required for slash command registration');
-    if (!client.rest) throw new Error('Discord REST client is not available for slash command registration');
-
-    logger.info(`Preparing to register ${totalSubcommands + commands.length} commands globally`);
+    if (!client.isReady()) throw new Error('Discord client must be ready before slash-command registration.');
+    
+    logger.info(`Preparing to register ${totalSubcommands + commands.length} commands`);
     validateCommands(commands);
+
     const commandsToRegister = prepareCommandsForRegistration(commands).map(sanitizeCommandPayload);
     const panelPayload = commandsToRegister.find((command) => command.name === 'panel');
+
     if (!panelPayload) {
         throw new Error('The /panel command was not included in the registration payload.');
     }
-    const panelSubcommands = (panelPayload.options || []).filter((option) => option.type === 1).map((option) => option.name);
+
+    const panelSubcommands = (panelPayload.options || [])
+        .filter((option) => option.type === 1)
+        .map((option) => option.name);
+
     const requiredPanelSubcommands = ['post', 'staff', 'pm', 'builder'];
-    const missingPanelSubcommands = requiredPanelSubcommands.filter((name) => !panelSubcommands.includes(name));
+    const missingPanelSubcommands = requiredPanelSubcommands.filter(
+        (name) => !panelSubcommands.includes(name),
+    );
+
     if (missingPanelSubcommands.length) {
-        throw new Error(`The /panel registration payload is missing: ${missingPanelSubcommands.join(', ')}`);
-    }
-    logger.info(`Slash command payload verified before Discord registration: ${commandsToRegister.length} commands; /panel = ${panelSubcommands.join(', ')}`);
-
-    if (botConfig.commands?.deleteCommands) {
-        await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
+        throw new Error(
+            `The /panel registration payload is missing: ${missingPanelSubcommands.join(', ')}`,
+        );
     }
 
-    // Keep commands guild-scoped so Discord does not show both a global and guild copy.
-    // Clear the global command list to remove any stale duplicate global commands.
-    await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
-    logger.info('Cleared global commands to prevent duplicate slash commands');
+    logger.info(
+        `Slash command payload verified: ${commandsToRegister.length} commands; /panel = ${panelSubcommands.join(', ')}`,
+    );
 
-    // Fetch the actual guild list from Discord before registering. Do not rely only
-    // on the local cache, because slash commands must be registered against a real guild ID.
-    await client.guilds.fetch();
-
-    if (client.guilds.cache.size === 0) {
-        throw new Error('No Discord guilds were available for slash-command registration.');
-    }
-
-    // Register commands directly in every guild for immediate availability.
+    // Use discord.js's guild command manager directly. This uses the authenticated
+    // Discord client and avoids relying on a separate CLIENT_ID value for registration.
+    // Guild commands appear immediately in the server.
     for (const guild of client.guilds.cache.values()) {
         try {
-            await client.rest.put(`/applications/${clientId}/guilds/${guild.id}/commands`, {
-                body: commandsToRegister,
-            });
+            const registered = await guild.commands.set(commandsToRegister);
 
-            // Verify Discord actually accepted the command definition.
-            const registered = await client.rest.get(
-                `/applications/${clientId}/guilds/${guild.id}/commands`,
-            );
-            const panel = Array.isArray(registered)
-                ? registered.find((command) => command.name === 'panel')
-                : null;
-
+            const panel = registered.find((command) => command.name === 'panel');
             if (!panel) {
                 throw new Error('Discord did not return the /panel command after registration.');
             }
 
-            const subcommands = (panel.options || [])
+            const registeredSubcommands = (panel.options || [])
                 .filter((option) => option.type === 1)
                 .map((option) => option.name);
 
-            const required = ['post', 'staff', 'pm', 'builder'];
-            const missing = required.filter((name) => !subcommands.includes(name));
+            const missing = requiredPanelSubcommands.filter(
+                (name) => !registeredSubcommands.includes(name),
+            );
 
             if (missing.length > 0) {
-                throw new Error(`/panel is missing subcommands: ${missing.join(', ')}`);
+                throw new Error(
+                    `/panel is missing subcommands: ${missing.join(', ')}`,
+                );
             }
 
             logger.info(
-                `Registered and verified /panel in guild ${guild.id}: ${subcommands.join(', ')}`,
+                `Registered and verified /panel in guild ${guild.id}: ${registeredSubcommands.join(', ')}`,
             );
         } catch (error) {
-            logger.error(`Failed to register/verify commands in guild ${guild.id}: ${error.message}`);
+            logger.error(
+                `Failed to register/verify commands in guild ${guild.id}: ${error.message}`,
+            );
             throw error;
         }
     }
 }
-
 export async function registerCommands(client, options = {}) {
     const { clientId = null } = options;
 
