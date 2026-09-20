@@ -20,6 +20,8 @@ const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 import { EXPECTED_SCHEMA_VERSION, EXPECTED_SCHEMA_LABEL } from './config/database/schemaVersion.js';
 
+console.log('[BOOT DIAGNOSTIC] app.js module imports completed; entering application startup.');
+
 class TitanBot extends Client {
   constructor() {
     super({
