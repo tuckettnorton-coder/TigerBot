@@ -25,8 +25,6 @@ const TEMP_BACKED_TYPES = new Set([
     'birthday_left',
     'birthday_tracking',
     'invite_data',
-    'giveaway_entry',
-    'giveaway_lock',
     'ticket_counter',
 ]);
 
@@ -63,9 +61,6 @@ export function parseKey(key) {
                 return { type: 'birthday_tracking', guildId, fullKey };
             }
             return { type: 'guild_birthdays', guildId, fullKey };
-        }
-        if (parts[2] === 'giveaways') {
-            return { type: 'guild_giveaways', guildId, fullKey };
         }
         if (parts[2] === 'welcome') {
             return { type: 'welcome_config', guildId, fullKey };
@@ -132,15 +127,6 @@ export function parseKey(key) {
         }
         if (parts[2] === 'fake_account' && parts[3]) {
             return { type: 'fake_account', guildId, userId: parts[3], fullKey };
-        }
-    }
-
-    if (parts[0] === 'giveaway') {
-        if (parts[1] === 'lock' && parts[2]) {
-            return { type: 'giveaway_lock', messageId: parts[2], fullKey };
-        }
-        if (parts[1] && parts[2]) {
-            return { type: 'giveaway_entry', userId: parts[1], giveawayId: parts[2], fullKey };
         }
     }
 
