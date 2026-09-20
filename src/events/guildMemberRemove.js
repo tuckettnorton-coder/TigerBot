@@ -148,13 +148,6 @@ export default {
         } catch (error) {
             logger.debug('Error handling applications on member leave:', error);
         }
-
-        try {
-            await deleteUserLevelData(member.client, guild.id, user.id);
-            logger.debug(`Removed leveling data for user ${user.id} in guild ${guild.id}`);
-        } catch (error) {
-            logger.debug('Error handling leveling data on member leave:', error);
-        }
         
     } catch (error) {
         logger.error('Error in guildMemberRemove event:', error);
