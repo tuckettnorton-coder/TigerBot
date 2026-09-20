@@ -9,7 +9,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const MAX_COMMANDS = 100;
 const COMMAND_COUNT_WARN_THRESHOLD = 90;
-const PRIORITY_COMMANDS = ['updatepanel'];
+const PRIORITY_COMMANDS = ['panel', 'updatepanel'];
+const MAX_DESCRIPTION_LENGTH = 100;
+
+function sanitizeCommandPayload(command) {
+    const copy = JSON.parse(JSON.stringify(command));
+    const sanitizeOption = (option) => {
+        if (typeof option.description === 'string') option.description = option.description.slice(0, MAX_DESCRIPTION_LENGTH);
+        if (Array.isArray(option.options)) option.options.forEach(sanitizeOption);
+        return option;
+    };
+    if (typeof copy.description === 'string') copy.description = copy.description.slice(0, MAX_DESCRIPTION_LENGTH);
+    if (Array.isArray(copy.options)) copy.options.forEach(sanitizeOption);
+    return copy;
+}
 
 function getSubcommandInfo(commandData) {
     const subcommands = [];
@@ -131,18 +144,18 @@ function validateCommands(commands) {
 
     for (const cmd of commands) {
         if (cmd.name && cmd.name.length > 32) validationErrors.push(`Command ${cmd.name} has name longer than 32 chars`);
-        if (cmd.description && cmd.description.length > 110) validationErrors.push(`Command ${cmd.name} has description longer than 110 chars`);
+        if (cmd.description && cmd.description.length > MAX_DESCRIPTION_LENGTH) validationErrors.push(`Command ${cmd.name} has description longer than ${MAX_DESCRIPTION_LENGTH} chars`);
 
         if (!cmd.options) continue;
 
         for (const option of cmd.options) {
             if (option.name && option.name.length > 32) validationErrors.push(`Command ${cmd.name} option ${option.name} has name longer than 32 chars`);
-            if (option.description && option.description.length > 110) validationErrors.push(`Command ${cmd.name} option ${option.name} has description longer than 110 chars`);
+            if (option.description && option.description.length > MAX_DESCRIPTION_LENGTH) validationErrors.push(`Command ${cmd.name} option ${option.name} has description longer than ${MAX_DESCRIPTION_LENGTH} chars`);
             if (!option.options) continue;
 
             for (const subOption of option.options) {
                 if (subOption.name && subOption.name.length > 32) validationErrors.push(`Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has name longer than 32 chars`);
-                if (subOption.description && subOption.description.length > 110) validationErrors.push(`Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has description longer than 110 chars`);
+                if (subOption.description && subOption.description.length > MAX_DESCRIPTION_LENGTH) validationErrors.push(`Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has description longer than ${MAX_DESCRIPTION_LENGTH} chars`);
             }
         }
     }
@@ -172,7 +185,18 @@ async function registerGlobalCommands(client, clientId, commands, totalSubcomman
 
     logger.info(`Preparing to register ${totalSubcommands + commands.length} commands globally`);
     validateCommands(commands);
-    const commandsToRegister = prepareCommandsForRegistration(commands);
+    const commandsToRegister = prepareCommandsForRegistration(commands).map(sanitizeCommandPayload);
+    const panelPayload = commandsToRegister.find((command) => command.name === 'panel');
+    if (!panelPayload) {
+        throw new Error('The /panel command was not included in the registration payload.');
+    }
+    const panelSubcommands = (panelPayload.options || []).filter((option) => option.type === 1).map((option) => option.name);
+    const requiredPanelSubcommands = ['post', 'staff', 'pm', 'builder'];
+    const missingPanelSubcommands = requiredPanelSubcommands.filter((name) => !panelSubcommands.includes(name));
+    if (missingPanelSubcommands.length) {
+        throw new Error(`The /panel registration payload is missing: ${missingPanelSubcommands.join(', ')}`);
+    }
+    logger.info(`Slash command payload verified before Discord registration: ${commandsToRegister.length} commands; /panel = ${panelSubcommands.join(', ')}`);
 
     if (botConfig.commands?.deleteCommands) {
         await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
