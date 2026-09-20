@@ -3,26 +3,13 @@ import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { Collection } from 'discord.js';
 import { logger } from '../../utils/logger.js';
-import { botConfig } from '../../config/bot.js';
+import botConfig from '../../config/bot.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const MAX_COMMANDS = 100;
 const COMMAND_COUNT_WARN_THRESHOLD = 90;
-const PRIORITY_COMMANDS = ['panel', 'updatepanel'];
-const MAX_DESCRIPTION_LENGTH = 100;
-
-function sanitizeCommandPayload(command) {
-    const copy = JSON.parse(JSON.stringify(command));
-    const sanitizeOption = (option) => {
-        if (typeof option.description === 'string') option.description = option.description.slice(0, MAX_DESCRIPTION_LENGTH);
-        if (Array.isArray(option.options)) option.options.forEach(sanitizeOption);
-        return option;
-    };
-    if (typeof copy.description === 'string') copy.description = copy.description.slice(0, MAX_DESCRIPTION_LENGTH);
-    if (Array.isArray(copy.options)) copy.options.forEach(sanitizeOption);
-    return copy;
-}
+const PRIORITY_COMMANDS = ['updatepanel'];
 
 function getSubcommandInfo(commandData) {
     const subcommands = [];
@@ -144,18 +131,18 @@ function validateCommands(commands) {
 
     for (const cmd of commands) {
         if (cmd.name && cmd.name.length > 32) validationErrors.push(`Command ${cmd.name} has name longer than 32 chars`);
-        if (cmd.description && cmd.description.length > MAX_DESCRIPTION_LENGTH) validationErrors.push(`Command ${cmd.name} has description longer than ${MAX_DESCRIPTION_LENGTH} chars`);
+        if (cmd.description && cmd.description.length > 110) validationErrors.push(`Command ${cmd.name} has description longer than 110 chars`);
 
         if (!cmd.options) continue;
 
         for (const option of cmd.options) {
             if (option.name && option.name.length > 32) validationErrors.push(`Command ${cmd.name} option ${option.name} has name longer than 32 chars`);
-            if (option.description && option.description.length > MAX_DESCRIPTION_LENGTH) validationErrors.push(`Command ${cmd.name} option ${option.name} has description longer than ${MAX_DESCRIPTION_LENGTH} chars`);
+            if (option.description && option.description.length > 110) validationErrors.push(`Command ${cmd.name} option ${option.name} has description longer than 110 chars`);
             if (!option.options) continue;
 
             for (const subOption of option.options) {
                 if (subOption.name && subOption.name.length > 32) validationErrors.push(`Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has name longer than 32 chars`);
-                if (subOption.description && subOption.description.length > MAX_DESCRIPTION_LENGTH) validationErrors.push(`Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has description longer than ${MAX_DESCRIPTION_LENGTH} chars`);
+                if (subOption.description && subOption.description.length > 110) validationErrors.push(`Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has description longer than 110 chars`);
             }
         }
     }
@@ -180,74 +167,70 @@ function prepareCommandsForRegistration(commands) {
 }
 
 async function registerGlobalCommands(client, clientId, commands, totalSubcommands) {
-    if (!client.isReady()) throw new Error('Discord client must be ready before slash-command registration.');
-    
-    logger.info(`Preparing to register ${totalSubcommands + commands.length} commands`);
+    if (!clientId) throw new Error('CLIENT_ID is required for slash command registration');
+    if (!client.rest) throw new Error('Discord REST client is not available for slash command registration');
+
+    logger.info(`Preparing to register ${totalSubcommands + commands.length} commands globally`);
     validateCommands(commands);
+    const commandsToRegister = prepareCommandsForRegistration(commands);
 
-    const commandsToRegister = prepareCommandsForRegistration(commands).map(sanitizeCommandPayload);
-    const panelPayload = commandsToRegister.find((command) => command.name === 'panel');
-
-    if (!panelPayload) {
-        throw new Error('The /panel command was not included in the registration payload.');
+    if (botConfig.commands?.deleteCommands) {
+        await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
     }
 
-    const panelSubcommands = (panelPayload.options || [])
-        .filter((option) => option.type === 1)
-        .map((option) => option.name);
+    // Keep commands guild-scoped so Discord does not show both a global and guild copy.
+    // Clear the global command list to remove any stale duplicate global commands.
+    await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
+    logger.info('Cleared global commands to prevent duplicate slash commands');
 
-    const requiredPanelSubcommands = ['post', 'staff', 'pm', 'builder'];
-    const missingPanelSubcommands = requiredPanelSubcommands.filter(
-        (name) => !panelSubcommands.includes(name),
-    );
+    // Fetch the actual guild list from Discord before registering. Do not rely only
+    // on the local cache, because slash commands must be registered against a real guild ID.
+    await client.guilds.fetch();
 
-    if (missingPanelSubcommands.length) {
-        throw new Error(
-            `The /panel registration payload is missing: ${missingPanelSubcommands.join(', ')}`,
-        );
+    if (client.guilds.cache.size === 0) {
+        throw new Error('No Discord guilds were available for slash-command registration.');
     }
 
-    logger.info(
-        `Slash command payload verified: ${commandsToRegister.length} commands; /panel = ${panelSubcommands.join(', ')}`,
-    );
-
-    // Use discord.js's guild command manager directly. This uses the authenticated
-    // Discord client and avoids relying on a separate CLIENT_ID value for registration.
-    // Guild commands appear immediately in the server.
+    // Register commands directly in every guild for immediate availability.
     for (const guild of client.guilds.cache.values()) {
         try {
-            const registered = await guild.commands.set(commandsToRegister);
+            await client.rest.put(`/applications/${clientId}/guilds/${guild.id}/commands`, {
+                body: commandsToRegister,
+            });
 
-            const panel = registered.find((command) => command.name === 'panel');
+            // Verify Discord actually accepted the command definition.
+            const registered = await client.rest.get(
+                `/applications/${clientId}/guilds/${guild.id}/commands`,
+            );
+            const panel = Array.isArray(registered)
+                ? registered.find((command) => command.name === 'panel')
+                : null;
+
             if (!panel) {
                 throw new Error('Discord did not return the /panel command after registration.');
             }
 
-            const registeredSubcommands = (panel.options || [])
+            const subcommands = (panel.options || [])
                 .filter((option) => option.type === 1)
                 .map((option) => option.name);
 
-            const missing = requiredPanelSubcommands.filter(
-                (name) => !registeredSubcommands.includes(name),
-            );
+            const required = ['post', 'staff', 'pm', 'builder'];
+            const missing = required.filter((name) => !subcommands.includes(name));
 
             if (missing.length > 0) {
-                throw new Error(
-                    `/panel is missing subcommands: ${missing.join(', ')}`,
-                );
+                throw new Error(`/panel is missing subcommands: ${missing.join(', ')}`);
             }
 
             logger.info(
-                `Registered and verified /panel in guild ${guild.id}: ${registeredSubcommands.join(', ')}`,
+                `Registered and verified /panel in guild ${guild.id}: ${subcommands.join(', ')}`,
             );
         } catch (error) {
-            logger.error(
-                `Failed to register/verify commands in guild ${guild.id}: ${error.message}`,
-            );
+            logger.error(`Failed to register/verify commands in guild ${guild.id}: ${error.message}`);
             throw error;
         }
     }
 }
+
 export async function registerCommands(client, options = {}) {
     const { clientId = null } = options;
 
