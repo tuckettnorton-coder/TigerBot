@@ -21,6 +21,15 @@ export function selectWinners(participants = [], winnerCount = 1) {
   return pool.slice(0, Math.max(1, Math.min(Number(winnerCount) || 1, pool.length)));
 }
 
+export function formatGiveawayWinnerMessage(winnerIds = [], prize = 'Mystery Prize') {
+  const winnerText = winnerIds.length
+    ? winnerIds.map(id => '<@' + id + '>').join(', ')
+    : 'No valid winners';
+  return winnerIds.length
+    ? `Congratulations **${winnerText}**! You won the **${prize}**!`
+    : 'No valid winners for this giveaway.';
+}
+
 export function createGiveawayEmbed(giveaway, status = 'active', winners = []) {
   const ended = status === 'ended' || status === 'reroll';
   const ids = winners.length ? winners : (giveaway.winnerIds || []);
