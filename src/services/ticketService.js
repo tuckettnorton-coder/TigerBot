@@ -183,7 +183,7 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
     name,
     type: ChannelType.GuildText,
     parent: category.id,
-    topic: `This is the start of the #${name} private channel.`,
+    topic: `Ticket owner: ${user.id} | This is the start of the #${name} private channel.`,
     permissionOverwrites: overwrites,
     reason: `TigerBot ticket opened by ${user.tag} (${ticket.label})`,
   });
@@ -224,13 +224,23 @@ export async function requestClose(channel, member) {
   const definition = ticket.typeId ? TICKET_TYPES[ticket.typeId] : null;
   const staffDefinition = definition || { pingRoles: [], accessRoles: [] };
   if (!isStaffForTicket(member, staffDefinition)) throw new Error('Only the ticket staff team can request a close.');
+
+  // Always target the original ticket creator. Newly added participants can
+  // also have ViewChannel permission overwrites, so they must never replace
+  // the creator as the close-request notification target.
+  let ownerId = ticket.openerId;
+  const topicOwnerMatch = String(channel.topic || '').match(/Ticket owner:\s*(\d{17,20})\b/);
+  if (topicOwnerMatch) {
+    ownerId = topicOwnerMatch[1];
+  }
+
   const recent = await channel.messages.fetch({ limit: 25 }).catch(() => null);
   if (recent?.some((message) => message.embeds?.some((embed) => embed.title === 'Close Request'))) return null;
 
-  const ownerMention = `<@${ticket.openerId}>`;
-  const embed = new EmbedBuilder().setTitle('Close Request').setDescription(`Staff member ${member} has requested to close this ticket.\n\nTicket owner: ${ownerMention}\n\n**Confirmation**\n> Would you like to close this ticket?`);
+  const ownerMention = `<@${ownerId}>`;
+  const embed = new EmbedBuilder().setTitle('Close Request').setDescription(`Staff member ${member} has requested to close this ticket.\\n\\nTicket owner: ${ownerMention}\\n\\n**Confirmation**\\n> Would you like to close this ticket?`);
   const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary));
-  return channel.send({ content: ownerMention, embeds: [embed], components: [row] });
+  return channel.send({ content: ownerMention, embeds: [embed], components: [row], allowedMentions: { users: [ownerId] } });
 }
 
 async function fetchAllMessages(channel) {
