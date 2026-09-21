@@ -250,7 +250,7 @@ class TitanBot extends Client {
   setupCronJobs() {
     cron.schedule('0 6 * * *', runSafeTask('birthday_check', () => checkBirthdays(this)));
     cron.schedule('*/15 * * * *', runSafeTask('counter_update', () => this.updateAllCounters()));
-    cron.schedule('*/10 * * * * *', runSafeTask('giveaway_scheduler', () => processGiveawaySchedules(this)));
+    cron.schedule('* * * * * *', runSafeTask('giveaway_scheduler', () => processGiveawaySchedules(this)));
   }
 
   async updateAllCounters() {
