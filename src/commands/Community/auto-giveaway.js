@@ -2,7 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.
 import { getAutoGiveaways, saveAutoGiveaway, removeAutoGiveaway } from '../../utils/giveaways.js';
 
 function parseDuration(input) {
-  const match = String(input || '').trim().toLowerCase().match(/^(\\d+)\\s*(s|m|h|d|w)$/);
+  const match = String(input || '').trim().toLowerCase().match(/^(\d+)\\s*(s|m|h|d|w)$/);
   if (!match) return null;
   const amount = Number(match[1]);
   if (!amount) return null;
