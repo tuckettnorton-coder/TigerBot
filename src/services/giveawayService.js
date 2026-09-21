@@ -43,7 +43,7 @@ export function createGiveawayEmbed(giveaway, status = 'active', winners = []) {
   else fields.push({ name: 'Winner(s)', value: winnerText, inline: false });
   return createEmbed({
     title: ended ? (status === 'reroll' ? 'Giveaway Rerolled' : 'Giveaway Ended') : 'Giveaway',
-    description: giveaway.description || 'Click **Enter Giveaway** below to enter!',
+    description: (giveaway.description || 'Click **Enter Giveaway** below to enter!') + '\n\nMake sure to check out <#1513947221815590932> ! **Daily Giveaways have a 24-hour claim time.**',
     color: ended ? 'success' : 'primary',
     fields
   });
