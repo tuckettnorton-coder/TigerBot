@@ -238,7 +238,12 @@ export async function requestClose(channel, member) {
   if (recent?.some((message) => message.embeds?.some((embed) => embed.title === 'Close Request'))) return null;
 
   const ownerMention = `<@${ownerId}>`;
-  const embed = new EmbedBuilder().setTitle('Close Request').setDescription(`Staff member ${member} has requested to close this ticket.\\n\\nTicket owner: ${ownerMention}\\n\\n**Confirmation**\\n> Would you like to close this ticket?`);
+  const staffName = member.displayName || member.user?.displayName || member.user?.username || member.user?.tag || 'Staff Member';
+  const closeRequestedAt = Math.floor(Date.now() / 1000);
+  const embed = new EmbedBuilder()
+    .setTitle('Close Request')
+    .setDescription(`Staff member **${staffName}** has requested to close this ticket.\n${ownerMention}\n**Confirmation**\n> Would you like to close this ticket?`)
+    .setFooter({ text: `Powered by TicketCord.com • <t:${closeRequestedAt}:f>` });
   const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary));
   return channel.send({ content: ownerMention, embeds: [embed], components: [row], allowedMentions: { users: [ownerId] } });
 }
