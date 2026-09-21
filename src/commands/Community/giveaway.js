@@ -43,7 +43,8 @@ export default {
       .addStringOption(o => o.setName('description').setDescription('Optional description').setRequired(false)))
     .addSubcommand(s => s.setName('end').setDescription('End a giveaway').addStringOption(o => o.setName('message_id').setDescription('Giveaway message ID').setRequired(true)))
     .addSubcommand(s => s.setName('reroll').setDescription('Reroll a giveaway').addStringOption(o => o.setName('message_id').setDescription('Giveaway message ID').setRequired(true)))
-    .addSubcommand(s => s.setName('list').setDescription('List active giveaways')),
+    .addSubcommand(s => s.setName('list').setDescription('List active giveaways'))
+    .addSubcommand(s => s.setName('delete').setDescription('Delete an existing giveaway')),
 
   async execute(interaction, config, client) {
     const sub = interaction.options.getSubcommand();
@@ -65,6 +66,41 @@ export default {
       return interaction.reply({content:'Giveaway started in <#' + channel.id + '>.', flags:MessageFlags.Ephemeral});
     }
     const giveaways = await getGuildGiveaways(client, interaction.guildId);
+    if (sub === 'delete') {
+      const available = giveaways.filter(g => !g.ended);
+      if (!available.length) return interaction.reply({content:'There are no active giveaways to delete.', flags:MessageFlags.Ephemeral});
+      const { StringSelectMenuBuilder, ActionRowBuilder } = await import('discord.js');
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId('giveaway_delete_select')
+        .setPlaceholder('Select a giveaway to delete')
+        .addOptions(available.slice(0,25).map(g => ({
+          label: String(g.prize || 'Giveaway').slice(0,100),
+          description: ('Delete giveaway in ' + (g.channelId ? '#' + g.channelId : 'unknown channel')).slice(0,100),
+          value: g.id
+        })));
+      const reply = await interaction.reply({
+        content: 'Select the giveaway you want to delete. It will be completely removed.',
+        components: [new ActionRowBuilder().addComponents(menu)],
+        flags: MessageFlags.Ephemeral,
+        fetchReply: true
+      });
+      const collector = reply.createMessageComponentCollector({time: 60000, filter: i => i.user.id === interaction.user.id});
+      collector.on('collect', async i => {
+        const selected = available.find(g => g.id === i.values[0]);
+        if (!selected) return i.update({content:'Giveaway not found.', components:[]});
+        const channel = await client.channels.fetch(selected.channelId).catch(() => null);
+        const message = channel ? await channel.messages.fetch(selected.messageId).catch(() => null) : null;
+        if (message) await message.delete().catch(() => null);
+        const remaining = (await getGuildGiveaways(client, interaction.guildId)).filter(g => g.id !== selected.id);
+        await client.db.set('guild:' + interaction.guildId + ':giveaways', remaining);
+        await i.update({content:'Giveaway deleted completely.', components:[]});
+        collector.stop();
+      });
+      collector.on('end', async (_, reason) => {
+        if (reason === 'time') await interaction.editReply({content:'Giveaway delete selection expired.', components:[]}).catch(() => null);
+      });
+      return;
+    }
     if (sub === 'list') {
       const active = giveaways.filter(g => !g.ended && new Date(g.endsAt).getTime() > Date.now());
       const text = active.length ? active.map(g => '• ' + g.prize + ' — <#' + g.channelId + '> — <t:' + Math.floor(new Date(g.endsAt).getTime()/1000) + ':R> — ' + g.messageId).join('\\n') : 'There are no active giveaways.';
