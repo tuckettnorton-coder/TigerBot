@@ -195,6 +195,196 @@ export async function joinVoiceChannel(client, interaction) {
     );
 }
 
+
+const BUILT_IN_PLAYLIST_SEARCHES = {
+    'global-hits': [
+        'global top hits 2026',
+        'global top 100 pop hits',
+        'worldwide top songs',
+        'global viral hits',
+        'international pop hits',
+        'top streaming songs',
+        'current pop hits',
+        'global dance hits',
+        'global hip hop hits',
+        'global music hits',
+        'popular songs worldwide',
+        'top songs right now',
+    ],
+    'country': [
+        'country hits 2026',
+        'top country songs',
+        'modern country hits',
+        'country radio hits',
+        'country pop hits',
+        'Morgan Wallen country hits',
+        'Luke Combs country hits',
+        'Zach Bryan country hits',
+        'Lainey Wilson country hits',
+        'Jelly Roll country hits',
+    ],
+    'rap': [
+        'rap hits 2026',
+        'top hip hop songs',
+        'current rap hits',
+        'hip hop hits',
+        'trap rap hits',
+        'Drake rap hits',
+        'Kendrick Lamar rap hits',
+        'Travis Scott rap hits',
+        'Future rap hits',
+        'popular rap songs',
+    ],
+    'hip-hop': [
+        'top hip hop songs',
+        'hip hop hits 2026',
+        'current hip hop hits',
+        'popular hip hop songs',
+        'rap and hip hop hits',
+        'mainstream hip hop',
+        'viral hip hop songs',
+        'best hip hop hits',
+    ],
+    'rock': [
+        'rock hits 2026',
+        'top rock songs',
+        'modern rock hits',
+        'classic rock hits',
+        'alternative rock hits',
+        'pop rock hits',
+        'hard rock hits',
+        'rock radio hits',
+        'viral rock songs',
+        'popular rock songs',
+    ],
+    'pop': [
+        'pop hits 2026',
+        'top pop songs',
+        'current pop hits',
+        'viral pop songs',
+        'pop radio hits',
+        'mainstream pop hits',
+        'best pop songs',
+        'popular pop music',
+        'global pop hits',
+        'new pop hits',
+    ],
+    'edm': [
+        'EDM hits 2026',
+        'top EDM songs',
+        'electronic dance hits',
+        'EDM festival hits',
+        'house music hits',
+        'dance music hits',
+        'electro house hits',
+        'viral EDM songs',
+        'popular EDM songs',
+        'EDM radio hits',
+    ],
+    'lofi': [
+        'lofi beats',
+        'lofi hip hop',
+        'lofi study beats',
+        'chill lofi',
+        'lofi radio',
+        'late night lofi',
+        'lofi relaxing beats',
+        'lofi gaming music',
+    ],
+    'phonk': [
+        'phonk hits',
+        'popular phonk songs',
+        'drift phonk',
+        'phonk playlist',
+        'viral phonk',
+        'Brazilian phonk',
+        'aggressive phonk',
+        'phonk radio',
+    ],
+    'chill': [
+        'chill hits',
+        'chill music playlist',
+        'chill pop songs',
+        'relaxing chill music',
+        'chill electronic music',
+        'late night chill',
+        'chill radio',
+        'chill vibes',
+    ],
+    'r&b': [
+        'R&B hits 2026',
+        'top R&B songs',
+        'current R&B hits',
+        'R&B radio hits',
+        'popular R&B songs',
+        'modern R&B playlist',
+        'viral R&B songs',
+        'best R&B hits',
+    ],
+    'reggaeton': [
+        'reggaeton hits 2026',
+        'top reggaeton songs',
+        'Latin hits',
+        'reggaeton party hits',
+        'popular reggaeton songs',
+        'viral Latin songs',
+        'Latin pop hits',
+        'reggaeton radio',
+    ],
+};
+
+function normalizeMusicCategory(query) {
+    return String(query || '').trim().toLowerCase().replace(/_/g, '-');
+}
+
+function getBuiltInPlaylistQueries(query) {
+    const normalized = normalizeMusicCategory(query);
+    return BUILT_IN_PLAYLIST_SEARCHES[normalized] || null;
+}
+
+async function resolveBuiltInPlaylistTracks(client, requester, query) {
+    const searches = getBuiltInPlaylistQueries(query);
+    if (!searches) {
+        return null;
+    }
+
+    const results = await Promise.allSettled(
+        searches.map((search) => client.riffy.resolve({
+            query: search,
+            requester,
+        })),
+    );
+
+    const tracks = [];
+    const seen = new Set();
+
+    for (const result of results) {
+        if (result.status !== 'fulfilled') {
+            continue;
+        }
+
+        const loaded = result.value;
+        if (!['search', 'SEARCH_RESULT', 'playlist', 'PLAYLIST_LOADED'].includes(loaded?.loadType)) {
+            continue;
+        }
+
+        for (const track of loaded.tracks || []) {
+            const uri = track?.info?.uri;
+            const key = uri || `${track?.info?.title || ''}|${track?.info?.author || ''}`;
+            if (!key || seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            tracks.push(track);
+            if (tracks.length >= 100) {
+                return tracks;
+            }
+        }
+    }
+
+    return tracks;
+}
+
 export async function playQuery(client, interaction, query) {
     if (YOUTUBE_URL_PATTERN.test(query)) {
         throw new TitanBotError(
@@ -205,6 +395,41 @@ export async function playQuery(client, interaction, query) {
     }
 
     const { player, guildData } = await ensurePlayer(client, interaction);
+
+    const builtInTracks = await resolveBuiltInPlaylistTracks(client, interaction.user, query);
+    if (builtInTracks) {
+        if (!builtInTracks.length) {
+            throw new TitanBotError(
+                'No playlist results',
+                ErrorTypes.USER_INPUT,
+                `Could not find tracks for the **${query}** playlist right now.`,
+            );
+        }
+
+        let added = 0;
+        let skipped = 0;
+
+        for (const track of builtInTracks) {
+            track.info.requester = interaction.user;
+            if (isDuplicateTrack(player, track)) {
+                skipped += 1;
+                continue;
+            }
+            player.queue.add(track);
+            added += 1;
+        }
+
+        if (!player.playing && !player.paused && added > 0) {
+            await startPlayback(player);
+        }
+
+        return {
+            embed: successEmbed(
+                'Playlist Added',
+                `**${query}**\nAdded ${added} track(s) to the queue.${skipped ? ` Skipped ${skipped} duplicate(s).` : ''}`,
+            ),
+        };
+    }
 
     const result = await client.riffy.resolve({
         query,
