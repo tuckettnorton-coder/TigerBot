@@ -23,7 +23,8 @@ export default {
       .addChannelOption(o => o.setName('channel').setDescription('Giveaway channel').setRequired(false))
       .addStringOption(o => o.setName('description').setDescription('Optional description').setRequired(false)))
     .addSubcommand(s => s.setName('list').setDescription('List automatic giveaways'))
-    .addSubcommand(s => s.setName('stop').setDescription('Stop an automatic giveaway').addStringOption(o => o.setName('id').setDescription('Automatic giveaway ID').setRequired(true))),
+    .addSubcommand(s => s.setName('stop').setDescription('Stop an automatic giveaway').addStringOption(o => o.setName('id').setDescription('Automatic giveaway ID').setRequired(true)))
+    .addSubcommand(s => s.setName('delete').setDescription('Delete an existing automatic giveaway')),
 
   async execute(interaction, config, client) {
     const sub = interaction.options.getSubcommand();
@@ -47,6 +48,46 @@ export default {
       };
       await saveAutoGiveaway(client, guildId, auto);
       return interaction.reply({content:'Automatic giveaway created. ID: ' + auto.id + '\\nEach giveaway lasts ' + interaction.options.getString('duration') + ' and repeats every ' + interaction.options.getString('repeat') + '. Schedule ends: ' + endsText + '.', flags:MessageFlags.Ephemeral});
+    }
+    if (sub === 'delete') {
+      const active = configs.filter(c => c.enabled);
+      if (!active.length) return interaction.reply({content:'There are no active automatic giveaways.', flags:MessageFlags.Ephemeral});
+      const { StringSelectMenuBuilder, ActionRowBuilder } = await import('discord.js');
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId('auto_giveaway_delete_select')
+        .setPlaceholder('Select an automatic giveaway to delete')
+        .addOptions(active.slice(0,25).map(c => ({
+          label: String(c.prize || 'Automatic Giveaway').slice(0,100),
+          description: ('Stop and delete ' + c.id).slice(0,100),
+          value: c.id
+        })));
+      const reply = await interaction.reply({
+        content: 'Select the automatic giveaway you want to delete. This will stop it completely and remove its active giveaway messages.',
+        components: [new ActionRowBuilder().addComponents(menu)],
+        flags: MessageFlags.Ephemeral,
+        fetchReply: true
+      });
+      const collector = reply.createMessageComponentCollector({time: 60000, filter: i => i.user.id === interaction.user.id});
+      collector.on('collect', async i => {
+        const selected = active.find(c => c.id === i.values[0]);
+        if (!selected) return i.update({content:'Automatic giveaway not found.', components:[]});
+        const current = await getAutoGiveaways(client, guildId);
+        await removeAutoGiveaway(client, guildId, selected.id);
+        const giveawayList = await (await import('../../utils/giveaways.js')).getGuildGiveaways(client, guildId);
+        const related = giveawayList.filter(g => g.autoGiveawayId === selected.id);
+        for (const g of related) {
+          const channel = await client.channels.fetch(g.channelId).catch(() => null);
+          const message = channel ? await channel.messages.fetch(g.messageId).catch(() => null) : null;
+          if (message) await message.delete().catch(() => null);
+        }
+        await client.db.set('guild:' + guildId + ':giveaways', giveawayList.filter(g => g.autoGiveawayId !== selected.id));
+        await i.update({content:'Automatic giveaway deleted completely and stopped.', components:[]});
+        collector.stop();
+      });
+      collector.on('end', async (_, reason) => {
+        if (reason === 'time') await interaction.editReply({content:'Automatic giveaway delete selection expired.', components:[]}).catch(() => null);
+      });
+      return;
     }
     if (sub === 'list') {
       const active = configs.filter(c => c.enabled);
