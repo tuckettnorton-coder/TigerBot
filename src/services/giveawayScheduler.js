@@ -1,5 +1,5 @@
 import { getGuildGiveaways, saveGiveaway, getAutoGiveaways, saveAutoGiveaway } from '../utils/giveaways.js';
-import { createGiveawayEmbed, createGiveawayButtons, selectWinners } from './giveawayService.js';
+import { createGiveawayEmbed, createGiveawayButtons, selectWinners, formatGiveawayWinnerMessage } from './giveawayService.js';
 import { logger } from '../utils/logger.js';
 
 async function endGiveaway(client, guildId, giveaway) {
@@ -17,11 +17,7 @@ async function endGiveaway(client, guildId, giveaway) {
     embeds: [createGiveawayEmbed(giveaway, 'ended', giveaway.winnerIds)],
     components: [createGiveawayButtons(true)]
   }).catch(() => null);
-  if (channel) await channel.send(
-    giveaway.winnerIds.length
-      ? 'Giveaway winner(s): ' + giveaway.winnerIds.map(id => '<@' + id + '>').join(', ') + ' — congratulations!'
-      : 'The giveaway ended with no valid entries.'
-  ).catch(() => null);
+  if (channel) await channel.send(formatGiveawayWinnerMessage(giveaway.winnerIds, giveaway.prize)).catch(() => null);
 }
 
 async function startAutoGiveaway(client, auto) {
