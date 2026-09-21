@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
 import { saveGiveaway, getGuildGiveaways } from '../../utils/giveaways.js';
-import { createGiveawayEmbed, createGiveawayButtons, selectWinners } from '../../services/giveawayService.js';
+import { createGiveawayEmbed, createGiveawayButtons, selectWinners, formatGiveawayWinnerMessage } from '../../services/giveawayService.js';
 
 function parseDuration(input) {
   const match = String(input || '').trim().toLowerCase().match(/^(\d+)\\s*(s|m|h|d|w)$/);
@@ -24,9 +24,7 @@ async function finish(client, guildId, giveaway, reroll = false) {
     embeds: [createGiveawayEmbed(giveaway, reroll ? 'reroll' : 'ended', winners)],
     components: [createGiveawayButtons(true)]
   });
-  if (channel) await channel.send(winners.length
-    ? 'Giveaway winner(s): ' + winners.map(id => '<@' + id + '>').join(', ') + ' — congratulations!'
-    : 'The giveaway ended with no valid entries.');
+  if (channel) await channel.send(formatGiveawayWinnerMessage(winners, giveaway.prize));
   return winners;
 }
 
