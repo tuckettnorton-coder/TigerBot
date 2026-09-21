@@ -44,6 +44,8 @@ async function startAutoGiveaway(client, auto) {
     autoGiveawayId: auto.id
   };
   const message = await channel.send({
+    content: '<@&1509955642209603614>',
+    allowedMentions: { roles: ['1509955642209603614'] },
     embeds: [createGiveawayEmbed(giveaway)],
     components: [createGiveawayButtons(false)]
   });
