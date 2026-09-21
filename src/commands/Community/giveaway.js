@@ -3,7 +3,7 @@ import { saveGiveaway, getGuildGiveaways } from '../../utils/giveaways.js';
 import { createGiveawayEmbed, createGiveawayButtons, selectWinners } from '../../services/giveawayService.js';
 
 function parseDuration(input) {
-  const match = String(input || '').trim().toLowerCase().match(/^(\\d+)\\s*(s|m|h|d|w)$/);
+  const match = String(input || '').trim().toLowerCase().match(/^(\d+)\\s*(s|m|h|d|w)$/);
   if (!match) return null;
   const amount = Number(match[1]);
   if (!amount) return null;
