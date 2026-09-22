@@ -7,7 +7,7 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import { TICKET_TYPES } from '../config/ticketTypes.js';
-import { storeTranscript, bindTranscriptMessage } from './transcriptStore.js';
+import { storeTranscript, bindTranscriptMessage, bindTicketOwner, getTicketOwner } from './transcriptStore.js';
 
 const LOG_CHANNEL_NAME = '📝│logs';
 const TRANSCRIPT_CHANNEL_NAME = '📝│transcripts';
@@ -214,6 +214,10 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
     allowedMentions: { users: [user.id], roles: allowedRoleIds },
   });
   await channel.send({ embeds: [ticketEmbed], components: [ticketActionRow] });
+  // Persist the original creator separately from Discord permission overwrites.
+  // Added staff/members can have ViewChannel permission too, so overwrites are
+  // not a reliable source of the ticket owner after the ticket has been open.
+  await bindTicketOwner(channel.id, user.id);
 
   return { channel, metadata: { typeId, openerId: user.id, categoryName: ticket.categoryName, code } };
 }
@@ -228,11 +232,14 @@ export async function requestClose(channel, member) {
   // Always target the original ticket creator. Newly added participants can
   // also have ViewChannel permission overwrites, so they must never replace
   // the creator as the close-request notification target.
-  let ownerId = ticket.openerId;
-  const topicOwnerMatch = String(channel.topic || '').match(/Ticket owner:\s*(\d{17,20})\b/);
-  if (topicOwnerMatch) {
-    ownerId = topicOwnerMatch[1];
+  // Use the persistent owner record first. This survives restarts and is
+  // independent of permission overwrites, which may contain added members.
+  let ownerId = await getTicketOwner(channel.id);
+  if (!ownerId) {
+    const topicOwnerMatch = String(channel.topic || '').match(/Ticket owner:\s*(\d{17,20})\b/);
+    if (topicOwnerMatch) ownerId = topicOwnerMatch[1];
   }
+  if (!ownerId) ownerId = ticket.openerId;
 
   const recent = await channel.messages.fetch({ limit: 25 }).catch(() => null);
   if (recent?.some((message) => message.embeds?.some((embed) => embed.title === 'Close Request'))) return null;
