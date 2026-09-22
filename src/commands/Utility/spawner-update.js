@@ -2,7 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
+import { getUpdateState, setUpdateState, getLatestUpdateData } from '../../utils/updateState.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,9 +81,10 @@ export const data = new SlashCommandBuilder()
   .setDescription('Update all 12 spawner prices')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-export async function execute(interaction) {
+export async function execute(interaction, guildConfig, client) {
   const { buildSpawnerPriceModal } = await import('../../interactions/modals/spawner_update_modal.js');
-  await interaction.showModal(buildSpawnerPriceModal(loadPrices()));
+  const saved = await getLatestUpdateData(client, interaction.guildId, 'spawnerPrices', null);
+  await interaction.showModal(buildSpawnerPriceModal(saved || loadPrices()));
 }
 
 export default { data, execute };
@@ -96,16 +97,13 @@ export async function postPrices(client, prices) {
     throw new Error(`Spawner price channel ${SPAWNER_PRICE_CHANNEL_ID} is not a sendable channel.`);
   }
 
-  // Delete the previous message sent by /spawner-update, then send the replacement.
   const state = await getUpdateState(client, channel.guild.id);
   const previousMessageId = state.spawnerPriceMessageId || loadMessageId();
   if (previousMessageId) {
     try {
       const previousMessage = await channel.messages.fetch(previousMessageId);
       if (previousMessage) await previousMessage.delete();
-    } catch {
-      // The old message may already have been deleted. Continue and create the new one.
-    }
+    } catch {}
   }
 
   try {
