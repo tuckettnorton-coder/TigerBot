@@ -1,5 +1,6 @@
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 import { closeTicket, getTicketFromChannel, isStaffForTicket, requestClose } from '../../services/ticketService.js';
+import { getCloseRequest, clearCloseRequest } from '../../services/transcriptStore.js';
 import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 async function safeError(interaction, message) {
@@ -20,6 +21,11 @@ export default [
         const staff = isStaffForTicket(interaction.member, TICKET_TYPES[ticket.typeId]);
         if (!staff) return safeError(interaction, 'Only ticket staff can request the ticket to be closed.');
         await interaction.deferReply({ ephemeral: true });
+        const activeCloseRequest = await getCloseRequest(interaction.channel.id);
+        if (activeCloseRequest) {
+          await closeTicket(interaction.channel, interaction.user);
+          return interaction.editReply('✅ Ticket closed.');
+        }
         const message = await requestClose(interaction.channel, interaction.member);
         await interaction.editReply(message ? '✅ Close request sent and the ticket owner has been pinged.' : 'A close request is already pending in this ticket.');
       } catch (error) {
@@ -55,6 +61,7 @@ export default [
         if (interaction.user.id !== ticket.openerId && !staff) {
           return safeError(interaction, 'Only the ticket owner or ticket staff can cancel the close request.');
         }
+        await clearCloseRequest(interaction.channel.id);
         await interaction.update({ content: 'Close request cancelled.', embeds: [], components: [] });
       } catch (error) {
         await safeError(interaction, error.message);
