@@ -7,10 +7,11 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import { TICKET_TYPES } from '../config/ticketTypes.js';
-import { storeTranscript, bindTranscriptMessage, bindTicketOwner, getTicketOwner } from './transcriptStore.js';
+import { storeTranscript, bindTranscriptMessage, bindTicketOwner, getTicketOwner, saveCloseRequest, getCloseRequest, clearCloseRequest, listCloseRequests } from './transcriptStore.js';
 
 const LOG_CHANNEL_NAME = '📝│logs';
 const TRANSCRIPT_CHANNEL_NAME = '📝│transcripts';
+const CLOSE_REQUEST_DURATION_MS = 24 * 60 * 60 * 1000;
 
 function roleByName(guild, name) {
   const value = String(name).trim();
@@ -242,17 +243,23 @@ export async function requestClose(channel, member) {
   if (!ownerId) ownerId = ticket.openerId;
 
   const recent = await channel.messages.fetch({ limit: 25 }).catch(() => null);
+  if (await getCloseRequest(channel.id)) return null;
   if (recent?.some((message) => message.embeds?.some((embed) => embed.title === 'Close Request'))) return null;
 
   const ownerMention = `<@${ownerId}>`;
   const staffName = member.displayName || member.user?.displayName || member.user?.username || member.user?.tag || 'Staff Member';
   const closeRequestedAt = Math.floor(Date.now() / 1000);
+  const expiresAt = Date.now() + CLOSE_REQUEST_DURATION_MS;
+  const expiresAtUnix = Math.floor(expiresAt / 1000);
   const embed = new EmbedBuilder()
     .setTitle('Close Request')
     .setDescription(`Staff member **${staffName}** has requested to close this ticket.\n${ownerMention}\n**Confirmation**\n> Would you like to close this ticket?`)
+    .addFields({ name: 'Time Remaining', value: `<t:${expiresAtUnix}:R>`, inline: false })
     .setFooter({ text: `Powered by TicketCord.com • <t:${closeRequestedAt}:f>` });
   const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary));
-  return channel.send({ content: ownerMention, embeds: [embed], components: [row], allowedMentions: { users: [ownerId] } });
+  const message = await channel.send({ content: ownerMention, embeds: [embed], components: [row], allowedMentions: { users: [ownerId] } });
+  await saveCloseRequest(channel.id, expiresAt);
+  return message;
 }
 
 async function fetchAllMessages(channel) {
@@ -322,6 +329,7 @@ export async function closeTicketsForUser(guild, userId) {
 }
 
 export async function closeTicket(channel, actor) {
+  await clearCloseRequest(channel.id);
   const ticket = getTicketFromChannel(channel);
   if (!ticket) throw new Error('This channel is not a managed ticket.');
   const transcriptChannel = await findUtilityChannel(channel.guild, TRANSCRIPT_CHANNEL_NAME);
@@ -419,4 +427,27 @@ export async function closeTicket(channel, actor) {
 // Kept for compatibility with existing interaction handlers. Ticket logging is intentionally disabled.
 export async function logTicket(_guild, _message) {
   return null;
+}
+
+
+export async function processCloseRequestTimers(client) {
+  const requests = await listCloseRequests();
+  const now = Date.now();
+  for (const request of requests) {
+    if (request.expiresAt > now) continue;
+    try {
+      let channel = null;
+      for (const guild of client.guilds.cache.values()) {
+        channel = guild.channels.cache.get(request.ticketId) || null;
+        if (channel) break;
+      }
+      if (!channel || channel.type !== ChannelType.GuildText) { await clearCloseRequest(request.ticketId); continue; }
+      const ticket = getTicketFromChannel(channel);
+      if (!ticket) { await clearCloseRequest(request.ticketId); continue; }
+      await clearCloseRequest(request.ticketId);
+      await closeTicket(channel, client.user);
+    } catch (error) {
+      console.warn(`Could not auto-close ticket ${request.ticketId}: ${error.message}`);
+    }
+  }
 }
