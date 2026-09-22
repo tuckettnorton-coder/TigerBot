@@ -1,9 +1,10 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
 import { loadPaidAdPrices, savePaidAdPrices, parsePaidAdPrice } from '../../utils/paidAdPricing.js';
+import { setUpdateState } from '../../utils/updateState.js';
 
 export default {
   name: 'paid_ad_update_page1',
-  async execute(interaction) {
+  async execute(interaction, client) {
     try {
       const current = loadPaidAdPrices();
       const prices = {
@@ -14,6 +15,7 @@ export default {
       };
 
       savePaidAdPrices(prices);
+      await setUpdateState(client, interaction.guildId, { paidAdPrices: prices });
 
       await interaction.reply({
         content: '✅ **Page 1 saved.** Click **Continue to Page 2** to edit the remaining prices.',
