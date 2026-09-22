@@ -4,6 +4,7 @@ const transcripts = new Map();
 const messageToToken = new Map();
 const TRANSCRIPT_PREFIX = 'transcripts:';
 const MESSAGE_PREFIX = 'transcript_messages:';
+const TICKET_OWNER_PREFIX = 'ticket_owners:';
 
 function encode(buffer) {
   return Buffer.from(buffer).toString('base64');
@@ -73,4 +74,31 @@ export async function getTranscriptForMessage(messageId) {
     }
   }
   return token ? getTranscript(token) : null;
+}
+
+
+export async function bindTicketOwner(ticketId, ownerId) {
+  if (!ticketId || !ownerId) return;
+  try {
+    if (!db.initialized) await db.initialize();
+    if (db.isAvailable?.() && typeof db.set === 'function') {
+      await db.set(`${TICKET_OWNER_PREFIX}${ticketId}`, String(ownerId));
+    }
+  } catch (error) {
+    console.warn(`Could not persist ticket owner ${ticketId}: ${error.message}`);
+  }
+}
+
+export async function getTicketOwner(ticketId) {
+  if (!ticketId) return null;
+  try {
+    if (!db.initialized) await db.initialize();
+    if (db.isAvailable?.() && typeof db.get === 'function') {
+      const ownerId = await db.get(`${TICKET_OWNER_PREFIX}${ticketId}`, null);
+      return ownerId ? String(ownerId) : null;
+    }
+  } catch (error) {
+    console.warn(`Could not load ticket owner ${ticketId}: ${error.message}`);
+  }
+  return null;
 }
