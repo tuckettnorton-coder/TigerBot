@@ -1,6 +1,7 @@
 import { getGuildGiveaways, saveGiveaway, getAutoGiveaways, saveAutoGiveaway } from '../utils/giveaways.js';
 import { createGiveawayEmbed, createGiveawayButtons, selectWinners, formatGiveawayWinnerMessage } from './giveawayService.js';
 import { logger } from '../utils/logger.js';
+import { Mutex } from '../utils/mutex.js';
 
 async function endGiveaway(client, guildId, giveaway) {
   if (giveaway.ended || new Date(giveaway.endsAt).getTime() > Date.now()) return;
@@ -52,6 +53,7 @@ async function startAutoGiveaway(client, auto) {
 
 export async function processGiveawaySchedules(client) {
   const now = Date.now();
+
   for (const guild of client.guilds.cache.values()) {
     try {
       const giveaways = await getGuildGiveaways(client, guild.id);
@@ -63,21 +65,42 @@ export async function processGiveawaySchedules(client) {
 
       const autos = await getAutoGiveaways(client, guild.id);
       for (const auto of autos) {
-        if (!auto.enabled) continue;
-        if (auto.scheduleEndsAt && new Date(auto.scheduleEndsAt).getTime() <= now) {
-          auto.enabled = false;
-          await saveAutoGiveaway(client, guild.id, auto);
-          continue;
-        }
-        if (new Date(auto.nextRunAt).getTime() <= now) {
-          const started = await startAutoGiveaway(client, auto);
-          if (started) {
-            do {
-              auto.nextRunAt = new Date(new Date(auto.nextRunAt).getTime() + auto.repeatMs).toISOString();
-            } while (new Date(auto.nextRunAt).getTime() <= now);
-            await saveAutoGiveaway(client, guild.id, auto);
+        const lockKey = `auto-giveaway-schedule:${guild.id}:${auto.id}`;
+
+        await Mutex.runExclusive(lockKey, async () => {
+          // Reload inside the lock. A scheduler tick that was already running
+          // may have loaded stale data before another tick advanced nextRunAt.
+          const currentAutos = await getAutoGiveaways(client, guild.id);
+          const current = currentAutos.find(a => a.id === auto.id);
+          if (!current || !current.enabled) return;
+
+          const currentNow = Date.now();
+
+          if (current.scheduleEndsAt && new Date(current.scheduleEndsAt).getTime() <= currentNow) {
+            current.enabled = false;
+            await saveAutoGiveaway(client, guild.id, current);
+            return;
           }
-        }
+
+          // Re-check after acquiring the lock so only one scheduler invocation
+          // can claim a due run.
+          if (new Date(current.nextRunAt).getTime() > currentNow) return;
+
+          const started = await startAutoGiveaway(client, current);
+          if (!started) return;
+
+          // Advance from the claimed run time, not from a stale copy.
+          // If the scheduler was delayed, skip missed intervals rather than
+          // creating multiple catch-up giveaways.
+          const previousRunAt = new Date(current.nextRunAt).getTime();
+          let nextRunAt = previousRunAt + current.repeatMs;
+          while (nextRunAt <= currentNow) {
+            nextRunAt += current.repeatMs;
+          }
+
+          current.nextRunAt = new Date(nextRunAt).toISOString();
+          await saveAutoGiveaway(client, guild.id, current);
+        });
       }
     } catch (error) {
       logger.error('Giveaway scheduler error for guild ' + guild.id + ':', error);
