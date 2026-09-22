@@ -11,6 +11,7 @@ import { getServerCounters, saveServerCounters, updateCounter } from './services
 import { logger, startupLog, shutdownLog } from './utils/logger.js';
 import { checkBirthdays } from './services/birthdayService.js';
 import { processGiveawaySchedules } from './services/giveawayScheduler.js';
+import { processCloseRequestTimers } from './services/ticketService.js';
 import { loadCommands, registerCommands as registerSlashCommands } from './handlers/loaders/commandLoader.js';
 import { runSafeTask, handleTaskError, ErrorCodes } from './utils/errorHandler.js';
 import { initializeMusic } from './services/music/riffySetup.js';
@@ -251,6 +252,7 @@ class TitanBot extends Client {
     cron.schedule('0 6 * * *', runSafeTask('birthday_check', () => checkBirthdays(this)));
     cron.schedule('*/15 * * * *', runSafeTask('counter_update', () => this.updateAllCounters()));
     cron.schedule('* * * * * *', runSafeTask('giveaway_scheduler', () => processGiveawaySchedules(this)));
+    cron.schedule('* * * * * *', runSafeTask('close_request_timer', () => processCloseRequestTimers(this)));
   }
 
   async updateAllCounters() {
