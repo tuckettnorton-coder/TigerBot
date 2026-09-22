@@ -1,5 +1,6 @@
 import { MessageFlags } from 'discord.js';
 import { loadPaidAdPrices, savePaidAdPrices, buildPaidAdPriceMessage, parsePaidAdPrice } from '../../utils/paidAdPricing.js';
+import { setUpdateState } from '../../utils/updateState.js';
 import { PAID_AD_UPDATE_CHANNEL_ID } from '../../commands/Utility/paid-ad-update.js';
 
 export default {
@@ -27,6 +28,7 @@ export default {
 
       const sent = await channel.send({ content: buildPaidAdPriceMessage(prices) });
       savePaidAdPrices({ ...prices, messageId: sent.id });
+      await setUpdateState(client, interaction.guildId, { paidAdPrices: { ...prices, messageId: sent.id } });
 
       await interaction.reply({
         content: `✅ **Paid Advertisement prices updated and posted in <#${PAID_AD_UPDATE_CHANNEL_ID}>.**`,
