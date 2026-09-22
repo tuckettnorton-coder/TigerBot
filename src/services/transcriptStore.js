@@ -5,6 +5,67 @@ const messageToToken = new Map();
 const TRANSCRIPT_PREFIX = 'transcripts:';
 const MESSAGE_PREFIX = 'transcript_messages:';
 const TICKET_OWNER_PREFIX = 'ticket_owners:';
+const CLOSE_REQUEST_PREFIX = 'close_requests:';
+
+export async function saveCloseRequest(ticketId, expiresAt) {
+  if (!ticketId || !Number.isFinite(Number(expiresAt))) return;
+  const value = { ticketId: String(ticketId), expiresAt: Number(expiresAt) };
+  try {
+    if (!db.initialized) await db.initialize();
+    if (db.isAvailable?.() && typeof db.set === 'function') {
+      await db.set(`${CLOSE_REQUEST_PREFIX}${ticketId}`, value);
+    }
+  } catch (error) {
+    console.warn(`Could not persist close request ${ticketId}: ${error.message}`);
+  }
+}
+
+export async function getCloseRequest(ticketId) {
+  if (!ticketId) return null;
+  try {
+    if (!db.initialized) await db.initialize();
+    if (db.isAvailable?.() && typeof db.get === 'function') {
+      const saved = await db.get(`${CLOSE_REQUEST_PREFIX}${ticketId}`, null);
+      if (saved?.expiresAt) return { ticketId: String(ticketId), expiresAt: Number(saved.expiresAt) };
+    }
+  } catch (error) {
+    console.warn(`Could not load close request ${ticketId}: ${error.message}`);
+  }
+  return null;
+}
+
+export async function clearCloseRequest(ticketId) {
+  if (!ticketId) return;
+  try {
+    if (!db.initialized) await db.initialize();
+    if (db.isAvailable?.() && typeof db.delete === 'function') {
+      await db.delete(`${CLOSE_REQUEST_PREFIX}${ticketId}`);
+    }
+  } catch (error) {
+    console.warn(`Could not clear close request ${ticketId}: ${error.message}`);
+  }
+}
+
+export async function listCloseRequests() {
+  try {
+    if (!db.initialized) await db.initialize();
+    if (db.isAvailable?.() && typeof db.list === 'function') {
+      const keys = await db.list(CLOSE_REQUEST_PREFIX);
+      const requests = [];
+      for (const key of keys) {
+        const saved = await db.get(key, null);
+        if (saved?.ticketId && saved?.expiresAt) {
+          requests.push({ ticketId: String(saved.ticketId), expiresAt: Number(saved.expiresAt) });
+        }
+      }
+      return requests;
+    }
+  } catch (error) {
+    console.warn(`Could not list persisted close requests: ${error.message}`);
+  }
+  return [];
+}
+
 
 function encode(buffer) {
   return Buffer.from(buffer).toString('base64');
