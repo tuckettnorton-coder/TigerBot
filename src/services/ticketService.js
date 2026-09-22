@@ -285,11 +285,27 @@ export async function closeTicketsForUser(guild, userId) {
 
   try { await guild.channels.fetch(); } catch {}
 
-  const tickets = [...guild.channels.cache.values()].filter((channel) => {
-    if (channel.type !== ChannelType.GuildText) return false;
-    const ticket = getTicketFromChannel(channel);
-    return ticket?.openerId === String(userId);
-  });
+  const tickets = [];
+  for (const channel of guild.channels.cache.values()) {
+    if (channel.type !== ChannelType.GuildText) continue;
+
+    // The original owner is stored separately from permission overwrites.
+    // This is important because staff/added users can also have ViewChannel
+    // permission and must never be treated as the ticket owner.
+    let ownerId = await getTicketOwner(channel.id);
+    if (!ownerId) {
+      const topicOwnerMatch = String(channel.topic || '').match(/Ticket owner:\s*(\d{17,20})\b/);
+      ownerId = topicOwnerMatch?.[1] || null;
+    }
+
+    // Legacy tickets that predate the persistent owner record can still be
+    // handled by the existing permission-overwrite fallback.
+    if (!ownerId) {
+      ownerId = getTicketFromChannel(channel)?.openerId || null;
+    }
+
+    if (ownerId === String(userId)) tickets.push(channel);
+  }
 
   let closed = 0;
   for (const channel of tickets) {
@@ -318,7 +334,11 @@ export async function closeTicket(channel, actor) {
   const actorName = actor?.displayName || actor?.user?.displayName || actor?.user?.username || 'Unknown';
   const ticketNumber = channel.name.match(/-(\d{4})$/)?.[1] || channel.id.slice(-4);
   const durationMinutes = Math.max(0, Math.floor((Date.now() - channel.createdTimestamp) / 60000));
-  const creatorId = ticket.openerId;
+  // Use the persistent owner first so transcripts and DMs still target the
+  // original creator even if staff or other members were added to the ticket.
+  const creatorId = (await getTicketOwner(channel.id))
+    || String(channel.topic || '').match(/Ticket owner:\s*(\d{17,20})\b/)?.[1]
+    || ticket.openerId;
   const subject = TICKET_TYPES[ticket.typeId]?.label || ticket.categoryName || 'Support Ticket';
 
   // Keep every previous transcript message in the transcripts channel.
