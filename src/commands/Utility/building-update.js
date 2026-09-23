@@ -7,7 +7,39 @@ const DATA_FILE=path.join(__dirname,'buildingPrices.json'); const MESSAGE_FILE=p
 const DEFAULT_DATA={under200:'9M',over200:'7M',farmMultiplierDays:'3',notes:'Digging or clearing the area is NOT included.',refundPolicy:'If you have paid and the project **has not been started**, you may request a refund. However, a **10% fee** will be deducted from your refund.\n\nOnce the project **has been started, no refunds will be issued.**',rules:'- Only <@&1517213500655796265> <@&1536861272610709534> are allowed to build. Do not ask regular staff to build for you.\n- All payments must go through <@1389750140213919856>. **Never pay a builder directly.**\n- If you pay a builder directly and get scammed, we are **not responsible.**\n- Please do not ping staff for updates. We’ll let you know when your build is finished.\n- When your build is complete, please leave a vouch in <#1505055376188506163>. ❤️',ticket:'Make a `Building Service` <#1504949441650622575> To Buy <@&1517213500655796265>' };
 export function loadBuildingPrices(){try{return {...DEFAULT_DATA,...JSON.parse(fs.readFileSync(DATA_FILE,'utf8'))};}catch{return {...DEFAULT_DATA};}}
 function save(data){fs.writeFileSync(DATA_FILE,`${JSON.stringify(data,null,2)}\n`,'utf8');} function loadMessageId(){try{return JSON.parse(fs.readFileSync(MESSAGE_FILE,'utf8')).messageId||null;}catch{return null;}} function saveMessageId(id){fs.writeFileSync(MESSAGE_FILE,`${JSON.stringify({messageId:id},null,2)}\n`,'utf8');}
-export function formatBuildingPriceMessage(data){return ['# 🏗️ **Building Services**','','Want a **farm, stash, or custom build?**','Open a ticket to get started.','','## 💰 **Pricing for Non-Farms**','','### **Builds Under 200M AH Value**',`> **+${data.under200}** for every **5M** of the AH price.`,'> **Example:** 5M AH → **14M Total**','','### **Builds Worth 201M+ AH Value**',`> **${data.over200}** for every **5M** of the AH price.`,'','## 🌾 **Farm Pricing**',`Farm builds cost **1× the amount the farm makes in ${data.farmMultiplierDays} days.`,'> **Example:** If a farm makes 100M per day, the build will cost **300M**.','',`> ⚠️ **${data.notes}**`,'','## 💰 **Refund Policy**',data.refundPolicy,'','## 📌 **Rules**',data.rules,'',`### ${data.ticket}`].join('\n');}
+export function formatBuildingPriceMessage(data){
+  const farmDays = Number(data.farmMultiplierDays) || 3;
+  const farmExampleTotal = 100_000_000 * farmDays;
+  return [
+    '# 🏗️ **Building Services**',
+    '',
+    'Want a **farm, stash, or custom build?**',
+    'Open a ticket to get started.',
+    '',
+    '## 💰 **Pricing for Non-Farms**',
+    '',
+    '### **Builds Under 200M AH Value**',
+    `> **+${data.under200}** for every **5M** of the AH price.`,
+    '> **Example:** 5M AH → **14M Total**',
+    '',
+    '### **Builds Worth 201M+ AH Value**',
+    `> **${data.over200}** for every **5M** of the AH price.`,
+    '',
+    '## 🌾 **Farm Pricing**',
+    `Farm builds cost **1×** the amount the farm makes in ${farmDays} days.`,
+    `> **Example:** If a farm makes 100M per day, the build will cost **${farmExampleTotal / 1_000_000}M**.`,
+    '',
+    `> ⚠️ **${data.notes}**`,
+    '',
+    '## 💰 **Refund Policy**',
+    data.refundPolicy,
+    '',
+    '## 📌 **Rules**',
+    data.rules,
+    '',
+    `### ${data.ticket}`
+  ].join('\n');
+}
 export const data=new SlashCommandBuilder().setName('building-update').setDescription('Update the building service prices and information').setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 export async function execute(interaction, guildConfig, client){const {buildBuildingPriceModal}=await import('../../interactions/modals/building_update_modal.js');const saved=await getLatestUpdateData(client,interaction.guildId,'buildingPrices',null);await interaction.showModal(buildBuildingPriceModal(saved||loadBuildingPrices()));} export default {data,execute}; export function persistBuildingPrices(data){save(data);}
 export async function postBuildingPrices(client,data){const channel=await client.channels.fetch(BUILDING_PRICE_CHANNEL_ID).catch(()=>null);if(!channel||typeof channel.send!=='function')throw new Error(`Building price channel ${BUILDING_PRICE_CHANNEL_ID} is not a sendable channel.`);const oldId=loadMessageId();if(oldId){try{const old=await channel.messages.fetch(oldId);await old.delete();}catch{}}const message=await channel.send({content:formatBuildingPriceMessage(data)});saveMessageId(message.id); await setUpdateState(client, channel.guild.id, { buildingPriceMessageId: message.id, buildingPriceChannelId: channel.id, buildingPrices: data, buildingPriceMessage: formatBuildingPriceMessage(data) });}
