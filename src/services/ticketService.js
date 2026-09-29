@@ -116,7 +116,7 @@ function ticketName(user, code, ticket, answers = {}) {
   if (ticket?.label === 'Claim Giveaway') {
     const host = cleanChannelPart(answers.hosted_by || 'giveaway');
     const amount = cleanChannelPart(answers.win_amount || 'amount');
-    return `giveaway-${host}-${amount}-${code}`.slice(0, 100);
+    return `${host}-${amount}-${code}`.slice(0, 100);
   }
   if (ticket?.label === 'Partner') {
     const memberCount = cleanChannelPart(answers.server_member_count || 'members');
