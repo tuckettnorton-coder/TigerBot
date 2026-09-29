@@ -32,7 +32,6 @@ const MARKETING_FILTER_EXEMPT_ROLES = new Set([
   '1536862219407597660',
 ]);
 
-const PROFANITY_FILTER_WORDS = ['nigger', 'fuck', 'shit', 'gay'];
 const DUPLICATE_CHARACTER_MAX = 15;
 const DUPLICATE_CHARACTER_FILTER_IDS = new Set(['1504946794730361045']);
 const MAX_MESSAGE_CHARACTER_COUNT = 350;
@@ -59,11 +58,6 @@ const MARKETING_WORDS = [
 
 function normalizeProfanityText(content) {
   return String(content || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-}
-
-function findProfanityWord(content) {
-  const normalized = normalizeProfanityText(content);
-  return PROFANITY_FILTER_WORDS.find(word => normalized.includes(word)) || null;
 }
 
 function normalizeMarketingText(content) {
@@ -154,10 +148,8 @@ function findBlockedLink(content) {
 }
 
 async function handleMarketingFilter(message, client) {
-  const profanityWord = findProfanityWord(message.content);
   const matchedWord = findMarketingWord(message.content);
   const duplicateCharacter = findDuplicateCharacter(message);
-  const isGlobalProfanity = Boolean(profanityWord);
   const isDuplicateCharacterViolation =
     Boolean(duplicateCharacter) &&
     isDuplicateCharacterFilterTarget(message) &&
@@ -177,16 +169,14 @@ async function handleMarketingFilter(message, client) {
     isDuplicateCharacterFilterTarget(message) &&
     !hasMarketingFilterExemption(message);
 
-  if (!isGlobalProfanity && !isDuplicateCharacterViolation && !isMentionViolation && !isLinkViolation && !isMessageTooLong) {
+  if (!isDuplicateCharacterViolation && !isMentionViolation && !isLinkViolation && !isMessageTooLong) {
     if (!MARKETING_FILTER_CHANNELS.has(message.channelId)) return false;
     if (hasMarketingFilterExemption(message)) return false;
     if (!matchedWord) return false;
   }
 
-  const detectedWord = profanityWord || matchedWord;
-  const reason = isGlobalProfanity
-    ? 'Prohibited word detected: "' + detectedWord + '"'
-    : isDuplicateCharacterViolation
+  const detectedWord = matchedWord;
+  const reason = isDuplicateCharacterViolation
       ? 'Duplicate character limit exceeded: "' + duplicateCharacter + '" repeated ' + DUPLICATE_CHARACTER_MAX + '+ times'
       : isMentionViolation
         ? 'Blocked mention detected: "' + blockedMention + '"'
@@ -229,7 +219,7 @@ async function handleMarketingFilter(message, client) {
           totalWarns: warningResult?.totalCount ?? null,
           warningNumber: warningResult?.totalCount ?? null,
           warningId: warningResult?.id ?? null,
-          automatic: true, matchedMarketingWord: matchedWord || null, matchedProhibitedWord: profanityWord || null, duplicateCharacter: duplicateCharacter || null, channelId: message.channelId,
+          automatic: true, matchedMarketingWord: matchedWord || null, duplicateCharacter: duplicateCharacter || null, channelId: message.channelId,
           messageCharacterCount: String(message.content || '').length,
           blockedMention: blockedMention || null,
           blockedLink: blockedLink || null,
