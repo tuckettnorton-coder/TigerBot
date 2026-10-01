@@ -327,6 +327,40 @@ class TitanBot extends Client {
   async registerCommands() {
     try {
       await registerSlashCommands(this, { clientId: this.config.bot.clientId });
+
+      // Register /schematic directly as a final safeguard. This mirrors the same
+      // guild registration endpoint used by the normal command loader and makes
+      // sure the schematic command is visible even if command discovery changes.
+      const schematicCommand = this.commands.get('schematic');
+      if (schematicCommand?.data?.toJSON) {
+        const schematicPayload = schematicCommand.data.toJSON();
+        for (const guild of this.guilds.cache.values()) {
+          try {
+            const existing = await this.rest.get(
+              `/applications/${this.config.bot.clientId}/guilds/${guild.id}/commands`
+            );
+            const existingSchematic = existing.find(command => command.name === 'schematic');
+
+            if (existingSchematic) {
+              await this.rest.patch(
+                `/applications/${this.config.bot.clientId}/guilds/${guild.id}/commands/${existingSchematic.id}`,
+                { body: schematicPayload }
+              );
+            } else {
+              await this.rest.post(
+                `/applications/${this.config.bot.clientId}/guilds/${guild.id}/commands`,
+                { body: schematicPayload }
+              );
+            }
+
+            logger.info(`Verified /schematic registration in guild ${guild.id}`);
+          } catch (error) {
+            logger.error(`Failed to register /schematic in guild ${guild.id}:`, error);
+          }
+        }
+      } else {
+        logger.error('The /schematic command was not loaded and could not be registered.');
+      }
     } catch (error) {
       logger.error('Error registering commands:', error);
     }
