@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const MAX_COMMANDS = 100;
 const COMMAND_COUNT_WARN_THRESHOLD = 90;
 const PRIORITY_COMMANDS = ['updatepanel', 'giveaway', 'auto-giveaway'];
+const REMOVED_COMMAND_NAMES = new Set(['avatar', 'fight', 'search', 'weather', 'work']);
 
 function getSubcommandInfo(commandData) {
     const subcommands = [];
@@ -142,7 +143,7 @@ function validateCommands(commands) {
 
             for (const subOption of option.options) {
                 if (subOption.name && subOption.name.length > 32) validationErrors.push(`Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has name longer than 32 chars`);
-                if (subOption.description && subOption.description.length > 110) validationErrors.push(`Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has description longer than 110 chars`);
+                if (subOption.description && subOption.description.length > 110) validationErrors.push(`Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has name longer than 32 chars`);
             }
         }
     }
@@ -166,6 +167,21 @@ function prepareCommandsForRegistration(commands) {
     return [...priority, ...regular].slice(0, MAX_COMMANDS);
 }
 
+async function removeStaleRemovedCommands(client, clientId, guildId) {
+    const existingCommands = await client.rest.get(
+        `/applications/${clientId}/guilds/${guildId}/commands`
+    );
+
+    for (const command of existingCommands) {
+        if (!REMOVED_COMMAND_NAMES.has(command.name)) continue;
+
+        await client.rest.delete(
+            `/applications/${clientId}/guilds/${guildId}/commands/${command.id}`
+        );
+        logger.info(`Removed stale slash command /${command.name} from guild ${guildId}`);
+    }
+}
+
 async function registerGlobalCommands(client, clientId, commands, totalSubcommands) {
     if (!clientId) throw new Error('CLIENT_ID is required for slash command registration');
     if (!client.rest) throw new Error('Discord REST client is not available for slash command registration');
@@ -178,14 +194,12 @@ async function registerGlobalCommands(client, clientId, commands, totalSubcomman
         await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
     }
 
-    // Keep commands guild-scoped so Discord does not show both a global and guild copy.
-    // Clear the global command list to remove any stale duplicate global commands.
     await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
     logger.info('Cleared global commands to prevent duplicate slash commands');
 
-    // Register commands directly in each guild for immediate availability.
     for (const guild of client.guilds.cache.values()) {
         try {
+            await removeStaleRemovedCommands(client, clientId, guild.id);
             await client.rest.put(`/applications/${clientId}/guilds/${guild.id}/commands`, { body: commandsToRegister });
             logger.info(`Registered ${commandsToRegister.length} commands immediately in guild ${guild.id}`);
         } catch (error) {
