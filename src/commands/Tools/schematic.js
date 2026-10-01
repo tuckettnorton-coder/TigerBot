@@ -31,7 +31,7 @@ export default {
 
     if (subcommand === 'panel') {
       const embed = new EmbedBuilder()
-        .setTitle('📁 Schematic Selection Menu')
+        .setTitle('## 📁 Schematic Selection Menu')
         .setDescription('Choose a category below to browse available schematics.');
 
       const button = new ButtonBuilder()
