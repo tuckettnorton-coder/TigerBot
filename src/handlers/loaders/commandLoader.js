@@ -61,6 +61,24 @@ export async function loadCommands(client) {
     logger.info(`Found ${commandFiles.length} command files to load`);
     
     const uniqueCommandNames = new Set();
+
+    // Schematic commands are a first-class tool and must always be loaded even if
+    // command discovery changes or a deployment uses a stale command index.
+    if (!uniqueCommandNames.has('schematic')) {
+        try {
+            const schematicModule = await import('../../commands/Tools/schematic.js');
+            const schematicCommand = schematicModule.default || schematicModule;
+            if (schematicCommand?.data?.name && schematicCommand?.execute) {
+                schematicCommand.category = 'Tools';
+                schematicCommand.filePath = path.join(commandsPath, 'Tools', 'schematic.js').replace(/\\\\/g, '/');
+                uniqueCommandNames.add('schematic');
+                client.commands.set('schematic', schematicCommand);
+                logger.info('Loaded command: schematic (explicit tool registration)');
+            }
+        } catch (error) {
+            logger.error('Error explicitly loading schematic command:', error);
+        }
+    }
     
     for (const filePath of commandFiles) {
         try {
