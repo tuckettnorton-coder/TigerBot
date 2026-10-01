@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const MAX_COMMANDS = 100;
 const COMMAND_COUNT_WARN_THRESHOLD = 90;
-const PRIORITY_COMMANDS = ['updatepanel', 'giveaway', 'auto-giveaway'];
+const PRIORITY_COMMANDS = ['updatepanel', 'giveaway', 'auto-giveaway', 'schematic'];
 const REMOVED_COMMAND_NAMES = new Set(['avatar', 'fight', 'search', 'weather', 'work']);
 
 function getSubcommandInfo(commandData) {
@@ -201,7 +201,26 @@ async function registerGlobalCommands(client, clientId, commands, totalSubcomman
         try {
             await removeStaleRemovedCommands(client, clientId, guild.id);
             await client.rest.put(`/applications/${clientId}/guilds/${guild.id}/commands`, { body: commandsToRegister });
-            logger.info(`Registered ${commandsToRegister.length} commands immediately in guild ${guild.id}`);
+
+            const registeredGuildCommands = await client.rest.get(
+                `/applications/${clientId}/guilds/${guild.id}/commands`
+            );
+
+            const registeredCommandNames = new Set(
+                registeredGuildCommands.map(command => command.name)
+            );
+
+            const missingCommands = commandsToRegister
+                .map(command => command.name)
+                .filter(name => !registeredCommandNames.has(name));
+
+            if (missingCommands.length > 0) {
+                logger.error(
+                    `Guild ${guild.id} is missing ${missingCommands.length} registered command(s): ${missingCommands.join(', ')}`
+                );
+            } else {
+                logger.info(`Registered and verified ${commandsToRegister.length} commands immediately in guild ${guild.id}`);
+            }
         } catch (error) {
             logger.warn(`Could not register guild commands in ${guild.id}: ${error.message}`);
         }
