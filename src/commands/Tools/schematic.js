@@ -31,8 +31,8 @@ export default {
 
     if (subcommand === 'panel') {
       const embed = new EmbedBuilder()
-        .setTitle('Schematics')
-        .setDescription('Click below to browse and download schematics.');
+        .setTitle('📁 Schematic Selection Menu')
+        .setDescription('Choose a category below to browse available schematics.');
 
       const button = new ButtonBuilder()
         .setCustomId('schematic_panel:browse')
