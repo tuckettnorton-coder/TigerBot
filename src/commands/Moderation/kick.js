@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { successEmbed } from '../../utils/embeds.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { ModerationService } from '../../services/moderation/moderationService.js';
@@ -16,11 +16,13 @@ export default {
         )
         .addStringOption((option) =>
             option.setName("reason").setDescription("Reason for the kick"),
-        )
-        .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
+        ),
     category: "moderation",
 
     async execute(interaction, config, client) {
+        await ModerationService.assertModerationCommandAccess(interaction.member);
+        await ModerationService.assertWeeklyLimit(interaction.guildId, interaction.user.id, 'kick');
+
         const targetUser = interaction.options.getUser("target");
         const member = interaction.options.getMember("target");
         const reason = interaction.options.getString("reason") || "No reason provided";
@@ -65,6 +67,8 @@ export default {
             moderator: interaction.member,
             reason,
         });
+
+        await ModerationService.recordWeeklyAction(interaction.guildId, interaction.user.id, 'kick');
 
         await InteractionHelper.universalReply(interaction, {
             embeds: [
