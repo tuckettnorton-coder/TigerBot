@@ -88,6 +88,7 @@ export async function logEvent({ client, guild, guildId, event }) {
       guildId: guild.id,
       eventType,
       data,
+      channelId: event.channelId || null,
     });
 
     logger.info(`Moderation action logged: ${event.action} by ${event.executor} on ${event.target} in guild ${guild.id}`);
