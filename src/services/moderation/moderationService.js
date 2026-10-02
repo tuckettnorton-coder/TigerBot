@@ -4,6 +4,23 @@ import { PermissionFlagsBits } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logModerationAction } from '../../utils/moderation.js';
+import { getFromDb, setInDb } from '../../utils/database.js';
+
+const MODERATION_COMMAND_ROLE_IDS = new Set([
+  '1513634231480483991',
+  ...(process.env.MODERATION_COMMAND_ROLE_IDS || '').split(',').map((id) => id.trim()).filter(Boolean),
+]);
+const MODERATION_LOG_CHANNEL_ID = '1555449614558044230';
+const WEEKLY_MODERATION_LIMIT = 3;
+
+function getWeekStart() {
+  const date = new Date();
+  const day = date.getUTCDay();
+  const daysSinceMonday = (day + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - daysSinceMonday);
+  date.setUTCHours(0, 0, 0, 0);
+  return date.toISOString();
+}
 
 function getTargetLabel(target) {
   return target.user?.tag ?? target.displayName ?? 'this user';
@@ -14,6 +31,49 @@ function getHighestRole(member) {
 }
 
 export class ModerationService {
+
+  static async assertModerationCommandAccess(member) {
+    const isServerOwner = member?.guild?.ownerId === member?.id;
+    const hasAllowedRole = member?.roles?.cache?.some((role) =>
+      MODERATION_COMMAND_ROLE_IDS.has(role.id) || role.name === 'Staff'
+    );
+
+    if (!isServerOwner && !hasAllowedRole) {
+      throw new TitanBotError(
+        'Moderation command permission denied',
+        ErrorTypes.PERMISSION,
+        'You do not have permission to use this moderation command.'
+      );
+    }
+  }
+
+  static async assertWeeklyLimit(guildId, moderatorId, action) {
+    if (!['ban', 'kick'].includes(action)) return;
+
+    const key = `moderation_weekly_limit_${guildId}_${moderatorId}_${action}`;
+    const weekStart = getWeekStart();
+    const current = await getFromDb(key, { weekStart, count: 0 });
+    const usage = current?.weekStart === weekStart ? current : { weekStart, count: 0 };
+
+    if (usage.count >= WEEKLY_MODERATION_LIMIT) {
+      throw new TitanBotError(
+        'Weekly moderation limit reached',
+        ErrorTypes.PERMISSION,
+        `You have reached your weekly limit of **${WEEKLY_MODERATION_LIMIT} ${action}s**. Your limit resets at the start of next week.`
+      );
+    }
+  }
+
+  static async recordWeeklyAction(guildId, moderatorId, action) {
+    if (!['ban', 'kick'].includes(action)) return;
+
+    const key = `moderation_weekly_limit_${guildId}_${moderatorId}_${action}`;
+    const weekStart = getWeekStart();
+    const current = await getFromDb(key, { weekStart, count: 0 });
+    const usage = current?.weekStart === weekStart ? current : { weekStart, count: 0 };
+    usage.count += 1;
+    await setInDb(key, usage);
+  }
 
   static buildHierarchyMessage({ actor, actorRole, targetRole, targetLabel, action }) {
     if (actor === 'moderator') {
@@ -189,7 +249,8 @@ export class ModerationService {
             moderatorId: moderator.id,
             permanent: true,
             deleteDays
-          }
+          },
+          channelId: MODERATION_LOG_CHANNEL_ID
         }
       });
 
@@ -246,7 +307,8 @@ export class ModerationService {
           metadata: {
             userId: member.id,
             moderatorId: moderator.id
-          }
+          },
+          channelId: MODERATION_LOG_CHANNEL_ID
         }
       });
 
@@ -307,7 +369,8 @@ export class ModerationService {
             userId: member.id,
             moderatorId: moderator.id,
             durationMs
-          }
+          },
+          channelId: MODERATION_LOG_CHANNEL_ID
         }
       });
 
