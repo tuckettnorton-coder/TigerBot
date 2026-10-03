@@ -223,7 +223,7 @@ export async function logEvent({
       return null;
     }
 
-    if (!isEventEnabled(config, eventType)) {
+    if (!overrideChannelId && !isEventEnabled(config, eventType)) {
       return null;
     }
 
