@@ -216,10 +216,10 @@ export async function logEvent({
     const config = await getGuildConfig(client, guildId);
     const ignore = getIgnoreList(config);
 
-    if (data?.userId && ignore.users?.includes(data.userId)) {
+    if (!overrideChannelId && data?.userId && ignore.users?.includes(data.userId)) {
       return null;
     }
-    if (data?.channelId && ignore.channels?.includes(data.channelId)) {
+    if (!overrideChannelId && data?.channelId && ignore.channels?.includes(data.channelId)) {
       return null;
     }
 
