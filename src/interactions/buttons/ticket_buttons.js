@@ -1,6 +1,6 @@
 import { TICKET_TYPES } from '../../config/ticketTypes.js';
 import { closeTicket, getTicketFromChannel, isStaffForTicket, requestClose } from '../../services/ticketService.js';
-import { getCloseRequest, clearCloseRequest } from '../../services/transcriptStore.js';
+import { getCloseRequest, clearCloseRequest, getTicketOwner } from '../../services/transcriptStore.js';
 import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 async function safeError(interaction, message) {
@@ -41,7 +41,8 @@ export default [
         if (!ticket) return safeError(interaction, 'This ticket is no longer active.');
         const definition = TICKET_TYPES[ticket.typeId];
         const staff = isStaffForTicket(interaction.member, definition);
-        if (interaction.user.id !== ticket.openerId && !staff) {
+        const ticketOwnerId = (await getTicketOwner(interaction.channel.id)) || ticket.openerId;
+        if (interaction.user.id !== ticketOwnerId && !staff) {
           return safeError(interaction, 'Only the ticket owner or ticket staff can confirm closure.');
         }
         await interaction.reply({ content: '📜 Saving transcript and closing ticket...', ephemeral: true });
@@ -58,7 +59,8 @@ export default [
         const ticket = getTicketFromChannel(interaction.channel);
         if (!ticket) return safeError(interaction, 'This ticket is no longer active.');
         const staff = isStaffForTicket(interaction.member, TICKET_TYPES[ticket.typeId]);
-        if (interaction.user.id !== ticket.openerId && !staff) {
+        const ticketOwnerId = (await getTicketOwner(interaction.channel.id)) || ticket.openerId;
+        if (interaction.user.id !== ticketOwnerId && !staff) {
           return safeError(interaction, 'Only the ticket owner or ticket staff can cancel the close request.');
         }
         await clearCloseRequest(interaction.channel.id);
