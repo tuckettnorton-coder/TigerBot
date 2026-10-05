@@ -22,8 +22,9 @@ export default {
       }
 
       const isAdmin = interaction.member.permissions?.has(PermissionFlagsBits.Administrator);
+      const isStaffRole = interaction.member.roles?.cache?.has('1513634231480483991');
       const isStaff = interaction.channel.permissionsFor(interaction.member)?.has(PermissionFlagsBits.ManageChannels);
-      if (!isAdmin && !isStaff) {
+      if (!isAdmin && !isStaff && !isStaffRole) {
         return interaction.reply({ content: '❌ You need Manage Channels permission to rename tickets.', ephemeral: true });
       }
 
