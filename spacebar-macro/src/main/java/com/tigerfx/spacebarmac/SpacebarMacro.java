@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 public final class SpacebarMacro {
     private static final long INITIAL_DELAY_NANOS = 0L;
-    private static final long REPEAT_INTERVAL_NANOS = 83_333_333L;
+    private static final long REPEAT_INTERVAL_NANOS = 41_666_667L;
 
     private static final ScheduledExecutorService SCHEDULER =
             Executors.newSingleThreadScheduledExecutor(runnable -> {
