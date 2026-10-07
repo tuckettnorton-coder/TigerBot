@@ -14,7 +14,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public final class SpacebarMacro {
-    private static final long INITIAL_DELAY_NANOS = 250_000_000L;
+    private static final long INITIAL_DELAY_NANOS = 0L;
     private static final long REPEAT_INTERVAL_NANOS = 33_333_333L;
     private static final int KEY_COUNT = GLFW.GLFW_KEY_LAST + 1;
 
