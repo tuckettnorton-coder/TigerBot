@@ -3,7 +3,7 @@
   "id": "spacebar_macro",
   "version": "${version}",
   "name": "Spacebar Macro",
-  "description": "Stable Windows-fast Spacebar repeat for Minecraft 1.21.11.",
+  "description": "Instant-start Spacebar-only repeat for Minecraft 1.21.11.",
   "authors": [
     "TigerFX"
   ],
