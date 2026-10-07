@@ -7,34 +7,25 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.input.KeyInput;
 import org.lwjgl.glfw.GLFW;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public final class SpacebarMacro {
     private static final long INITIAL_DELAY_NANOS = 0L;
     private static final long REPEAT_INTERVAL_NANOS = 33_333_333L;
-    private static final int KEY_COUNT = GLFW.GLFW_KEY_LAST + 1;
-
-    private static final java.util.concurrent.atomic.AtomicIntegerArray keyHeld =
-            new java.util.concurrent.atomic.AtomicIntegerArray(KEY_COUNT);
-    private static final java.util.concurrent.atomic.AtomicIntegerArray keyScancode =
-            new java.util.concurrent.atomic.AtomicIntegerArray(KEY_COUNT);
 
     private static final ScheduledExecutorService SCHEDULER =
-            Executors.newScheduledThreadPool(
-                    Math.max(2, Runtime.getRuntime().availableProcessors() / 2),
-                    runnable -> {
-                        Thread thread = new Thread(runnable, "Keyboard-Macro-Timer");
-                        thread.setDaemon(true);
-                        return thread;
-                    });
+            Executors.newSingleThreadScheduledExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "Spacebar-Macro-Timer");
+                thread.setDaemon(true);
+                return thread;
+            });
 
-    private static final ConcurrentHashMap<Integer, ScheduledFuture<?>> repeatTasks =
-            new ConcurrentHashMap<>();
-
+    private static volatile ScheduledFuture<?> repeatTask;
+    private static volatile boolean spaceHeld;
+    private static volatile int spaceScancode = 57;
     private static volatile MinecraftClient client;
 
     private static final ThreadLocal<Boolean> SYNTHETIC_REPEAT =
@@ -47,36 +38,31 @@ public final class SpacebarMacro {
         client = MinecraftClient.getInstance();
     }
 
-    public static void onPhysicalKey(int action, KeyInput input) {
-        int key = input.key();
-        if (key < 0 || key >= KEY_COUNT) {
+    public static void onPhysicalSpaceKey(int action, KeyInput input) {
+        if (input.key() != GLFW.GLFW_KEY_SPACE) {
             return;
         }
 
         if (action == GLFW.GLFW_PRESS) {
-            keyHeld.set(key, 1);
-            keyScancode.set(key, input.scancode());
+            spaceHeld = true;
+            spaceScancode = input.scancode();
 
-            ScheduledFuture<?> oldTask = repeatTasks.remove(key);
+            ScheduledFuture<?> oldTask = repeatTask;
             if (oldTask != null) {
                 oldTask.cancel(false);
             }
 
-            ScheduledFuture<?> task = SCHEDULER.scheduleAtFixedRate(
-                    () -> emitRepeat(key),
+            repeatTask = SCHEDULER.scheduleAtFixedRate(
+                    SpacebarMacro::emitRepeat,
                     INITIAL_DELAY_NANOS,
                     REPEAT_INTERVAL_NANOS,
                     TimeUnit.NANOSECONDS
             );
-
-            ScheduledFuture<?> racedTask = repeatTasks.put(key, task);
-            if (racedTask != null) {
-                racedTask.cancel(false);
-            }
         } else if (action == GLFW.GLFW_RELEASE) {
-            keyHeld.set(key, 0);
+            spaceHeld = false;
 
-            ScheduledFuture<?> task = repeatTasks.remove(key);
+            ScheduledFuture<?> task = repeatTask;
+            repeatTask = null;
             if (task != null) {
                 task.cancel(false);
             }
@@ -88,20 +74,18 @@ public final class SpacebarMacro {
     }
 
     public static void resetForFocusLoss() {
-        for (int key = 0; key < KEY_COUNT; key++) {
-            if (keyHeld.getAndSet(key, 0) != 0) {
-                ScheduledFuture<?> task = repeatTasks.remove(key);
-                if (task != null) {
-                    task.cancel(false);
-                }
-            }
+        spaceHeld = false;
+
+        ScheduledFuture<?> task = repeatTask;
+        repeatTask = null;
+        if (task != null) {
+            task.cancel(false);
         }
-        repeatTasks.clear();
     }
 
-    private static void emitRepeat(int key) {
+    private static void emitRepeat() {
         MinecraftClient minecraft = client;
-        if (minecraft == null || keyHeld.get(key) == 0) {
+        if (minecraft == null || !spaceHeld) {
             return;
         }
 
@@ -110,18 +94,19 @@ public final class SpacebarMacro {
             return;
         }
 
-        int scancode = keyScancode.get(key);
-        KeyInput input = new KeyInput(key, scancode, 0);
+        KeyInput input = new KeyInput(
+                GLFW.GLFW_KEY_SPACE,
+                spaceScancode,
+                0
+        );
 
-        // Timer threads keep exact per-key cadence. The actual Minecraft
-        // keyboard callback is executed on Minecraft's client thread so
-        // input state is never mutated concurrently.
         minecraft.execute(() -> {
-            if (keyHeld.get(key) == 0 || !minecraft.isWindowFocused()) {
+            if (!spaceHeld || !minecraft.isWindowFocused()) {
                 return;
             }
 
-            Keyboard keyboard = ((MinecraftClientAccessor) minecraft).spacebarMacro$getKeyboard();
+            Keyboard keyboard =
+                    ((MinecraftClientAccessor) minecraft).spacebarMacro$getKeyboard();
             KeyboardInvoker invoker = (KeyboardInvoker) (Object) keyboard;
 
             SYNTHETIC_REPEAT.set(true);
