@@ -12,17 +12,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Keyboard.class)
 public abstract class KeyboardMixin {
     @Inject(method = "onKey", at = @At("HEAD"), cancellable = true)
-    private void spacebarMacro$trackKeys(long window, int action, KeyInput input, CallbackInfo ci) {
+    private void spacebarMacro$trackSpace(long window, int action, KeyInput input, CallbackInfo ci) {
+        if (input.key() != GLFW.GLFW_KEY_SPACE) {
+            return;
+        }
+
         if (SpacebarMacro.isSyntheticRepeat()) {
             return;
         }
 
         if (action == GLFW.GLFW_REPEAT) {
-            SpacebarMacro.onPhysicalKey(action, input);
+            SpacebarMacro.onPhysicalSpaceKey(action, input);
             ci.cancel();
             return;
         }
 
-        SpacebarMacro.onPhysicalKey(action, input);
+        SpacebarMacro.onPhysicalSpaceKey(action, input);
     }
 }
