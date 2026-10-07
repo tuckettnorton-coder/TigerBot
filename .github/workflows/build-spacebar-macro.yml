@@ -29,6 +29,7 @@ jobs:
         working-directory: spacebar-macro
         run: /tmp/gradle-9.2.1/bin/gradle build --no-daemon
 
+      # Upload only the remapped runtime mod, not the sources JAR.
       - name: Upload mod JAR
         uses: actions/upload-artifact@v4
         with:
