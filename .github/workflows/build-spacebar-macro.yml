@@ -1,6 +1,7 @@
 name: Build Spacebar Macro
 
 on:
+  pull_request:
   push:
     branches:
       - spacebar-macro-1.21.11
