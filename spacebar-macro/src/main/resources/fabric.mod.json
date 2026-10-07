@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "spacebar_macro",
+  "version": "${version}",
+  "name": "Spacebar Macro",
+  "description": "Stable Windows-fast Spacebar repeat for Minecraft 1.21.11.",
+  "authors": [
+    "TigerFX"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.tigerfx.spacebarmac.SpacebarMacroClient"
+    ]
+  },
+  "mixins": [
+    "spacebar_macro.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "1.21.11"
+  }
+}
