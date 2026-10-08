@@ -147,7 +147,22 @@ public final class TigerMacroClient implements ClientModInitializer {
     private static void toggleMacro(MinecraftClient client) {
         boolean newState = !config.isEnabled();
         config.setEnabled(newState);
-        cancelRepeatAndResync(client);
+
+        // Toggling is a hard state transition. Do not preserve the Macro Key's
+        // held-state marker here, because doing that can prevent a clean restart
+        // when the user toggles OFF and back ON without releasing Macro Key.
+        repeatGeneration++;
+        stopPendingRepeatOnly();
+        macroKeyHeld = false;
+
+        if (newState
+                && client.currentScreen == null
+                && client.player != null
+                && client.isWindowFocused()
+                && physicallyHeld(client, config.getMacroKeyCode())) {
+            macroKeyHeld = true;
+            scheduleNextRepeat(client, config.getDelayMs());
+        }
     }
 
     private static void syncBindingsToConfig() {
@@ -216,9 +231,25 @@ public final class TigerMacroClient implements ClientModInitializer {
     public static void delayChanged() {
         if (!initialized) return;
 
-        // Invalidate any repeat that was scheduled using the old value.
+        MinecraftClient client = MinecraftClient.getInstance();
+
+        // Invalidate any repeat scheduled with the old value.
         repeatGeneration++;
         stopPendingRepeatOnly();
+
+        // If the delay changes while actual gameplay is active, restart immediately
+        // with the new value. If a GUI is open, the repeat remains paused and
+        // resumeRepeatingIfPossible() starts it when the GUI closes.
+        if (client.currentScreen == null
+                && config.isEnabled()
+                && client.player != null
+                && client.isWindowFocused()
+                && physicallyHeld(client, config.getMacroKeyCode())) {
+            macroKeyHeld = true;
+            scheduleNextRepeat(client, config.getDelayMs());
+        } else if (!config.isEnabled()) {
+            macroKeyHeld = false;
+        }
     }
 
     public static void stopRepeatingAndResyncHeldState() {
