@@ -1,5 +1,12 @@
 {
   "category.spacebar_macro.kb_repeat": "KB Repeat",
   "key.spacebar_macro.toggle": "Toggle KB Repeat",
-  "key.spacebar_macro.repeat_target": "KB Repeat Target"
+  "key.spacebar_macro.repeat_target": "KB Repeat Target",
+  "key.spacebar_macro.open_menu": "Open KB Repeat Menu",
+  "screen.spacebar_macro.title": "KB Repeat Settings",
+  "screen.spacebar_macro.description": "Adjust the repeat delay.",
+  "screen.spacebar_macro.slider": "Repeat Delay",
+  "screen.spacebar_macro.slider_value": "Repeat Delay: %s ms",
+  "screen.spacebar_macro.range": "Range: 10–500 ms",
+  "screen.spacebar_macro.done": "Done"
 }
