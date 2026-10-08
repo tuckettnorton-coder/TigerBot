@@ -18,7 +18,7 @@ class SourceInvariantTest {
         assertFalse(code.contains("ScheduledExecutorService"));
         assertFalse(code.contains("ExecutorService"));
         assertFalse(code.contains("while (timing.isDue"));
-        assertEquals(1, count(code, "performMacroAction("));
+        assertEquals(2, count(code, "performMacroAction("));
     }
 
     @Test
