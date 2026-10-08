@@ -92,38 +92,51 @@ public final class TigerMacroClient implements ClientModInitializer {
             lastScreen = screen;
         }
 
-        // Use Minecraft's native keybind press queue for the two control keys.
-        // This is the mechanism used by vanilla controls and avoids custom
-        // GLFW polling edge cases.
-        while (toggleKey.wasPressed()) {
+        // Toggle is intentionally debounced to one state change per tick.
+        // A held key can otherwise produce multiple queued wasPressed() events.
+        if (toggleKey.wasPressed()) {
             toggleMacro(client);
+            while (toggleKey.wasPressed()) {
+                // Drain duplicate/auto-repeat presses from the same physical hold.
+            }
         }
 
         if (client.currentScreen == null) {
-            while (openMenuKey.wasPressed()) {
+            if (openMenuKey.wasPressed()) {
+                while (openMenuKey.wasPressed()) {
+                    // Drain duplicate queued menu presses.
+                }
                 cancelRepeatAndResync(client);
                 client.setScreen(new MacroScreen(null));
                 return;
             }
         } else {
-            // Consume queued menu-open presses while another screen is active so
-            // a key press cannot be delayed and unexpectedly reopen the menu later.
             while (openMenuKey.wasPressed()) {
-                // consumed
+                // Consume queued menu-open presses while another screen is active.
             }
-            macroKeyHeld = physicallyHeld(client, config.getMacroKeyCode());
+
+            // Never preserve a logical macro-held state while the macro is disabled.
+            if (config.isEnabled()) {
+                macroKeyHeld = physicallyHeld(client, config.getMacroKeyCode());
+            } else {
+                macroKeyHeld = false;
+            }
             return;
         }
 
         if (!focused || client.player == null || !config.isEnabled()) {
             stopPendingRepeatOnly();
-            macroKeyHeld = physicallyHeld(client, config.getMacroKeyCode());
+            // Disabled means hard stopped. Do not resync the held marker here,
+            // because that can make an OFF state look logically active.
+            macroKeyHeld = false;
             return;
         }
 
         int macroKeyCode = config.getMacroKeyCode();
         if (macroKeyCode != lastMacroKeyCode) {
-            cancelRepeatAndResync(client);
+            repeatGeneration++;
+            stopPendingRepeatOnly();
+            macroKeyHeld = false;
             lastMacroKeyCode = macroKeyCode;
         }
 
@@ -138,22 +151,20 @@ public final class TigerMacroClient implements ClientModInitializer {
 
         if (!macroKeyHeld) {
             macroKeyHeld = true;
-            // The real physical press remains Minecraft's first action.
-            // The repeater supplies only later actions.
             scheduleNextRepeat(client, config.getDelayMs());
         }
     }
 
     private static void toggleMacro(MinecraftClient client) {
         boolean newState = !config.isEnabled();
-        config.setEnabled(newState);
 
-        // Toggling is a hard state transition. Do not preserve the Macro Key's
-        // held-state marker here, because doing that can prevent a clean restart
-        // when the user toggles OFF and back ON without releasing Macro Key.
+        // Increment generation before changing/creating any repeat state so a task
+        // from the previous state can never become valid again.
         repeatGeneration++;
         stopPendingRepeatOnly();
         macroKeyHeld = false;
+
+        config.setEnabled(newState);
 
         if (newState
                 && client.currentScreen == null
@@ -177,6 +188,7 @@ public final class TigerMacroClient implements ClientModInitializer {
             config.setMacroKeyCode(macroCode);
             macroKeyHeld = false;
             lastMacroKeyCode = macroCode;
+            repeatGeneration++;
             stopPendingRepeatOnly();
         }
         if (openCode != config.getOpenMenuKeyCode()) {
@@ -233,13 +245,9 @@ public final class TigerMacroClient implements ClientModInitializer {
 
         MinecraftClient client = MinecraftClient.getInstance();
 
-        // Invalidate any repeat scheduled with the old value.
         repeatGeneration++;
         stopPendingRepeatOnly();
 
-        // If the delay changes while actual gameplay is active, restart immediately
-        // with the new value. If a GUI is open, the repeat remains paused and
-        // resumeRepeatingIfPossible() starts it when the GUI closes.
         if (client.currentScreen == null
                 && config.isEnabled()
                 && client.player != null
@@ -247,7 +255,7 @@ public final class TigerMacroClient implements ClientModInitializer {
                 && physicallyHeld(client, config.getMacroKeyCode())) {
             macroKeyHeld = true;
             scheduleNextRepeat(client, config.getDelayMs());
-        } else if (!config.isEnabled()) {
+        } else {
             macroKeyHeld = false;
         }
     }
@@ -255,13 +263,22 @@ public final class TigerMacroClient implements ClientModInitializer {
     public static void stopRepeatingAndResyncHeldState() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (!initialized) return;
-        cancelRepeatAndResync(client);
+
+        repeatGeneration++;
+        stopPendingRepeatOnly();
+        macroKeyHeld = false;
+        lastMacroKeyCode = config.getMacroKeyCode();
+
+        // Do not resync the held state here. This is used when opening/closing the
+        // menu, and the close path explicitly resumes if the key is still held.
     }
 
     public static void resumeRepeatingIfPossible() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (!initialized || client.currentScreen != null || !config.isEnabled()
                 || client.player == null || !client.isWindowFocused()) {
+            macroKeyHeld = false;
+            stopPendingRepeatOnly();
             return;
         }
 
@@ -279,7 +296,13 @@ public final class TigerMacroClient implements ClientModInitializer {
     private static void cancelRepeatAndResync(MinecraftClient client) {
         repeatGeneration++;
         stopPendingRepeatOnly();
-        macroKeyHeld = physicallyHeld(client, config.getMacroKeyCode());
+
+        if (config.isEnabled()) {
+            macroKeyHeld = physicallyHeld(client, config.getMacroKeyCode());
+        } else {
+            macroKeyHeld = false;
+        }
+
         lastMacroKeyCode = config.getMacroKeyCode();
     }
 
