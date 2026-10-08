@@ -20,8 +20,7 @@ public final class TigerMacroClient implements ClientModInitializer {
             Identifier.of(MOD_ID, "controls")
     );
 
-    public static KeyBinding TOGGLE_MACRO_KEY;
-    public static KeyBinding TOGGLE_GLOBAL_KEY;
+    public static KeyBinding ENABLE_DISABLE_KEY;
     public static KeyBinding MECHANIZED_KEY;
     public static KeyBinding OPEN_CONFIG_KEY;
 
@@ -32,9 +31,8 @@ public final class TigerMacroClient implements ClientModInitializer {
     public void onInitializeClient() {
         config = MacroConfig.load();
 
-        TOGGLE_MACRO_KEY = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.tiger_macro.toggle", GLFW.GLFW_KEY_F7, KEY_CATEGORY));
-        TOGGLE_GLOBAL_KEY = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        // This is now the sole macro on/off control. The old F7 Toggle Key is removed.
+        ENABLE_DISABLE_KEY = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.tiger_macro.global", GLFW.GLFW_KEY_F8, KEY_CATEGORY));
         MECHANIZED_KEY = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.tiger_macro.mechanized", GLFW.GLFW_KEY_SPACE, KEY_CATEGORY));
@@ -56,8 +54,7 @@ public final class TigerMacroClient implements ClientModInitializer {
             return;
         }
 
-        processGlobalToggle();
-        processMacroToggle();
+        processEnableDisableToggle();
         processConfigOpen(client);
         drainMechanizedControlPresses();
         controller.tick(client);
@@ -72,19 +69,13 @@ public final class TigerMacroClient implements ClientModInitializer {
         return handle != 0L && GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_FOCUSED) == GLFW.GLFW_TRUE;
     }
 
-    private static void processGlobalToggle() {
-        while (TOGGLE_GLOBAL_KEY.wasPressed()) {
-            controller.toggleGlobal();
-        }
-    }
-
-    private static void processMacroToggle() {
-        if (hasControlConflict(TOGGLE_MACRO_KEY)) {
-            drainKeyPressesFor(TOGGLE_MACRO_KEY);
+    private static void processEnableDisableToggle() {
+        if (hasControlConflict(ENABLE_DISABLE_KEY)) {
+            drainKeyPressesFor(ENABLE_DISABLE_KEY);
             return;
         }
 
-        while (TOGGLE_MACRO_KEY.wasPressed()) {
+        while (ENABLE_DISABLE_KEY.wasPressed()) {
             controller.toggleMacro();
         }
     }
@@ -102,8 +93,7 @@ public final class TigerMacroClient implements ClientModInitializer {
 
     private static boolean hasControlConflict(KeyBinding binding) {
         InputUtil.Key key = MacroKeybinds.getBoundKey(binding);
-        if (key.equals(MacroKeybinds.getBoundKey(TOGGLE_MACRO_KEY)) && binding != TOGGLE_MACRO_KEY) return true;
-        if (key.equals(MacroKeybinds.getBoundKey(TOGGLE_GLOBAL_KEY)) && binding != TOGGLE_GLOBAL_KEY) return true;
+        if (key.equals(MacroKeybinds.getBoundKey(ENABLE_DISABLE_KEY)) && binding != ENABLE_DISABLE_KEY) return true;
         if (key.equals(MacroKeybinds.getBoundKey(MECHANIZED_KEY)) && binding != MECHANIZED_KEY) return true;
         if (key.equals(MacroKeybinds.getBoundKey(OPEN_CONFIG_KEY)) && binding != OPEN_CONFIG_KEY) return true;
         return false;
@@ -116,8 +106,7 @@ public final class TigerMacroClient implements ClientModInitializer {
     }
 
     private static void drainKeyPresses() {
-        drainKeyPressesFor(TOGGLE_GLOBAL_KEY);
-        drainKeyPressesFor(TOGGLE_MACRO_KEY);
+        drainKeyPressesFor(ENABLE_DISABLE_KEY);
         drainKeyPressesFor(MECHANIZED_KEY);
         drainKeyPressesFor(OPEN_CONFIG_KEY);
     }
