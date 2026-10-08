@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory;
  * Main client entrypoint. Runtime macro state has exactly one owner:
  * MacroController.
  */
-public final class TigerMacroClient {
+public final class TigerMacroClient implements ClientModInitializer {
     public static final String MOD_ID = "tiger_macro";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     public static final KeyBinding.Category KEY_CATEGORY = KeyBinding.Category.create(
