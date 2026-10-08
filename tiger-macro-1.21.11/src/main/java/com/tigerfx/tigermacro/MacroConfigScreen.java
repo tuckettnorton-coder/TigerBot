@@ -7,8 +7,8 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
-import net.minecraft.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
 
 /** Clean in-game configuration UI. */
@@ -32,9 +32,9 @@ public final class MacroConfigScreen extends Screen {
         super(Text.translatable("screen.tiger_macro.title"));
         this.client = client;
         this.parent = parent;
-        this.originalPlacementKey = TigerMacroClient.TOGGLE_MACRO_KEY.getBoundKey();
-        this.originalGlobalKey = TigerMacroClient.TOGGLE_GLOBAL_KEY.getBoundKey();
-        this.originalSettingsKey = TigerMacroClient.OPEN_CONFIG_KEY.getBoundKey();
+        this.originalPlacementKey = MacroKeybinds.getBoundKey(TigerMacroClient.TOGGLE_MACRO_KEY);
+        this.originalGlobalKey = MacroKeybinds.getBoundKey(TigerMacroClient.TOGGLE_GLOBAL_KEY);
+        this.originalSettingsKey = MacroKeybinds.getBoundKey(TigerMacroClient.OPEN_CONFIG_KEY);
         this.originalDelayMs = TigerMacroClient.getConfig().getDelayMs();
     }
 
@@ -63,13 +63,14 @@ public final class MacroConfigScreen extends Screen {
                 .build());
 
         int sliderWidth = Math.min(420, width - 40);
-        delaySlider = addDrawableChild(new DelaySlider(
+        delaySlider = new DelaySlider(
                 center - sliderWidth / 2,
                 176,
                 sliderWidth,
                 20,
                 TigerMacroClient.getConfig().getDelayMs()
-        ));
+        );
+        addDrawableChild(delaySlider);
 
         addDrawableChild(ButtonWidget.builder(
                         Text.translatable("screen.tiger_macro.save"),
@@ -92,9 +93,11 @@ public final class MacroConfigScreen extends Screen {
     }
 
     private Text globalStatusText() {
-        return Text.translatable(TigerMacroClient.getController().isGlobalEnabled()
-                ? "screen.tiger_macro.enabled"
-                : "screen.tiger_macro.disabled");
+        return Text.translatable(
+                TigerMacroClient.getController().isGlobalEnabled()
+                        ? "screen.tiger_macro.enabled"
+                        : "screen.tiger_macro.disabled"
+        );
     }
 
     private void startCapture(MacroKeybinds.BindingType type) {
@@ -138,22 +141,19 @@ public final class MacroConfigScreen extends Screen {
 
     private void refreshBindingButtons() {
         if (placementButton != null) {
-            placementButton.setMessage(bindingText(
-                    "screen.tiger_macro.toggle_key",
-                    TigerMacroClient.TOGGLE_MACRO_KEY
-            ));
+            placementButton.setMessage(
+                    bindingText("screen.tiger_macro.toggle_key", TigerMacroClient.TOGGLE_MACRO_KEY)
+            );
         }
         if (globalButton != null) {
-            globalButton.setMessage(bindingText(
-                    "screen.tiger_macro.global_key",
-                    TigerMacroClient.TOGGLE_GLOBAL_KEY
-            ));
+            globalButton.setMessage(
+                    bindingText("screen.tiger_macro.global_key", TigerMacroClient.TOGGLE_GLOBAL_KEY)
+            );
         }
         if (settingsButton != null) {
-            settingsButton.setMessage(bindingText(
-                    "screen.tiger_macro.config_key",
-                    TigerMacroClient.OPEN_CONFIG_KEY
-            ));
+            settingsButton.setMessage(
+                    bindingText("screen.tiger_macro.config_key", TigerMacroClient.OPEN_CONFIG_KEY)
+            );
         }
     }
 
@@ -186,7 +186,13 @@ public final class MacroConfigScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
         renderBackground(context, mouseX, mouseY, deltaTicks);
-        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 28, 0xFFFFFF);
+        context.drawCenteredTextWithShadow(
+                textRenderer,
+                title,
+                width / 2,
+                28,
+                0xFFFFFF
+        );
         context.drawCenteredTextWithShadow(
                 textRenderer,
                 Text.translatable("screen.tiger_macro.placement_macro"),
@@ -194,6 +200,7 @@ public final class MacroConfigScreen extends Screen {
                 56,
                 0xFFFFFF
         );
+
         int currentDelay = delaySlider == null
                 ? TigerMacroClient.getConfig().getDelayMs()
                 : delaySlider.getDelayMs();
@@ -215,7 +222,10 @@ public final class MacroConfigScreen extends Screen {
         );
         context.drawCenteredTextWithShadow(textRenderer, macroStatus, width / 2, 227, 0xFFFFFF);
 
-        Text globalStatus = Text.translatable("screen.tiger_macro.global_status", globalStatusText());
+        Text globalStatus = Text.translatable(
+                "screen.tiger_macro.global_status",
+                globalStatusText()
+        );
         context.drawCenteredTextWithShadow(textRenderer, globalStatus, width / 2, 246, 0xFFFFFF);
 
         if (errorMessage != null) {
@@ -246,7 +256,7 @@ public final class MacroConfigScreen extends Screen {
                     width,
                     height,
                     Text.translatable("screen.tiger_macro.repeat_delay", MacroConfig.clampDelay(delayMs)),
-                    normalized(delayMs)
+                    normalizedValue(delayMs)
             );
             this.delayMs = MacroConfig.clampDelay(delayMs);
         }
@@ -266,14 +276,16 @@ public final class MacroConfigScreen extends Screen {
             return delayMs;
         }
 
-        private double normalized(int delay) {
+        private static double normalizedValue(int delay) {
             return (MacroConfig.clampDelay(delay) - MacroConfig.MIN_DELAY_MS)
                     / (double) (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS);
         }
 
         private int fromNormalized(double value) {
             return MacroConfig.MIN_DELAY_MS
-                    + (int) Math.round(value * (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS));
+                    + (int) Math.round(
+                    value * (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS)
+            );
         }
     }
 }
