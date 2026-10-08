@@ -3,7 +3,7 @@
   "id": "spacebar_macro",
   "version": "${version}",
   "name": "KB repeat delay fix",
-  "description": "Instant-start Spacebar-only repeat for Minecraft 1.21.11 at a slower repeat rate.",
+  "description": "Instant-start configurable-key repeat for Minecraft 1.21.11 with a 135 ms interval.",
   "authors": [
     "TigerFX"
   ],
