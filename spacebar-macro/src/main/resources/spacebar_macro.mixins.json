@@ -5,6 +5,7 @@
   "client": [
     "KeyboardInvoker",
     "MinecraftClientAccessor",
+    "GameOptionsAccessor",
     "KeyboardMixin"
   ],
   "injectors": {
