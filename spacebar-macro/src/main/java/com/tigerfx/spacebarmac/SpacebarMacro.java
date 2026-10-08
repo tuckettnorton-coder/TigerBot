@@ -41,7 +41,7 @@ public final class SpacebarMacro {
     public static final KeyBinding OPEN_MENU_KEY = new KeyBinding(
             "key.spacebar_macro.open_menu",
             InputUtil.Type.KEYSYM,
-            GLFW.GLFW_KEY_F7,
+            InputUtil.UNKNOWN_KEY.getCode(),
             CATEGORY
     );
 
