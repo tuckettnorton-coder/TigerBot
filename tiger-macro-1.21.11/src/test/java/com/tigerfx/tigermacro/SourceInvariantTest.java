@@ -60,6 +60,17 @@ class SourceInvariantTest {
         assertFalse(code.contains("TOGGLE"));
     }
 
+    @Test
+    void syntheticPressIsClickOnlyAndDoesNotSetHeldState() throws Exception {
+        String code = Files.readString(Path.of(
+                "src/main/java/com/tigerfx/tigermacro/mixin/KeyBindingInputMixin.java"
+        ));
+        assertTrue(code.contains("this.timesPressed++"));
+        assertTrue(code.contains("Do not run Minecraft's normal implementation a second time."));
+        assertTrue(code.contains("MacroInputGuard.isSyntheticPress()"));
+        assertFalse(code.contains("setPressed(true)"));
+    }
+
     private static int count(String source, String token) {
         int count = 0;
         int index = 0;
