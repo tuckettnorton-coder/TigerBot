@@ -1,18 +1,16 @@
 package com.tigerfx.spacebarmac;
 
-import com.tigerfx.spacebarmac.mixin.GameOptionsAccessor;
 import com.tigerfx.spacebarmac.mixin.KeyboardInvoker;
 import com.tigerfx.spacebarmac.mixin.MinecraftClientAccessor;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.Keyboard;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.input.KeyInput;
-import net.minecraft.client.option.GameOptions;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-import java.util.Arrays;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -61,16 +59,9 @@ public final class SpacebarMacro {
 
     public static void initialize() {
         client = MinecraftClient.getInstance();
-        GameOptions options = client.options;
 
-        if (Arrays.stream(options.allKeys).noneMatch(key -> key == TOGGLE_KEY)) {
-            GameOptionsAccessor accessor = (GameOptionsAccessor) (Object) options;
-            KeyBinding[] current = options.allKeys;
-            KeyBinding[] updated = Arrays.copyOf(current, current.length + 2);
-            updated[current.length] = TOGGLE_KEY;
-            updated[current.length + 1] = REPEAT_TARGET_KEY;
-            accessor.spacebarMacro$setAllKeys(updated);
-        }
+        KeyBindingHelper.registerKeyBinding(TOGGLE_KEY);
+        KeyBindingHelper.registerKeyBinding(REPEAT_TARGET_KEY);
     }
 
     public static boolean isEnabled() {
@@ -95,7 +86,7 @@ public final class SpacebarMacro {
     }
 
     public static void onPhysicalKey(int action, KeyInput input) {
-        if (!isTargetKey(input)) {
+        if (!enabled || !isTargetKey(input)) {
             return;
         }
 
