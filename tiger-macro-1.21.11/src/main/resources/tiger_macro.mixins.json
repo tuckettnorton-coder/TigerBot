@@ -3,7 +3,9 @@
   "package": "com.tigerfx.tigermacro.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "MinecraftClientInvokerMixin"
+    "MinecraftClientInvokerMixin",
+    "MinecraftClientWorldMixin",
+    "KeyBindingAccessorMixin"
   ],
   "injectors": {
     "defaultRequire": 1
