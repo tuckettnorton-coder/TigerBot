@@ -143,7 +143,7 @@ public final class MacroConfigScreen extends Screen {
 
             MacroKeybinds.getBinding(capturing).setBoundKey(candidate);
             KeyBinding.updateKeysByCode();
-            client.options.write();
+            // Keep edits staged until Save so Escape/Cancel reliably restores the old keys.
             capturing = null;
             errorMessage = null;
             refreshBindingButtons();
