@@ -1,5 +1,4 @@
 import { loadDiggingPrices } from '../commands/Utility/digging-update.js';
-import { getLatestUpdateData } from './updateState.js';
 import { parseAmount, formatResult } from './calculator.js';
 
 function parsePrice(value) {
@@ -37,9 +36,9 @@ export function parseAreaDimensions(value) {
   return { width, length, height, blocks };
 }
 
-export async function calculateDiggingPrice({ areaSize, goodCoords, customRegion, client, guildId }) {
+export function calculateDiggingPrice({ areaSize, goodCoords, customRegion }) {
   const dimensions = parseAreaDimensions(areaSize);
-  const data = (client && guildId) ? (await getLatestUpdateData(client, guildId, 'diggingPrices', null) || loadDiggingPrices()) : loadDiggingPrices();
+  const data = loadDiggingPrices();
   const perBlock = parsePrice(data.prices.perBlock);
   const goodCoordsFee = goodCoords ? parsePrice(data.prices.goodCoords) : 0;
   const customRegionFee = customRegion ? parsePrice(data.prices.customRegion) : 0;
