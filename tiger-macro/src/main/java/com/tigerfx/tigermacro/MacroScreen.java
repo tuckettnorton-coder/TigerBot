@@ -73,7 +73,9 @@ public final class MacroScreen extends Screen {
     public void close() {
         TigerMacroClient.stopRepeatingAndResyncHeldState();
         TigerMacroClient.getConfig().saveNowAsync();
-        MinecraftClient.getInstance().setScreen(parent);
+        MinecraftClient client = MinecraftClient.getInstance();
+        client.setScreen(parent);
+        client.execute(TigerMacroClient::resumeRepeatingIfPossible);
     }
 
     private static final class DelaySlider extends SliderWidget {
