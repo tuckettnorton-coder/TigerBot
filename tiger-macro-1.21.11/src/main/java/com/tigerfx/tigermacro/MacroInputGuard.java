@@ -4,24 +4,24 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.InputUtil;
 
 /** Keeps physical target-key input separate from the macro-generated press event. */
-final class MacroInputGuard {
+public final class MacroInputGuard {
     private static boolean syntheticPress;
 
     private MacroInputGuard() {}
 
-    static void beginSyntheticPress() {
+    public static void beginSyntheticPress() {
         syntheticPress = true;
     }
 
-    static void endSyntheticPress() {
+    public static void endSyntheticPress() {
         syntheticPress = false;
     }
 
-    static boolean isSyntheticPress() {
+    public static boolean isSyntheticPress() {
         return syntheticPress;
     }
 
-    static boolean shouldSuppressPhysicalKey(InputUtil.Key key) {
+    public static boolean shouldSuppressPhysicalKey(InputUtil.Key key) {
         if (syntheticPress || key == null || key.equals(InputUtil.UNKNOWN_KEY)) {
             return false;
         }
