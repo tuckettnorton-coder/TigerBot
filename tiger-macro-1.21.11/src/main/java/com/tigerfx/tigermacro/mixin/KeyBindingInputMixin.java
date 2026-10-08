@@ -29,6 +29,9 @@ public abstract class KeyBindingInputMixin {
     @Shadow
     private int timesPressed;
 
+    @Shadow
+    protected InputUtil.Key boundKey;
+
     @Inject(method = "onKeyPressed", at = @At("HEAD"), cancellable = true)
     private static void tigerMacro$handleSyntheticPress(InputUtil.Key key, CallbackInfo ci) {
         if (MacroInputGuard.isSyntheticPress()) {
@@ -63,7 +66,7 @@ public abstract class KeyBindingInputMixin {
     @Inject(method = "setPressed", at = @At("HEAD"), cancellable = true)
     private void tigerMacro$filterPollingState(boolean pressed, CallbackInfo ci) {
         if (!MacroInputGuard.isSyntheticPress()
-                && MacroInputGuard.shouldSuppressPhysicalKey(((KeyBinding) (Object) this).getBoundKey())) {
+                && MacroInputGuard.shouldSuppressPhysicalKey(boundKey)) {
             ci.cancel();
         }
     }
