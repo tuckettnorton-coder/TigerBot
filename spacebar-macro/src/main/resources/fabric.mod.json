@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "spacebar_macro",
+  "version": "${version}",
+  "name": "KB repeat delay fix",
+  "description": "Instant-start configurable-key repeat for Minecraft 1.21.11 with a 135 ms interval.",
+  "authors": [
+    "TigerFX"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.tigerfx.spacebarmac.SpacebarMacroClient"
+    ]
+  },
+  "mixins": [
+    "spacebar_macro.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "1.21.11",
+    "fabric-api": ">=0.141.1+1.21.11"
+  }
+}

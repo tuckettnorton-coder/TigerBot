@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "com.tigerfx.spacebarmac.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "KeyboardInvoker",
+    "MinecraftClientAccessor",
+    "KeyboardMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
