@@ -40,16 +40,14 @@ public abstract class KeyboardMixin {
             return;
         }
 
-        if (!SpacebarMacro.isTargetKey(input)) {
+        if (!SpacebarMacro.isEnabled()) {
+            // Fully off: do not inspect or intercept target-key events.
+            // Turning the feature off already cancels/invalidate queued macro
+            // tasks in handleControlKey(). Native events now pass through untouched.
             return;
         }
 
-        // When disabled, never intercept the target key's native events.
-        // Explicitly cancel any outstanding custom timer, then let GLFW /
-        // Minecraft process press, repeat, and release normally using the
-        // user's operating-system keyboard-repeat settings.
-        if (!SpacebarMacro.isEnabled()) {
-            SpacebarMacro.stopRepeating();
+        if (!SpacebarMacro.isTargetKey(input)) {
             return;
         }
 
