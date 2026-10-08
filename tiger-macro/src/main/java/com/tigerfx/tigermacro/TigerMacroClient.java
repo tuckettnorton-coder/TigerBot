@@ -43,7 +43,10 @@ public final class TigerMacroClient implements ClientModInitializer {
     public void onInitializeClient() {
         config = MacroConfig.load();
 
-        KeyBinding.Category category = KeyBinding.Category.create(Identifier.of("tigermacro", CATEGORY_ID));
+        KeyBinding.Category category = KeyBinding.Category.create(
+                Identifier.of("tigermacro", CATEGORY_ID)
+        );
+
         toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.tigermacro.toggle",
                 InputUtil.Type.KEYSYM,
@@ -65,7 +68,9 @@ public final class TigerMacroClient implements ClientModInitializer {
 
         lastMacroKeyCode = config.getMacroKeyCode();
         ClientTickEvents.END_CLIENT_TICK.register(TigerMacroClient::clientTick);
-        Runtime.getRuntime().addShutdownHook(new Thread(TigerMacroClient::shutdownStatic, "Tiger Macro Shutdown"));
+        Runtime.getRuntime().addShutdownHook(
+                new Thread(TigerMacroClient::shutdownStatic, "Tiger Macro Shutdown")
+        );
         initialized = true;
     }
 
@@ -86,15 +91,31 @@ public final class TigerMacroClient implements ClientModInitializer {
         }
 
         if (screen != null) {
+            // Consume pending menu/toggle presses while a screen is open so a queued
+            // keyboard event cannot unexpectedly reopen the menu after closing it.
+            while (toggleKey.wasPressed()) {
+                // Intentionally consumed; macro controls are handled only in gameplay.
+            }
+            while (openMenuKey.wasPressed()) {
+                // Intentionally consumed while already in a screen.
+            }
             macroKeyHeld = physicallyHeld(client, config.getMacroKeyCode());
             return;
         }
 
-        while (toggleKey.wasPressed()) toggleMacro(client);
+        while (toggleKey.wasPressed()) {
+            toggleMacro(client);
+        }
 
         while (openMenuKey.wasPressed()) {
             cancelRepeatAndResync(client);
-            client.setScreen(new MacroScreen(null));
+            // Queue the screen change onto the client executor. This avoids changing
+            // the active screen in the middle of key-repeat processing.
+            client.execute(() -> {
+                if (client.currentScreen == null) {
+                    client.setScreen(new MacroScreen(null));
+                }
+            });
             return;
         }
 
@@ -121,6 +142,8 @@ public final class TigerMacroClient implements ClientModInitializer {
 
         if (!macroKeyHeld) {
             macroKeyHeld = true;
+            // First physical activation remains Minecraft's normal key action.
+            // Only the subsequent repeats are scheduled.
             scheduleNextRepeat(client, config.getDelayMs());
         }
     }
@@ -136,40 +159,59 @@ public final class TigerMacroClient implements ClientModInitializer {
         int macroCode = KeyBindingHelper.getBoundKeyOf(macroKey).getCode();
         int openCode = KeyBindingHelper.getBoundKeyOf(openMenuKey).getCode();
 
-        if (toggleCode != config.getToggleKeyCode()) config.setToggleKeyCode(toggleCode);
-        if (macroCode != config.getMacroKeyCode()) config.setMacroKeyCode(macroCode);
-        if (openCode != config.getOpenMenuKeyCode()) config.setOpenMenuKeyCode(openCode);
+        if (toggleCode != config.getToggleKeyCode()) {
+            config.setToggleKeyCode(toggleCode);
+        }
+        if (macroCode != config.getMacroKeyCode()) {
+            config.setMacroKeyCode(macroCode);
+        }
+        if (openCode != config.getOpenMenuKeyCode()) {
+            config.setOpenMenuKeyCode(openCode);
+        }
     }
 
     private static void scheduleNextRepeat(MinecraftClient client, long delayMs) {
         stopPendingRepeatOnly();
+
         final long generation = repeatGeneration;
-        final long safeDelay = Math.max(MacroConfig.MIN_DELAY_MS, Math.min(MacroConfig.MAX_DELAY_MS, delayMs));
+        final long safeDelay = Math.max(
+                MacroConfig.MIN_DELAY_MS,
+                Math.min(MacroConfig.MAX_DELAY_MS, delayMs)
+        );
 
-        pendingRepeat = REPEAT_EXECUTOR.schedule(() -> client.execute(() -> {
-            if (generation != repeatGeneration) return;
+        pendingRepeat = REPEAT_EXECUTOR.schedule(
+                () -> client.execute(() -> {
+                    if (generation != repeatGeneration) return;
 
-            pendingRepeat = null;
+                    pendingRepeat = null;
 
-            if (!config.isEnabled() || client.player == null || client.currentScreen != null || !client.isWindowFocused()) {
-                return;
-            }
+                    if (!config.isEnabled()
+                            || client.player == null
+                            || client.currentScreen != null
+                            || !client.isWindowFocused()) {
+                        return;
+                    }
 
-            int keyCode = config.getMacroKeyCode();
-            if (!physicallyHeld(client, keyCode)) {
-                macroKeyHeld = false;
-                return;
-            }
+                    int keyCode = config.getMacroKeyCode();
+                    if (!physicallyHeld(client, keyCode)) {
+                        macroKeyHeld = false;
+                        return;
+                    }
 
-            InputUtil.Key boundKey = KeyBindingHelper.getBoundKeyOf(macroKey);
-            if (boundKey.getCode() != keyCode) return;
+                    InputUtil.Key boundKey = KeyBindingHelper.getBoundKeyOf(macroKey);
+                    if (boundKey.getCode() != keyCode) return;
 
-            KeyBinding.onKeyPressed(boundKey);
+                    KeyBinding.onKeyPressed(boundKey);
 
-            if (generation == repeatGeneration && config.isEnabled() && physicallyHeld(client, keyCode)) {
-                scheduleNextRepeat(client, config.getDelayMs());
-            }
-        }), safeDelay, TimeUnit.MILLISECONDS);
+                    if (generation == repeatGeneration
+                            && config.isEnabled()
+                            && physicallyHeld(client, keyCode)) {
+                        scheduleNextRepeat(client, config.getDelayMs());
+                    }
+                }),
+                safeDelay,
+                TimeUnit.MILLISECONDS
+        );
     }
 
     public static void delayChanged() {
@@ -177,16 +219,19 @@ public final class TigerMacroClient implements ClientModInitializer {
         if (!initialized) return;
 
         cancelRepeatAndResync(client);
-        if (config.isEnabled() && client.currentScreen == null && client.player != null && client.isWindowFocused()) {
-            if (physicallyHeld(client, config.getMacroKeyCode())) {
-                macroKeyHeld = true;
-                scheduleNextRepeat(client, config.getDelayMs());
-            }
+        if (config.isEnabled()
+                && client.currentScreen == null
+                && client.player != null
+                && client.isWindowFocused()
+                && physicallyHeld(client, config.getMacroKeyCode())) {
+            macroKeyHeld = true;
+            scheduleNextRepeat(client, config.getDelayMs());
         }
     }
 
     public static void stopRepeatingAndResyncHeldState() {
         MinecraftClient client = MinecraftClient.getInstance();
+        if (!initialized) return;
         cancelRepeatAndResync(client);
     }
 
@@ -210,7 +255,9 @@ public final class TigerMacroClient implements ClientModInitializer {
     }
 
     private static void shutdownStatic() {
-        if (config != null) config.shutdown();
+        if (config != null) {
+            config.shutdown();
+        }
         REPEAT_EXECUTOR.shutdownNow();
     }
 }
