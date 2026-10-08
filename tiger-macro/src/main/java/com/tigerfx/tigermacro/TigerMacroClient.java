@@ -173,12 +173,11 @@ public final class TigerMacroClient implements ClientModInitializer {
             // Remove any real physical press/state that existed before enabling.
             // While enabled, the mixin prevents new physical input from reaching
             // the KeyBinding state/press queue.
-            beginSyntheticSuppressionForRawState();
-            try {
-                macroKey.unpressAll();
-                KeyBinding.setKeyPressed(boundKey, false);
-            } finally {
-                endSyntheticSuppressionForRawState();
+            // Clear only this binding. Do not call the static unpressAll(),
+            // because that resets every key binding in Minecraft.
+            macroKey.setPressed(false);
+            while (macroKey.wasPressed()) {
+                // Discard any physical press that was queued before enabling.
             }
 
             config.setEnabled(true);
