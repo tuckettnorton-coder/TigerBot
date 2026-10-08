@@ -65,3 +65,5 @@ jobs:
           name: tiger-macro-1.0.3-source
           path: tiger-macro-1.0.3
           if-no-files-found: error
+
+# Rebuild trigger after correcting Gradle to the released 9.2.1 version.
