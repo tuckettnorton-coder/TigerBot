@@ -119,7 +119,7 @@ public final class MacroManager {
     }
 
     private boolean isUsableGameplayState() {
-        if (client.level == null || client.currentScreen != null) return false;
+        if (client.world == null || client.currentScreen != null) return false;
         Window window = client.getWindow();
         try { return GLFW.glfwGetWindowAttrib(window.getHandle(), GLFW.GLFW_FOCUSED) == GLFW.GLFW_TRUE; }
         catch (Throwable ignored) { return true; }
