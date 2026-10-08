@@ -12,9 +12,8 @@ import org.lwjgl.glfw.GLFW;
 public final class InputManager {
     private final MacroConfig config;
     private final MacroManager macroManager;
-    private boolean armed;
-    private boolean toggleWasDown;
-    private boolean menuWasDown;
+    private boolean toggleConsumed;
+    private boolean menuConsumed;
 
     public InputManager(MacroConfig config, MacroManager macroManager) {
         this.config = config;
@@ -23,44 +22,53 @@ public final class InputManager {
 
     public void tick(MinecraftClient client) {
         syncConfigKeybinds();
+
         Window window = client.getWindow();
         boolean focused;
-        try { focused = GLFW.glfwGetWindowAttrib(window.getHandle(), GLFW.GLFW_FOCUSED) == GLFW.GLFW_TRUE; }
-        catch (Throwable ignored) { focused = true; }
-
-        if (!focused) {
-            armed = false;
-            toggleWasDown = false;
-            menuWasDown = false;
-            return;
+        try {
+            focused = GLFW.glfwGetWindowAttrib(window.getHandle(), GLFW.GLFW_FOCUSED) == GLFW.GLFW_TRUE;
+        } catch (Throwable ignored) {
+            focused = true;
         }
+
+        InputUtil.Key macroKey = KeyBindingHelper.getBoundKeyOf(MacroKeybinds.macroKey());
+        macroManager.setMacroKey(macroKey);
+        macroManager.setClientInputAllowed(focused && client.world != null && client.currentScreen == null);
 
         boolean toggleDown = isPhysicalKeyDown(window.getHandle(), KeyBindingHelper.getBoundKeyOf(MacroKeybinds.macroToggle()));
         boolean menuDown = isPhysicalKeyDown(window.getHandle(), KeyBindingHelper.getBoundKeyOf(MacroKeybinds.openMacroMenu()));
 
-        if (!armed) {
-            toggleWasDown = toggleDown;
-            menuWasDown = menuDown;
-            armed = true;
-            return;
+        if (!toggleDown) {
+            toggleConsumed = false;
+        } else if (!toggleConsumed) {
+            toggleConsumed = true;
+            if (focused && client.currentScreen == null) {
+                macroManager.setEnabled(!macroManager.isEnabled());
+            }
         }
 
-        if (toggleDown && !toggleWasDown) macroManager.setEnabled(!macroManager.isEnabled());
-
-        if (menuDown && !menuWasDown && client.currentScreen == null) {
-            client.setScreen(new MacroSettingsScreen(null, config, macroManager));
+        if (!menuDown) {
+            menuConsumed = false;
+        } else if (!menuConsumed) {
+            menuConsumed = true;
+            if (focused && client.currentScreen == null) {
+                client.setScreen(new MacroSettingsScreen(null, config, macroManager));
+            }
         }
-
-        toggleWasDown = toggleDown;
-        menuWasDown = menuDown;
     }
 
-    private void syncConfigKeybinds() { MacroKeybinds.syncToConfig(config); }
+    private void syncConfigKeybinds() {
+        MacroKeybinds.syncToConfig(config);
+    }
 
     private static boolean isPhysicalKeyDown(long windowHandle, InputUtil.Key key) {
-        if (key == null || key.equals(InputUtil.UNKNOWN_KEY) || key.getCategory() != InputUtil.Type.KEYSYM) return false;
+        if (key == null || key.equals(InputUtil.UNKNOWN_KEY) || key.getCategory() != InputUtil.Type.KEYSYM) {
+            return false;
+        }
         int code = key.getCode();
-        if (code < 0) return false;
+        if (code < 0) {
+            return false;
+        }
         return GLFW.glfwGetKey(windowHandle, code) == GLFW.GLFW_PRESS;
     }
 }
