@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "tiger_macro",
+  "version": "${version}",
+  "name": "Tiger Macro",
+  "description": "Client-side configurable keyboard placement macro for Minecraft 1.21.11.",
+  "authors": ["TigerFX"],
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.tigerfx.tigermacro.TigerMacroClient"
+    ]
+  },
+  "mixins": [
+    "tiger_macro.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "1.21.11",
+    "java": ">=21",
+    "fabric-api": ">=0.141.0"
+  }
+}

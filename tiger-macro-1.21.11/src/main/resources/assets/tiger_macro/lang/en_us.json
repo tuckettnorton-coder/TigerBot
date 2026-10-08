@@ -1,0 +1,23 @@
+{
+  "key.category.tiger_macro.controls": "Tiger Macro",
+  "key.tiger_macro.toggle": "Toggle Placement Macro",
+  "key.tiger_macro.global": "Enable/Disable Placement Macro",
+  "key.tiger_macro.open_config": "Open Tiger Macro Settings",
+  "screen.tiger_macro.title": "TIGER MACRO",
+  "screen.tiger_macro.placement_macro": "Placement Macro",
+  "screen.tiger_macro.toggle_key": "Toggle Key: %s",
+  "screen.tiger_macro.global_key": "Enable/Disable Key: %s",
+  "screen.tiger_macro.config_key": "Settings Key: %s",
+  "screen.tiger_macro.repeat_delay": "Repeat Delay: %d ms",
+  "screen.tiger_macro.current_delay": "Current: %d ms",
+  "screen.tiger_macro.macro_status": "Macro: %s",
+  "screen.tiger_macro.global_status": "Global: %s",
+  "screen.tiger_macro.on": "ON",
+  "screen.tiger_macro.off": "OFF",
+  "screen.tiger_macro.enabled": "ENABLED",
+  "screen.tiger_macro.disabled": "DISABLED",
+  "screen.tiger_macro.set_key": "Press a key...",
+  "screen.tiger_macro.save": "Save",
+  "screen.tiger_macro.cancel": "Cancel",
+  "screen.tiger_macro.key_in_use": "That key is already assigned to another Tiger Macro control."
+}

@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "com.tigerfx.tigermacro.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "MinecraftClientInvokerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
