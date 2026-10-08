@@ -13,8 +13,8 @@ public final class MacroController {
     private MacroConfig config;
     private final MacroTiming timing = new MacroTiming();
 
+    // There is now one user-facing runtime switch: the Enable/Disable Key.
     private boolean macroEnabled = false;
-    private boolean globalEnabled = true;
 
     public MacroController(MacroConfig config) {
         this.config = config;
@@ -26,15 +26,14 @@ public final class MacroController {
     }
 
     public void toggleMacro() {
-        if (!globalEnabled) {
-            return;
-        }
+        setMacroEnabled(!macroEnabled);
+    }
 
-        macroEnabled = !macroEnabled;
+    public void setMacroEnabled(boolean enabled) {
+        macroEnabled = enabled;
         if (macroEnabled) {
             long now = System.nanoTime();
-            // Deliberately wait one full configured interval before the first action.
-            // The toggle key never performs the macro action itself.
+            // Always wait one complete configured interval before the first action.
             timing.arm(now, config.getDelayNanos());
             debug("[Macro] Enabled");
         } else {
@@ -43,19 +42,16 @@ public final class MacroController {
         }
     }
 
-    public void toggleGlobal() {
-        globalEnabled = !globalEnabled;
-        resetMacroState();
-
-        if (globalEnabled) {
-            debug("[Macro] Global enabled");
-        } else {
-            debug("[Macro] Global disabled");
-        }
+    /**
+     * Re-applies the saved settings without carrying an old timer deadline across
+     * a settings screen open/close.
+     */
+    public void applySavedSettings(boolean restoreMacroEnabled) {
+        setMacroEnabled(restoreMacroEnabled);
     }
 
     public void tick(MinecraftClient client) {
-        if (!globalEnabled || !macroEnabled) {
+        if (!macroEnabled) {
             return;
         }
 
@@ -79,8 +75,7 @@ public final class MacroController {
         long now = System.nanoTime();
         if (timing.isDue(now)) {
             performMacroAction(client);
-            // Always schedule from now: one delayed tick creates at most one action,
-            // never a burst of accumulated actions.
+            // Never catch up multiple missed intervals in one tick.
             timing.scheduleNext(now, config.getDelayNanos());
         }
     }
@@ -88,10 +83,11 @@ public final class MacroController {
     /**
      * The only method that performs the repeated input. It feeds the selected
      * InputUtil.Key into Minecraft's normal KeyBinding press-event pathway.
-     * No world blocks or placement packets are manipulated directly.
      */
     private void performMacroAction(MinecraftClient client) {
-        InputUtil.Key targetKey = MacroKeybinds.getBoundKey(TigerMacroClient.MECHANIZED_KEY);
+        InputUtil.Key targetKey =
+                MacroKeybinds.getBoundKey(TigerMacroClient.MECHANIZED_KEY);
+
         if (targetKey == null || targetKey.equals(InputUtil.UNKNOWN_KEY)) {
             debug("[Macro] Action skipped: no mechanized key configured");
             return;
@@ -102,20 +98,18 @@ public final class MacroController {
             return;
         }
 
-        // This is the normal KeyBinding edge-event used by Minecraft's keyboard
-        // input handler. Every KeyBinding bound to the selected key receives it.
         MacroInputGuard.beginSyntheticPress();
         try {
             KeyBinding.onKeyPressed(targetKey);
         } finally {
             MacroInputGuard.endSyntheticPress();
         }
+
         debug("[Macro] Action: " + targetKey.getTranslationKey());
     }
 
     private boolean isControlKey(InputUtil.Key key) {
-        return key.equals(MacroKeybinds.getBoundKey(TigerMacroClient.TOGGLE_MACRO_KEY))
-                || key.equals(MacroKeybinds.getBoundKey(TigerMacroClient.TOGGLE_GLOBAL_KEY))
+        return key.equals(MacroKeybinds.getBoundKey(TigerMacroClient.ENABLE_DISABLE_KEY))
                 || key.equals(MacroKeybinds.getBoundKey(TigerMacroClient.OPEN_CONFIG_KEY));
     }
 
@@ -123,8 +117,10 @@ public final class MacroController {
         boolean wasActive = macroEnabled || timing.isArmed();
         macroEnabled = false;
         timing.reset();
-        // Re-read GLFW key state after suppression ends so a real held key is never left stuck.
+
+        // Once macro suppression ends, restore the real physical key states.
         KeyBinding.updatePressedStates();
+
         if (wasActive) {
             debug("[Macro] Reset");
         }
@@ -138,10 +134,6 @@ public final class MacroController {
 
     public boolean isMacroEnabled() {
         return macroEnabled;
-    }
-
-    public boolean isGlobalEnabled() {
-        return globalEnabled;
     }
 
     long getNextActionTimeNanosForTest() {
