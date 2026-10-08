@@ -374,6 +374,19 @@ public final class TigerMacroClient implements ClientModInitializer {
         syntheticPressDepth--;
     }
 
+    private static void cancelRepeatAndResync(MinecraftClient client) {
+        repeatGeneration++;
+        stopPendingRepeatOnly();
+
+        if (config.isEnabled()) {
+            macroKeyHeld = physicallyHeld(client, config.getMacroKeyCode());
+        } else {
+            macroKeyHeld = false;
+        }
+
+        lastMacroKeyCode = config.getMacroKeyCode();
+    }
+
     private static void stopPendingRepeatOnly() {
         if (pendingRepeat != null) {
             pendingRepeat.cancel(false);
