@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import static org.lwjgl.glfw.GLFW.GLFW_PRESS;
 import static org.lwjgl.glfw.GLFW.GLFW_REPEAT;
 
 @Mixin(Keyboard.class)
@@ -15,6 +16,14 @@ public abstract class KeyboardMixin {
     @Inject(method = "onKey", at = @At("HEAD"), cancellable = true)
     private void spacebarMacro$trackKey(long window, int action, KeyInput input, CallbackInfo ci) {
         if (SpacebarMacro.isSyntheticRepeat()) {
+            return;
+        }
+
+        if (SpacebarMacro.isOpenMenuKey(input)) {
+            if (action == GLFW_PRESS) {
+                SpacebarMacro.openMenu();
+            }
+            ci.cancel();
             return;
         }
 
