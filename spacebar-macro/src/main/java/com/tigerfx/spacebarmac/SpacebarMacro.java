@@ -48,6 +48,7 @@ public final class SpacebarMacro {
 
     private static volatile ScheduledFuture<?> repeatTask;
     private static volatile boolean repeatHeld;
+    private static volatile int repeatKeyCode = GLFW.GLFW_KEY_SPACE;
     private static volatile int repeatScancode = 57;
     private static volatile MinecraftClient client;
     private static volatile boolean enabled = true;
@@ -76,15 +77,15 @@ public final class SpacebarMacro {
         return enabled;
     }
 
+    public static boolean isToggleKey(KeyInput input) {
+        return TOGGLE_KEY.matchesKey(input);
+    }
+
     public static boolean isTargetKey(KeyInput input) {
         return REPEAT_TARGET_KEY.matchesKey(input);
     }
 
-    public static void handleControlKey(int action, KeyInput input) {
-        if (!TOGGLE_KEY.matchesKey(input)) {
-            return;
-        }
-
+    public static void handleControlKey(int action) {
         if (action == GLFW.GLFW_PRESS) {
             enabled = !enabled;
             if (!enabled) {
@@ -100,6 +101,7 @@ public final class SpacebarMacro {
 
         if (action == GLFW.GLFW_PRESS) {
             repeatHeld = true;
+            repeatKeyCode = input.key();
             repeatScancode = input.scancode();
 
             ScheduledFuture<?> oldTask = repeatTask;
@@ -148,7 +150,7 @@ public final class SpacebarMacro {
         }
 
         KeyInput input = new KeyInput(
-                REPEAT_TARGET_KEY.getBoundKey().getCode(),
+                repeatKeyCode,
                 repeatScancode,
                 0
         );
