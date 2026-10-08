@@ -19,19 +19,19 @@ public final class MacroConfig {
     public static final int DEFAULT_DELAY_MS = 100;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("tiger_macro.json");
 
     private int delayMs = DEFAULT_DELAY_MS;
     private boolean debug = false;
 
     public static MacroConfig load() {
         MacroConfig config = new MacroConfig();
-        if (!Files.exists(PATH)) {
+        Path path = configPath();
+        if (!Files.exists(path)) {
             config.save();
             return config;
         }
 
-        try (Reader reader = Files.newBufferedReader(PATH)) {
+        try (Reader reader = Files.newBufferedReader(path)) {
             JsonElement parsed = JsonParser.parseReader(reader);
             if (!parsed.isJsonObject()) {
                 throw new IllegalArgumentException("Root JSON value is not an object");
@@ -58,12 +58,13 @@ public final class MacroConfig {
     public void save() {
         clamp();
         try {
-            Files.createDirectories(PATH.getParent());
+            Path path = configPath();
+            Files.createDirectories(path.getParent());
             JsonObject root = new JsonObject();
             root.addProperty("delayMs", delayMs);
             root.addProperty("debug", debug);
 
-            try (Writer writer = Files.newBufferedWriter(PATH)) {
+            try (Writer writer = Files.newBufferedWriter(path)) {
                 GSON.toJson(root, writer);
             }
         } catch (Exception exception) {
@@ -93,6 +94,10 @@ public final class MacroConfig {
 
     public long getDelayNanos() {
         return (long) delayMs * 1_000_000L;
+    }
+
+    private static Path configPath() {
+        return FabricLoader.getInstance().getConfigDir().resolve("tiger_macro.json");
     }
 
     public static int clampDelay(int delayMs) {
