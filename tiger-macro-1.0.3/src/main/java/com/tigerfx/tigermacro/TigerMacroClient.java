@@ -268,7 +268,7 @@ public final class TigerMacroClient implements ClientModInitializer {
         }
     }
 
-    private final class MacroMenuScreen extends Screen {
+    private static final class MacroMenuScreen extends Screen {
         private final MacroController controller;
 
         private MacroMenuScreen(MacroController controller) {
@@ -323,7 +323,7 @@ public final class TigerMacroClient implements ClientModInitializer {
         }
     }
 
-    private final class MacroController {
+    private static final class MacroController {
         private final MinecraftClient client;
         private final ScheduledExecutorService scheduler;
         private final Object lock = new Object();
