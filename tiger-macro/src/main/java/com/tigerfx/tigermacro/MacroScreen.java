@@ -121,6 +121,11 @@ public final class MacroScreen extends Screen {
         }
 
         @Override
+        protected void appendClickableNarrations(net.minecraft.client.gui.screen.narration.NarrationMessageBuilder builder) {
+            appendDefaultNarrations(builder);
+        }
+
+        @Override
         public void onClick(Click click, boolean doubled) {
             dragging = true;
             updateFromMouse(click.x());
