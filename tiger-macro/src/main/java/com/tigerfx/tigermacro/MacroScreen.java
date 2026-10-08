@@ -19,20 +19,18 @@ public final class MacroScreen extends Screen {
     @Override
     protected void init() {
         int centerX = width / 2;
-        int sliderY = height / 2 - 10;
+        int top = height / 2 - 35;
 
         addDrawableChild(new DelaySlider(
                 centerX - 110,
-                sliderY,
+                top,
                 220,
                 20,
-                MacroConfig.MIN_DELAY_MS,
-                MacroConfig.MAX_DELAY_MS,
                 TigerMacroClient.getConfig().getDelayMs()
         ));
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close())
-                .dimensions(centerX - 110, sliderY + 42, 220, 20)
+                .dimensions(centerX - 110, top + 48, 220, 20)
                 .build());
     }
 
@@ -41,19 +39,25 @@ public final class MacroScreen extends Screen {
         renderBackground(context, mouseX, mouseY, delta);
 
         int centerX = width / 2;
-        context.drawCenteredTextWithShadow(textRenderer, title, centerX, height / 2 - 62, 0xFFFFFF);
         context.drawCenteredTextWithShadow(
                 textRenderer,
-                Text.literal("Macro: " + (TigerMacroClient.getConfig().isEnabled() ? "ON" : "OFF")),
+                title,
                 centerX,
-                height / 2 - 40,
+                height / 2 - 87,
                 0xFFFFFF
         );
         context.drawCenteredTextWithShadow(
                 textRenderer,
-                Text.literal("Move the slider to set the repeat interval."),
+                Text.literal("Macro: " + (TigerMacroClient.getConfig().isEnabled() ? "ON" : "OFF")),
                 centerX,
-                height / 2 + 20,
+                height / 2 - 65,
+                0xFFFFFF
+        );
+        context.drawCenteredTextWithShadow(
+                textRenderer,
+                Text.literal("Repeat interval"),
+                centerX,
+                height / 2 - 50,
                 0xA0A0A0
         );
         context.drawCenteredTextWithShadow(
@@ -75,35 +79,48 @@ public final class MacroScreen extends Screen {
     }
 
     private static final class DelaySlider extends SliderWidget {
-        private final int min;
-        private final int max;
         private int currentDelay;
 
-        private DelaySlider(int x, int y, int width, int height, int min, int max, int currentDelay) {
-            super(x, y, width, height, Text.empty(), toValue(currentDelay, min, max));
-            this.min = min;
-            this.max = max;
+        private DelaySlider(int x, int y, int width, int height, int currentDelay) {
+            super(
+                    x,
+                    y,
+                    width,
+                    height,
+                    Text.literal("Delay"),
+                    toProgress(currentDelay)
+            );
             this.currentDelay = MacroConfig.clampDelay(currentDelay);
             updateMessage();
         }
 
-        private static double toValue(int delay, int min, int max) {
-            return (double) (MacroConfig.clampDelay(delay) - min) / (double) (max - min);
+        private static double toProgress(int delayMs) {
+            int clamped = MacroConfig.clampDelay(delayMs);
+            return (clamped - MacroConfig.MIN_DELAY_MS)
+                    / (double) (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS);
         }
 
-        private int fromValue() {
-            return MacroConfig.clampDelay(min + (int) Math.round(value * (max - min)));
+        private int progressToDelay() {
+            double clamped = Math.max(0.0, Math.min(1.0, value));
+            int delay = MacroConfig.MIN_DELAY_MS
+                    + (int) Math.round(clamped
+                    * (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS));
+            return MacroConfig.clampDelay(delay);
         }
 
         @Override
         protected void updateMessage() {
-            setMessage(Text.literal("Delay: " + fromValue() + " ms"));
+            // This method is safe even while the superclass constructor is running:
+            // it only uses the already-initialized protected slider value and constants.
+            int delay = progressToDelay();
+            setMessage(Text.literal("Delay: " + delay + " ms"));
         }
 
         @Override
         protected void applyValue() {
-            int newDelay = fromValue();
+            int newDelay = progressToDelay();
             if (newDelay == currentDelay) return;
+
             currentDelay = newDelay;
             TigerMacroClient.getConfig().setDelayMs(newDelay);
             TigerMacroClient.delayChanged();
