@@ -104,7 +104,12 @@ public final class MacroController {
 
         // This is the normal KeyBinding edge-event used by Minecraft's keyboard
         // input handler. Every KeyBinding bound to the selected key receives it.
-        KeyBinding.onKeyPressed(targetKey);
+        MacroInputGuard.beginSyntheticPress();
+        try {
+            KeyBinding.onKeyPressed(targetKey);
+        } finally {
+            MacroInputGuard.endSyntheticPress();
+        }
         debug("[Macro] Action: " + targetKey.getTranslationKey());
     }
 
@@ -118,6 +123,8 @@ public final class MacroController {
         boolean wasActive = macroEnabled || timing.isArmed();
         macroEnabled = false;
         timing.reset();
+        // Re-read GLFW key state after suppression ends so a real held key is never left stuck.
+        KeyBinding.updatePressedStates();
         if (wasActive) {
             debug("[Macro] Reset");
         }
