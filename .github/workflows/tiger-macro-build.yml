@@ -20,25 +20,30 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Gradle 9.2
+      - name: Gradle 9.2.1
         uses: gradle/actions/setup-gradle@v5
         with:
-          gradle-version: '9.2'
+          gradle-version: '9.2.1'
 
       - name: Build with Loom
         working-directory: tiger-macro-1.0.3
         run: gradle clean build --no-daemon --stacktrace
 
-      - name: Verify no development Minecraft packages were packaged
+      - name: Verify production JAR
         working-directory: tiger-macro-1.0.3
+        shell: bash
         run: |
           set -euxo pipefail
           JAR=build/libs/tiger-macro-1.0.3.jar
           test -f "$JAR"
-          if jar tf "$JAR" | grep -q '^net/minecraft/'; then exit 1; fi
+          if jar tf "$JAR" | grep -q '^net/minecraft/'; then
+            echo "Development Minecraft packages were packaged into the production mod."
+            exit 1
+          fi
 
       - name: Verify FabricLoader interface invocation
         working-directory: tiger-macro-1.0.3
+        shell: bash
         run: |
           set -euxo pipefail
           JAR=build/libs/tiger-macro-1.0.3.jar
