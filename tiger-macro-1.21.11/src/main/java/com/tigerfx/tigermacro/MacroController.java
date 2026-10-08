@@ -74,7 +74,7 @@ public final class MacroController {
         }
 
         // Do not perform gameplay interaction outside an active focused game window.
-        if (!client.isWindowActive() || client.screen != null) {
+        if (!TigerMacroClient.isWindowFocusedForController(client) || client.currentScreen != null) {
             resetMacroState();
             return;
         }
