@@ -30,6 +30,8 @@ class SourceInvariantTest {
         assertTrue(code.contains("timing.scheduleNext(now, config.getDelayNanos())"));
         assertTrue(code.contains("System.nanoTime()"));
         assertTrue(code.contains("KeyBinding.onKeyPressed(targetKey)"));
+        assertTrue(code.contains("MacroInputGuard.beginSyntheticPress()"));
+        assertTrue(code.contains("KeyBinding.updatePressedStates()"));
         assertFalse(code.contains("doItemUse"));
     }
 
