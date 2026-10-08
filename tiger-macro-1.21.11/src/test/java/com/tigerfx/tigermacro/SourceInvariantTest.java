@@ -32,7 +32,32 @@ class SourceInvariantTest {
         assertTrue(code.contains("KeyBinding.onKeyPressed(targetKey)"));
         assertTrue(code.contains("MacroInputGuard.beginSyntheticPress()"));
         assertTrue(code.contains("KeyBinding.updatePressedStates()"));
+        assertTrue(code.contains("setMacroEnabled"));
+        assertTrue(code.contains("TigerMacroClient.ENABLE_DISABLE_KEY"));
+        assertFalse(code.contains("TOGGLE_MACRO_KEY"));
         assertFalse(code.contains("doItemUse"));
+    }
+
+    @Test
+    void inputMixinBlocksPhysicalStateWhileMacroIsActive() throws Exception {
+        String code = Files.readString(Path.of(
+                "src/main/java/com/tigerfx/tigermacro/mixin/KeyBindingInputMixin.java"
+        ));
+        assertTrue(code.contains("method = \"setPressed\""));
+        assertTrue(code.contains("method = \"onKeyPressed\""));
+        assertTrue(code.contains("shouldSuppressPhysicalKey(boundKey)"));
+    }
+
+    @Test
+    void onlyThreeUserControlsRemain() throws Exception {
+        String code = Files.readString(Path.of(
+                "src/main/java/com/tigerfx/tigermacro/MacroKeybinds.java"
+        ));
+        assertTrue(code.contains("ENABLE_DISABLE"));
+        assertTrue(code.contains("MECHANIZED"));
+        assertTrue(code.contains("SETTINGS"));
+        assertFalse(code.contains("PLACEMENT"));
+        assertFalse(code.contains("TOGGLE"));
     }
 
     private static int count(String source, String token) {
