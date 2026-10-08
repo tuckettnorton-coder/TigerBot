@@ -29,6 +29,8 @@ class SourceInvariantTest {
         assertEquals(1, count(code, "if (timing.isDue(now))"));
         assertTrue(code.contains("timing.scheduleNext(now, config.getDelayNanos())"));
         assertTrue(code.contains("System.nanoTime()"));
+        assertTrue(code.contains("KeyBinding.onKeyPressed(targetKey)"));
+        assertFalse(code.contains("doItemUse"));
     }
 
     private static int count(String source, String token) {

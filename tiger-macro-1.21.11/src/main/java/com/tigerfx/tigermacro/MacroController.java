@@ -2,16 +2,12 @@ package com.tigerfx.tigermacro;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.world.ClientWorld;
-import net.minecraft.util.hit.HitResult;
 import org.slf4j.Logger;
 
-/**
- * Sole runtime owner of macro state and timing.
- *
- * Key events only toggle state. The client tick is the only place allowed to
- * execute the repeating action, so the activation event cannot also place a block.
- */
+/** Sole runtime owner of macro state and timing. */
 public final class MacroController {
     private final Logger logger = TigerMacroClient.LOGGER;
     private MacroConfig config;
@@ -37,10 +33,12 @@ public final class MacroController {
         macroEnabled = !macroEnabled;
         if (macroEnabled) {
             long now = System.nanoTime();
+            // Deliberately wait one full configured interval before the first action.
+            // The toggle key never performs the macro action itself.
             timing.arm(now, config.getDelayNanos());
             debug("[Macro] Enabled");
         } else {
-            resetTimingOnly();
+            timing.reset();
             debug("[Macro] Disabled");
         }
     }
@@ -73,7 +71,6 @@ public final class MacroController {
             return;
         }
 
-        // Do not perform gameplay interaction outside an active focused game window.
         if (!TigerMacroClient.isWindowFocusedForController(client) || client.currentScreen != null) {
             resetMacroState();
             return;
@@ -82,37 +79,48 @@ public final class MacroController {
         long now = System.nanoTime();
         if (timing.isDue(now)) {
             performMacroAction(client);
+            // Always schedule from now: one delayed tick creates at most one action,
+            // never a burst of accumulated actions.
             timing.scheduleNext(now, config.getDelayNanos());
         }
     }
 
     /**
-     * The only method in the runtime codebase that performs the macro action.
-     * It uses vanilla's internal right-click pathway through a tiny Mixin invoker,
-     * rather than editing blocks or constructing placement packets.
+     * The only method that performs the repeated input. It feeds the selected
+     * InputUtil.Key into Minecraft's normal KeyBinding press-event pathway.
+     * No world blocks or placement packets are manipulated directly.
      */
     private void performMacroAction(MinecraftClient client) {
-        HitResult hitResult = client.crosshairTarget;
-        if (hitResult == null || hitResult.getType() != HitResult.Type.BLOCK) {
-            debug("[Macro] Action skipped: no block target");
+        InputUtil.Key targetKey = MacroKeybinds.getBoundKey(TigerMacroClient.MECHANIZED_KEY);
+        if (targetKey == null || targetKey.equals(InputUtil.UNKNOWN_KEY)) {
+            debug("[Macro] Action skipped: no mechanized key configured");
             return;
         }
 
-        TigerMacroClient.invokeVanillaItemUse(client);
-        debug("[Macro] Action");
+        if (isControlKey(targetKey)) {
+            debug("[Macro] Action skipped: mechanized key conflicts with a macro control");
+            return;
+        }
+
+        // This is the normal KeyBinding edge-event used by Minecraft's keyboard
+        // input handler. Every KeyBinding bound to the selected key receives it.
+        KeyBinding.onKeyPressed(targetKey);
+        debug("[Macro] Action: " + targetKey.getTranslationKey());
+    }
+
+    private boolean isControlKey(InputUtil.Key key) {
+        return key.equals(MacroKeybinds.getBoundKey(TigerMacroClient.TOGGLE_MACRO_KEY))
+                || key.equals(MacroKeybinds.getBoundKey(TigerMacroClient.TOGGLE_GLOBAL_KEY))
+                || key.equals(MacroKeybinds.getBoundKey(TigerMacroClient.OPEN_CONFIG_KEY));
     }
 
     public void resetMacroState() {
         boolean wasActive = macroEnabled || timing.isArmed();
         macroEnabled = false;
-        resetTimingOnly();
+        timing.reset();
         if (wasActive) {
             debug("[Macro] Reset");
         }
-    }
-
-    private void resetTimingOnly() {
-        timing.reset();
     }
 
     private void debug(String message) {

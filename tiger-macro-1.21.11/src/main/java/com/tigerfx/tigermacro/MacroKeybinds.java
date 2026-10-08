@@ -12,6 +12,7 @@ public final class MacroKeybinds {
     public enum BindingType {
         PLACEMENT,
         GLOBAL,
+        MECHANIZED,
         SETTINGS
     }
 
@@ -19,6 +20,7 @@ public final class MacroKeybinds {
         return switch (type) {
             case PLACEMENT -> TigerMacroClient.TOGGLE_MACRO_KEY;
             case GLOBAL -> TigerMacroClient.TOGGLE_GLOBAL_KEY;
+            case MECHANIZED -> TigerMacroClient.MECHANIZED_KEY;
             case SETTINGS -> TigerMacroClient.OPEN_CONFIG_KEY;
         };
     }
