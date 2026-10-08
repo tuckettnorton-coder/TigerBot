@@ -2,6 +2,8 @@ package com.tigerfx.spacebarmac.mixin;
 
 import com.tigerfx.spacebarmac.SpacebarMacro;
 import net.minecraft.client.Keyboard;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.option.KeybindsScreen;
 import net.minecraft.client.input.KeyInput;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -16,6 +18,11 @@ public abstract class KeyboardMixin {
     @Inject(method = "onKey", at = @At("HEAD"), cancellable = true)
     private void spacebarMacro$trackKey(long window, int action, KeyInput input, CallbackInfo ci) {
         if (SpacebarMacro.isSyntheticRepeat()) {
+            return;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.currentScreen instanceof KeybindsScreen) {
             return;
         }
 
