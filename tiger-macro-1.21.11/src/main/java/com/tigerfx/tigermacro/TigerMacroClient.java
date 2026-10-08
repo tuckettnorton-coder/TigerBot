@@ -3,7 +3,6 @@ package com.tigerfx.tigermacro;
 import com.tigerfx.tigermacro.mixin.MinecraftClientInvokerMixin;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientWorldEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.MinecraftClient;
@@ -17,7 +16,7 @@ import org.slf4j.LoggerFactory;
  * Main client entrypoint. Runtime macro state has exactly one owner:
  * MacroController.
  */
-public final class TigerMacroClient implements ClientModInitializer {
+public final class TigerMacroClient {
     public static final String MOD_ID = "tiger_macro";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     public static final KeyBinding.Category KEY_CATEGORY = KeyBinding.Category.create(
@@ -55,34 +54,40 @@ public final class TigerMacroClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(TigerMacroClient::onClientTick);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> controller.resetMacroState());
-        ClientWorldEvents.UNLOAD.register((client, world) -> controller.resetMacroState());
 
         LOGGER.info("Tiger Macro initialized. Default delay: {}ms", config.getDelayMs());
     }
 
     private static void onClientTick(MinecraftClient client) {
-        if (client.screen != null || !client.isWindowActive()) {
+        if (client.currentScreen != null || !isWindowFocusedForController(client)) {
             drainKeyPresses();
             controller.resetMacroState();
             return;
         }
 
-        processGlobalToggle();
-        processMacroToggle();
+        processGlobalToggle(client);
+        processMacroToggle(client);
         processConfigOpen(client);
         controller.tick(client);
     }
 
-    private static void processGlobalToggle() {
+    static boolean isWindowFocusedForController(MinecraftClient client) {
+        long handle = client.getWindow().getHandle();
+        return handle != 0L
+                && GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_FOCUSED) == GLFW.GLFW_TRUE;
+    }
+
+    private static void processGlobalToggle(MinecraftClient client) {
         while (TOGGLE_GLOBAL_KEY.wasPressed()) {
             controller.toggleGlobal();
         }
     }
 
-    private static void processMacroToggle() {
+    private static void processMacroToggle(MinecraftClient client) {
         // A keybind collision is allowed by Minecraft's normal Controls UI.
         // Do not let one physical key produce two control actions inside this mod.
-        if (TOGGLE_MACRO_KEY.getBoundKey().equals(TOGGLE_GLOBAL_KEY.getBoundKey())) {
+        if (MacroKeybinds.getBoundKey(TOGGLE_MACRO_KEY)
+                .equals(MacroKeybinds.getBoundKey(TOGGLE_GLOBAL_KEY))) {
             while (TOGGLE_MACRO_KEY.wasPressed()) {
                 // Intentionally consume the collision without toggling twice.
             }
@@ -95,8 +100,10 @@ public final class TigerMacroClient implements ClientModInitializer {
     }
 
     private static void processConfigOpen(MinecraftClient client) {
-        if (OPEN_CONFIG_KEY.getBoundKey().equals(TOGGLE_MACRO_KEY.getBoundKey())
-                || OPEN_CONFIG_KEY.getBoundKey().equals(TOGGLE_GLOBAL_KEY.getBoundKey())) {
+        if (MacroKeybinds.getBoundKey(OPEN_CONFIG_KEY)
+                .equals(MacroKeybinds.getBoundKey(TOGGLE_MACRO_KEY))
+                || MacroKeybinds.getBoundKey(OPEN_CONFIG_KEY)
+                .equals(MacroKeybinds.getBoundKey(TOGGLE_GLOBAL_KEY))) {
             while (OPEN_CONFIG_KEY.wasPressed()) {
                 // Collision is intentionally consumed rather than causing a second action path.
             }
@@ -116,7 +123,7 @@ public final class TigerMacroClient implements ClientModInitializer {
             // Discard queued gameplay toggles while a screen is open or focus is lost.
         }
         while (OPEN_CONFIG_KEY.wasPressed()) {
-            // Discard queued settings opens when returning to gameplay.
+            // Discard stale settings opens when returning to gameplay.
         }
     }
 
@@ -128,7 +135,7 @@ public final class TigerMacroClient implements ClientModInitializer {
         return controller;
     }
 
-    /** Reloads settings and resets macro activity so new timing starts cleanly. */
+    /** Reloads JSON settings and resets macro activity so the new timing starts cleanly. */
     public static void reloadConfiguration() {
         if (controller != null) {
             controller.resetMacroState();
@@ -139,7 +146,7 @@ public final class TigerMacroClient implements ClientModInitializer {
         }
     }
 
-    /** Invokes vanilla's normal item-use path through a tiny Mixin invoker. */
+    /** Helper used by the action controller to invoke vanilla's right-click item-use path. */
     public static void invokeVanillaItemUse(MinecraftClient client) {
         ((MinecraftClientInvokerMixin) client).tigerMacro$doItemUse();
     }
