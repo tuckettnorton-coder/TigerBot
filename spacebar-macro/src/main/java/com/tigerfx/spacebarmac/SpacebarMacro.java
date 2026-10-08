@@ -18,7 +18,8 @@ import java.util.concurrent.TimeUnit;
 
 public final class SpacebarMacro {
     private static final long INITIAL_DELAY_NANOS = 0L;
-    private static final long REPEAT_INTERVAL_NANOS = 135_000_000L;
+    private static final int MIN_DELAY_MS = 10;
+    private static final int MAX_DELAY_MS = 500;
 
     public static final KeyBinding.Category CATEGORY =
             KeyBinding.Category.create(Identifier.of("spacebar_macro", "kb_repeat"));
@@ -37,6 +38,13 @@ public final class SpacebarMacro {
             CATEGORY
     );
 
+    public static final KeyBinding OPEN_MENU_KEY = new KeyBinding(
+            "key.spacebar_macro.open_menu",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_F7,
+            CATEGORY
+    );
+
     private static final ScheduledExecutorService SCHEDULER =
             Executors.newSingleThreadScheduledExecutor(runnable -> {
                 Thread thread = new Thread(runnable, "Spacebar-Macro-Timer");
@@ -50,6 +58,7 @@ public final class SpacebarMacro {
     private static volatile int repeatScancode = 57;
     private static volatile MinecraftClient client;
     private static volatile boolean enabled = true;
+    private static volatile int repeatDelayMs = 135;
 
     private static final ThreadLocal<Boolean> SYNTHETIC_REPEAT =
             ThreadLocal.withInitial(() -> false);
@@ -62,10 +71,23 @@ public final class SpacebarMacro {
 
         KeyBindingHelper.registerKeyBinding(TOGGLE_KEY);
         KeyBindingHelper.registerKeyBinding(REPEAT_TARGET_KEY);
+        KeyBindingHelper.registerKeyBinding(OPEN_MENU_KEY);
     }
 
     public static boolean isEnabled() {
         return enabled;
+    }
+
+    public static int getRepeatDelayMs() {
+        return repeatDelayMs;
+    }
+
+    public static void setRepeatDelayMs(int milliseconds) {
+        repeatDelayMs = Math.max(MIN_DELAY_MS, Math.min(MAX_DELAY_MS, milliseconds));
+
+        if (repeatHeld && enabled) {
+            scheduleRepeating();
+        }
     }
 
     public static boolean isToggleKey(KeyInput input) {
@@ -76,12 +98,22 @@ public final class SpacebarMacro {
         return REPEAT_TARGET_KEY.matchesKey(input);
     }
 
+    public static boolean isOpenMenuKey(KeyInput input) {
+        return OPEN_MENU_KEY.matchesKey(input);
+    }
+
     public static void handleControlKey(int action) {
         if (action == GLFW.GLFW_PRESS) {
             enabled = !enabled;
             if (!enabled) {
                 stopRepeating();
             }
+        }
+    }
+
+    public static void openMenu() {
+        if (client != null) {
+            client.setScreen(new SpacebarMacroScreen(client.currentScreen));
         }
     }
 
@@ -94,18 +126,7 @@ public final class SpacebarMacro {
             repeatHeld = true;
             repeatKeyCode = input.key();
             repeatScancode = input.scancode();
-
-            ScheduledFuture<?> oldTask = repeatTask;
-            if (oldTask != null) {
-                oldTask.cancel(false);
-            }
-
-            repeatTask = SCHEDULER.scheduleAtFixedRate(
-                    SpacebarMacro::emitRepeat,
-                    INITIAL_DELAY_NANOS,
-                    REPEAT_INTERVAL_NANOS,
-                    TimeUnit.NANOSECONDS
-            );
+            scheduleRepeating();
         } else if (action == GLFW.GLFW_RELEASE) {
             stopRepeating();
         }
@@ -127,6 +148,20 @@ public final class SpacebarMacro {
         if (task != null) {
             task.cancel(false);
         }
+    }
+
+    private static void scheduleRepeating() {
+        ScheduledFuture<?> oldTask = repeatTask;
+        if (oldTask != null) {
+            oldTask.cancel(false);
+        }
+
+        repeatTask = SCHEDULER.scheduleAtFixedRate(
+                SpacebarMacro::emitRepeat,
+                INITIAL_DELAY_NANOS,
+                TimeUnit.MILLISECONDS.toNanos(repeatDelayMs),
+                TimeUnit.NANOSECONDS
+        );
     }
 
     private static void emitRepeat() {
