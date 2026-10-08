@@ -1,9 +1,8 @@
 import { loadBuildingPrices } from '../commands/Utility/building-update.js';
-import { getLatestUpdateData } from './updateState.js';
 import { parseAmount, formatResult } from './calculator.js';
 function price(value) { const n = parseAmount(String(value).replace(/[$,]/g, '')); if (n === null || n < 0) throw new Error(`Invalid building price: ${value}`); return n; }
-export async function calculateBuildingPrice({ isFarm, ahValue, dailyFarmAmount, client, guildId }) {
-  const data = (client && guildId) ? (await getLatestUpdateData(client, guildId, 'buildingPrices', null) || loadBuildingPrices()) : loadBuildingPrices();
+export function calculateBuildingPrice({ isFarm, ahValue, dailyFarmAmount }) {
+  const data = loadBuildingPrices();
   if (isFarm) {
     const daily = price(dailyFarmAmount); const days = Number(data.farmMultiplierDays) || 3; const total = daily * days;
     return { isFarm: true, dailyFarmAmount: daily, days, total, totalFormatted: formatResult(total) };
