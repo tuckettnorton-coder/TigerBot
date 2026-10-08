@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "tigermacro",
+  "version": "${version}",
+  "name": "Tiger Macro",
+  "description": "Client-side configurable keyboard repeat macro for Minecraft 1.21.11.",
+  "authors": [
+    "TigerFX_"
+  ],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.tigerfx.tigermacro.TigerMacroClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "1.21.11",
+    "fabric-api": ">=0.141.0+1.21.11"
+  }
+}
