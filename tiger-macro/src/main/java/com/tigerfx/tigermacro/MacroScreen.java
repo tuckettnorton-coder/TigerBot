@@ -36,8 +36,6 @@ public final class MacroScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
-
         int centerX = width / 2;
         context.drawCenteredTextWithShadow(
                 textRenderer,
