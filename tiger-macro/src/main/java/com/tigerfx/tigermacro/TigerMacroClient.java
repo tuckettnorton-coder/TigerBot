@@ -215,24 +215,38 @@ public final class TigerMacroClient implements ClientModInitializer {
     }
 
     public static void delayChanged() {
-        MinecraftClient client = MinecraftClient.getInstance();
         if (!initialized) return;
 
-        cancelRepeatAndResync(client);
-        if (config.isEnabled()
-                && client.currentScreen == null
-                && client.player != null
-                && client.isWindowFocused()
-                && physicallyHeld(client, config.getMacroKeyCode())) {
-            macroKeyHeld = true;
-            scheduleNextRepeat(client, config.getDelayMs());
-        }
+        // A delay change invalidates the currently scheduled repeat. When the
+        // configuration screen is closed, resumeRepeatingIfPossible() starts a
+        // fresh timer using the new delay.
+        MinecraftClient client = MinecraftClient.getInstance();
+        repeatGeneration++;
+        stopPendingRepeatOnly();
     }
 
     public static void stopRepeatingAndResyncHeldState() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (!initialized) return;
         cancelRepeatAndResync(client);
+    }
+
+    public static void resumeRepeatingIfPossible() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!initialized || client.currentScreen != null || !config.isEnabled()
+                || client.player == null || !client.isWindowFocused()) {
+            return;
+        }
+
+        int keyCode = config.getMacroKeyCode();
+        if (!physicallyHeld(client, keyCode)) {
+            macroKeyHeld = false;
+            stopPendingRepeatOnly();
+            return;
+        }
+
+        macroKeyHeld = true;
+        scheduleNextRepeat(client, config.getDelayMs());
     }
 
     private static void cancelRepeatAndResync(MinecraftClient client) {
