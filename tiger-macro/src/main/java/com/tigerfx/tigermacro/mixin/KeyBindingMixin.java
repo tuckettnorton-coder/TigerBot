@@ -30,4 +30,14 @@ public abstract class KeyBindingMixin {
             ci.cancel();
         }
     }
+
+    @Inject(method = "setPressed", at = @At("HEAD"), cancellable = true)
+    private void tigermacro$filterBindingState(
+            boolean pressed,
+            CallbackInfo ci
+    ) {
+        if (TigerMacroClient.shouldBlockMacroBinding((KeyBinding) (Object) this)) {
+            ci.cancel();
+        }
+    }
 }
