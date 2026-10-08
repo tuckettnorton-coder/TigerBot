@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "tigermacro",
+  "version": "${version}",
+  "name": "Tiger Macro",
+  "description": "Client-side configurable key-repeat macro with persistent installation-wide settings.",
+  "authors": ["TigerFX"],
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.tigerfx.tigermacro.TigerMacroClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "1.21.11",
+    "fabric-api": ">=0.141.0+1.21.11",
+    "java": ">=21"
+  }
+}
