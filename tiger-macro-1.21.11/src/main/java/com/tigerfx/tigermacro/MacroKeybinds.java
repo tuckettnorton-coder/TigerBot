@@ -1,7 +1,8 @@
 package com.tigerfx.tigermacro;
 
+import com.tigerfx.tigermacro.mixin.KeyBindingAccessorMixin;
 import net.minecraft.client.option.KeyBinding;
-import net.minecraft.util.InputUtil;
+import net.minecraft.client.util.InputUtil;
 
 /** Utility methods for the mod's configurable controls. */
 public final class MacroKeybinds {
@@ -22,6 +23,10 @@ public final class MacroKeybinds {
         };
     }
 
+    public static InputUtil.Key getBoundKey(KeyBinding binding) {
+        return ((KeyBindingAccessorMixin) binding).tigerMacro$getBoundKey();
+    }
+
     public static boolean conflictsWithOtherControls(BindingType target, InputUtil.Key candidate) {
         if (candidate == null || candidate.equals(InputUtil.UNKNOWN_KEY)) {
             return false;
@@ -31,7 +36,7 @@ public final class MacroKeybinds {
             if (type == target) {
                 continue;
             }
-            if (candidate.equals(getBinding(type).getBoundKey())) {
+            if (candidate.equals(getBoundKey(getBinding(type)))) {
                 return true;
             }
         }
