@@ -2,7 +2,6 @@ package com.tigerfx.tigermacro.mixin;
 
 import com.tigerfx.tigermacro.MacroInputGuard;
 import com.tigerfx.tigermacro.MacroKeybinds;
-import com.tigerfx.tigermacro.TigerMacroClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import org.spongepowered.asm.mixin.Mixin;
@@ -38,7 +37,7 @@ public abstract class KeyBindingInputMixin {
     private void tigerMacro$filterPollingState(boolean pressed, CallbackInfo ci) {
         if (!MacroInputGuard.isSyntheticPress()
                 && MacroInputGuard.shouldSuppressPhysicalKey(boundKey)
-                && this != TigerMacroClient.MECHANIZED_KEY) {
+            ) {
             ci.cancel();
         }
     }
