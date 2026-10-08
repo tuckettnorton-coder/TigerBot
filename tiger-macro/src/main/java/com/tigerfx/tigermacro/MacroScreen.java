@@ -22,21 +22,22 @@ public final class MacroScreen extends Screen {
         int top = height / 2 - 35;
 
         addDrawableChild(new DelaySlider(
-                centerX - 110,
+                centerX - 160,
                 top,
-                220,
+                320,
                 20,
                 TigerMacroClient.getConfig().getDelayMs()
         ));
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close())
-                .dimensions(centerX - 110, top + 48, 220, 20)
+                .dimensions(centerX - 160, top + 48, 320, 20)
                 .build());
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         int centerX = width / 2;
+        int currentDelay = TigerMacroClient.getConfig().getDelayMs();
 
         context.drawCenteredTextWithShadow(
                 textRenderer,
@@ -54,7 +55,7 @@ public final class MacroScreen extends Screen {
         );
         context.drawCenteredTextWithShadow(
                 textRenderer,
-                Text.literal("Repeat interval"),
+                Text.literal("Repeat interval: " + currentDelay + " ms"),
                 centerX,
                 height / 2 - 50,
                 0xA0A0A0
@@ -67,9 +68,8 @@ public final class MacroScreen extends Screen {
                 0xA0A0A0
         );
 
-        // Intentionally do not call renderBackground() here.
-        // Minecraft 1.21.11 already applies the screen background/blur before
-        // invoking Screen.render; doing it again causes "Can only blur once per frame".
+        // Do not call renderBackground() here. Minecraft 1.21.11 already handles
+        // the screen background/blur before Screen.render.
         super.render(context, mouseX, mouseY, delta);
     }
 
@@ -106,16 +106,33 @@ public final class MacroScreen extends Screen {
             return MacroConfig.clampDelay(
                     MacroConfig.MIN_DELAY_MS
                             + (int) Math.round(
-                            clamped
-                                    * (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS)
+                            clamped * (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS)
                     )
             );
         }
 
+        private void setFromMouseX(double mouseX) {
+            // Explicitly map the entire widget width to the full 10..500 range.
+            // Vanilla SliderWidget also maps from mouse position, but doing this
+            // here makes the endpoint behavior deterministic for this mod.
+            double progress = (mouseX - getX()) / (double) getWidth();
+            setValue(Math.max(0.0, Math.min(1.0, progress)));
+        }
+
+        @Override
+        public void onClick(Click click, boolean doubled) {
+            super.onClick(click, doubled);
+            setFromMouseX(click.x());
+        }
+
+        @Override
+        protected void onDrag(Click click, double offsetX, double offsetY) {
+            super.onDrag(click, offsetX, offsetY);
+            setFromMouseX(click.x());
+        }
+
         @Override
         protected void updateMessage() {
-            // Uses only the superclass slider value and static constants, so this
-            // is safe if SliderWidget calls updateMessage during construction.
             setMessage(Text.literal("Delay: " + progressToDelay() + " ms"));
         }
 
