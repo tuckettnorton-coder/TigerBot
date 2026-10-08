@@ -1,0 +1,9 @@
+{
+  "key.tigermacro.macro_key": "Macro Key",
+  "key.tigermacro.macro_toggle": "Macro Toggle",
+  "key.tigermacro.open_macro_menu": "Open Macro Menu",
+  "screen.tigermacro.settings": "Macro Settings",
+  "text.tigermacro.delay": "Macro Delay: %s ms",
+  "text.tigermacro.status_on": "Macro: ON",
+  "text.tigermacro.status_off": "Macro: OFF"
+}
