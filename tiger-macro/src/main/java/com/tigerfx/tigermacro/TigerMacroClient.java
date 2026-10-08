@@ -15,11 +15,12 @@ import java.util.concurrent.TimeUnit;
 
 public final class TigerMacroClient implements ClientModInitializer {
     private static final String CATEGORY_ID = "macro";
-    private static final ScheduledExecutorService REPEAT_EXECUTOR = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread thread = new Thread(r, "Tiger Macro Repeater");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private static final ScheduledExecutorService REPEAT_EXECUTOR =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread thread = new Thread(r, "Tiger Macro Repeater");
+                thread.setDaemon(true);
+                return thread;
+            });
 
     private static MacroConfig config;
     private static KeyBinding toggleKey;
@@ -34,6 +35,14 @@ public final class TigerMacroClient implements ClientModInitializer {
     private static Object lastWorld;
     private static Object lastScreen;
     private static boolean initialized;
+
+    // Edge detectors for control keys. This avoids wasPressed() being affected
+    // by duplicate queued events, sticky keys, or another mod consuming the queue.
+    private static boolean lastTogglePhysical;
+    private static boolean lastOpenMenuPhysical;
+
+    // True only while this mod deliberately generates a synthetic press.
+    private static int syntheticPressDepth;
 
     public static MacroConfig getConfig() {
         return config;
@@ -92,30 +101,26 @@ public final class TigerMacroClient implements ClientModInitializer {
             lastScreen = screen;
         }
 
-        // Toggle is intentionally debounced to one state change per tick.
-        // A held key can otherwise produce multiple queued wasPressed() events.
-        if (toggleKey.wasPressed()) {
+        // Toggle: one transition per physical press.
+        boolean togglePhysical = physicallyHeld(client, config.getToggleKeyCode());
+        if (togglePhysical && !lastTogglePhysical) {
             toggleMacro(client);
-            while (toggleKey.wasPressed()) {
-                // Drain duplicate/auto-repeat presses from the same physical hold.
-            }
         }
+        lastTogglePhysical = togglePhysical;
 
+        // Menu: one open action per physical press.
+        boolean openMenuPhysical = physicallyHeld(client, config.getOpenMenuKeyCode());
         if (client.currentScreen == null) {
-            if (openMenuKey.wasPressed()) {
-                while (openMenuKey.wasPressed()) {
-                    // Drain duplicate queued menu presses.
-                }
+            if (openMenuPhysical && !lastOpenMenuPhysical) {
                 cancelRepeatAndResync(client);
                 client.setScreen(new MacroScreen(null));
+                lastOpenMenuPhysical = openMenuPhysical;
                 return;
             }
-        } else {
-            while (openMenuKey.wasPressed()) {
-                // Consume queued menu-open presses while another screen is active.
-            }
+        }
+        lastOpenMenuPhysical = openMenuPhysical;
 
-            // Never preserve a logical macro-held state while the macro is disabled.
+        if (client.currentScreen != null) {
             if (config.isEnabled()) {
                 macroKeyHeld = physicallyHeld(client, config.getMacroKeyCode());
             } else {
@@ -126,8 +131,6 @@ public final class TigerMacroClient implements ClientModInitializer {
 
         if (!focused || client.player == null || !config.isEnabled()) {
             stopPendingRepeatOnly();
-            // Disabled means hard stopped. Do not resync the held marker here,
-            // because that can make an OFF state look logically active.
             macroKeyHeld = false;
             return;
         }
@@ -158,21 +161,43 @@ public final class TigerMacroClient implements ClientModInitializer {
     private static void toggleMacro(MinecraftClient client) {
         boolean newState = !config.isEnabled();
 
-        // Increment generation before changing/creating any repeat state so a task
-        // from the previous state can never become valid again.
+        // Stop all old timers first. A stale timer can never survive the toggle.
         repeatGeneration++;
         stopPendingRepeatOnly();
         macroKeyHeld = false;
 
-        config.setEnabled(newState);
+        int macroCode = config.getMacroKeyCode();
+        InputUtil.Key boundKey = KeyBindingHelper.getBoundKeyOf(macroKey);
 
-        if (newState
-                && client.currentScreen == null
-                && client.player != null
-                && client.isWindowFocused()
-                && physicallyHeld(client, config.getMacroKeyCode())) {
-            macroKeyHeld = true;
-            scheduleNextRepeat(client, config.getDelayMs());
+        if (newState) {
+            // Remove any real physical press/state that existed before enabling.
+            // While enabled, the mixin prevents new physical input from reaching
+            // the KeyBinding state/press queue.
+            beginSyntheticSuppressionForRawState();
+            try {
+                macroKey.unpressAll();
+                KeyBinding.setKeyPressed(boundKey, false);
+            } finally {
+                endSyntheticSuppressionForRawState();
+            }
+
+            config.setEnabled(true);
+
+            if (client.currentScreen == null
+                    && client.player != null
+                    && client.isWindowFocused()
+                    && physicallyHeld(client, macroCode)) {
+                macroKeyHeld = true;
+                scheduleNextRepeat(client, config.getDelayMs());
+            }
+        } else {
+            config.setEnabled(false);
+
+            // Restore normal vanilla behavior immediately when disabled.
+            KeyBinding.setKeyPressed(boundKey, physicallyHeld(client, macroCode));
+            while (macroKey.wasPressed()) {
+                // Discard stale macro-generated press events from the ON state.
+            }
         }
     }
 
@@ -183,6 +208,7 @@ public final class TigerMacroClient implements ClientModInitializer {
 
         if (toggleCode != config.getToggleKeyCode()) {
             config.setToggleKeyCode(toggleCode);
+            lastTogglePhysical = false;
         }
         if (macroCode != config.getMacroKeyCode()) {
             config.setMacroKeyCode(macroCode);
@@ -193,6 +219,7 @@ public final class TigerMacroClient implements ClientModInitializer {
         }
         if (openCode != config.getOpenMenuKeyCode()) {
             config.setOpenMenuKeyCode(openCode);
+            lastOpenMenuPhysical = false;
         }
     }
 
@@ -227,7 +254,13 @@ public final class TigerMacroClient implements ClientModInitializer {
                     InputUtil.Key boundKey = KeyBindingHelper.getBoundKeyOf(macroKey);
                     if (boundKey.getCode() != keyCode) return;
 
-                    KeyBinding.onKeyPressed(boundKey);
+                    // This is the ONLY place the macro generates a key press while ON.
+                    syntheticPressDepth++;
+                    try {
+                        KeyBinding.onKeyPressed(boundKey);
+                    } finally {
+                        syntheticPressDepth--;
+                    }
 
                     if (generation == repeatGeneration
                             && config.isEnabled()
@@ -261,16 +294,12 @@ public final class TigerMacroClient implements ClientModInitializer {
     }
 
     public static void stopRepeatingAndResyncHeldState() {
-        MinecraftClient client = MinecraftClient.getInstance();
         if (!initialized) return;
 
         repeatGeneration++;
         stopPendingRepeatOnly();
         macroKeyHeld = false;
         lastMacroKeyCode = config.getMacroKeyCode();
-
-        // Do not resync the held state here. This is used when opening/closing the
-        // menu, and the close path explicitly resumes if the key is still held.
     }
 
     public static void resumeRepeatingIfPossible() {
@@ -293,17 +322,56 @@ public final class TigerMacroClient implements ClientModInitializer {
         scheduleNextRepeat(client, config.getDelayMs());
     }
 
-    private static void cancelRepeatAndResync(MinecraftClient client) {
-        repeatGeneration++;
-        stopPendingRepeatOnly();
-
-        if (config.isEnabled()) {
-            macroKeyHeld = physicallyHeld(client, config.getMacroKeyCode());
-        } else {
-            macroKeyHeld = false;
+    /**
+     * Called by the KeyBinding mixin. While the macro is enabled in gameplay,
+     * the physical Macro Key must not reach Minecraft's ordinary KeyBinding
+     * state or press queue. Synthetic presses are explicitly exempt.
+     */
+    public static boolean shouldBlockRawMacroInput(InputUtil.Key key) {
+        if (!initialized || config == null || config.isEnabled() == false || syntheticPressDepth > 0) {
+            return false;
         }
 
-        lastMacroKeyCode = config.getMacroKeyCode();
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.currentScreen != null || client.player == null || !client.isWindowFocused()) {
+            return false;
+        }
+
+        int macroCode = config.getMacroKeyCode();
+        int toggleCode = config.getToggleKeyCode();
+
+        // Same-key Macro + Toggle is inherently conflicting; leave that key alone
+        // so the toggle remains usable.
+        return macroCode >= 0
+                && macroCode != toggleCode
+                && key.getCode() == macroCode;
+    }
+
+    public static boolean shouldBlockMacroBinding(KeyBinding binding) {
+        if (!initialized || config == null || !config.isEnabled() || syntheticPressDepth > 0) {
+            return false;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.currentScreen != null || client.player == null || !client.isWindowFocused()) {
+            return false;
+        }
+
+        InputUtil.Key bound = KeyBindingHelper.getBoundKeyOf(binding);
+        int macroCode = config.getMacroKeyCode();
+        int toggleCode = config.getToggleKeyCode();
+
+        return macroCode >= 0
+                && macroCode != toggleCode
+                && bound.getCode() == macroCode;
+    }
+
+    private static void beginSyntheticSuppressionForRawState() {
+        syntheticPressDepth++;
+    }
+
+    private static void endSyntheticSuppressionForRawState() {
+        syntheticPressDepth--;
     }
 
     private static void stopPendingRepeatOnly() {
