@@ -5,7 +5,7 @@ import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.ClickableWidget;
+import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
 
 public final class MacroScreen extends Screen {
@@ -67,6 +67,9 @@ public final class MacroScreen extends Screen {
                 0xA0A0A0
         );
 
+        // Intentionally do not call renderBackground() here.
+        // Minecraft 1.21.11 already applies the screen background/blur before
+        // invoking Screen.render; doing it again causes "Can only blur once per frame".
         super.render(context, mouseX, mouseY, delta);
     }
 
@@ -79,89 +82,59 @@ public final class MacroScreen extends Screen {
         client.execute(TigerMacroClient::resumeRepeatingIfPossible);
     }
 
-    private static final class DelaySlider extends ClickableWidget {
-        private int delayMs;
-        private boolean dragging;
-
+    private static final class DelaySlider extends SliderWidget {
         private DelaySlider(int x, int y, int width, int height, int currentDelay) {
-            super(x, y, width, height, Text.empty());
-            this.delayMs = MacroConfig.clampDelay(currentDelay);
+            super(
+                    x,
+                    y,
+                    width,
+                    height,
+                    Text.empty(),
+                    toProgress(currentDelay)
+            );
             updateMessage();
         }
 
-        private void updateMessage() {
-            setMessage(Text.literal("Delay: " + delayMs + " ms"));
+        private static double toProgress(int delayMs) {
+            int clamped = MacroConfig.clampDelay(delayMs);
+            return (clamped - MacroConfig.MIN_DELAY_MS)
+                    / (double) (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS);
         }
 
-        @Override
-        protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
-            int x = getX();
-            int y = getY();
-            int w = getWidth();
-            int h = getHeight();
-
-            int fillWidth = Math.max(1, (int) Math.round(
-                    (delayMs - MacroConfig.MIN_DELAY_MS)
-                            / (double) (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS)
-                            * w
-            ));
-
-            context.fill(x, y, x + w, y + h, 0xFF555555);
-            context.fill(x, y, x + fillWidth, y + h, 0xFF66AA66);
-
-            int knobX = x + fillWidth - 2;
-            context.fill(knobX, y - 2, knobX + 5, y + h + 2, 0xFFFFFFFF);
-            context.drawCenteredTextWithShadow(
-                    MinecraftClient.getInstance().textRenderer,
-                    getMessage(),
-                    x + w / 2,
-                    y + 6,
-                    0xFFFFFF
+        private int progressToDelay() {
+            double clamped = Math.max(0.0, Math.min(1.0, value));
+            return MacroConfig.clampDelay(
+                    MacroConfig.MIN_DELAY_MS
+                            + (int) Math.round(
+                            clamped
+                                    * (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS)
+                    )
             );
         }
 
         @Override
-        protected void appendClickableNarrations(net.minecraft.client.gui.screen.narration.NarrationMessageBuilder builder) {
-            appendDefaultNarrations(builder);
+        protected void updateMessage() {
+            // Uses only the superclass slider value and static constants, so this
+            // is safe if SliderWidget calls updateMessage during construction.
+            setMessage(Text.literal("Delay: " + progressToDelay() + " ms"));
         }
 
         @Override
-        public void onClick(Click click, boolean doubled) {
-            dragging = true;
-            updateFromMouse(click.x());
-        }
+        protected void applyValue() {
+            int newDelay = progressToDelay();
+            if (newDelay == TigerMacroClient.getConfig().getDelayMs()) {
+                return;
+            }
 
-        @Override
-        protected void onDrag(Click click, double deltaX, double deltaY) {
-            dragging = true;
-            updateFromMouse(click.x());
+            TigerMacroClient.getConfig().setDelayMs(newDelay);
+            TigerMacroClient.delayChanged();
+            updateMessage();
         }
 
         @Override
         public void onRelease(Click click) {
-            dragging = false;
             super.onRelease(click);
             TigerMacroClient.getConfig().saveNowAsync();
-        }
-
-        private void updateFromMouse(double mouseX) {
-            double normalized = (mouseX - getX()) / (double) getWidth();
-            normalized = Math.max(0.0, Math.min(1.0, normalized));
-
-            int newDelay = MacroConfig.clampDelay(
-                    MacroConfig.MIN_DELAY_MS
-                            + (int) Math.round(
-                            normalized
-                                    * (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS)
-                    )
-            );
-
-            if (newDelay == delayMs) return;
-
-            delayMs = newDelay;
-            TigerMacroClient.getConfig().setDelayMs(newDelay);
-            TigerMacroClient.delayChanged();
-            updateMessage();
         }
     }
 }
