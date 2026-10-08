@@ -11,22 +11,21 @@ import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-/** Clean in-game configuration UI for the four macro controls. */
+/** Configuration UI for the macro's three controls and repeat delay. */
 public final class MacroConfigScreen extends Screen {
     private final MinecraftClient client;
     private final Screen parent;
 
-    private final InputUtil.Key originalPlacementKey;
-    private final InputUtil.Key originalGlobalKey;
+    private final InputUtil.Key originalEnableDisableKey;
     private final InputUtil.Key originalMechanizedKey;
     private final InputUtil.Key originalSettingsKey;
     private final int originalDelayMs;
+    private final boolean originalMacroEnabled;
 
     private MacroKeybinds.BindingType capturing;
     private String errorMessage;
     private DelaySlider delaySlider;
-    private ButtonWidget placementButton;
-    private ButtonWidget globalButton;
+    private ButtonWidget enableDisableButton;
     private ButtonWidget mechanizedButton;
     private ButtonWidget settingsButton;
 
@@ -34,49 +33,54 @@ public final class MacroConfigScreen extends Screen {
         super(Text.translatable("screen.tiger_macro.title"));
         this.client = client;
         this.parent = parent;
-        this.originalPlacementKey = MacroKeybinds.getBoundKey(TigerMacroClient.TOGGLE_MACRO_KEY);
-        this.originalGlobalKey = MacroKeybinds.getBoundKey(TigerMacroClient.TOGGLE_GLOBAL_KEY);
-        this.originalMechanizedKey = MacroKeybinds.getBoundKey(TigerMacroClient.MECHANIZED_KEY);
-        this.originalSettingsKey = MacroKeybinds.getBoundKey(TigerMacroClient.OPEN_CONFIG_KEY);
+        this.originalEnableDisableKey =
+                MacroKeybinds.getBoundKey(TigerMacroClient.ENABLE_DISABLE_KEY);
+        this.originalMechanizedKey =
+                MacroKeybinds.getBoundKey(TigerMacroClient.MECHANIZED_KEY);
+        this.originalSettingsKey =
+                MacroKeybinds.getBoundKey(TigerMacroClient.OPEN_CONFIG_KEY);
         this.originalDelayMs = TigerMacroClient.getConfig().getDelayMs();
+        this.originalMacroEnabled = TigerMacroClient.getController().isMacroEnabled();
+
+        // Opening the settings screen temporarily resets runtime macro state.
+        TigerMacroClient.getController().resetMacroState();
     }
 
     @Override
     protected void init() {
         clearChildren();
+
         int center = width / 2;
         int fieldWidth = Math.min(390, width - 30);
-
         int saveY = height - 28;
-        int globalStatusY = saveY - 39;
-        int macroStatusY = globalStatusY - 17;
-        int currentDelayY = macroStatusY - 21;
-        int sliderY = currentDelayY - 27;
+        int sliderY = saveY - 78;
         int settingsY = sliderY - 26;
         int mechanizedY = settingsY - 26;
-        int globalY = mechanizedY - 26;
-        int toggleY = globalY - 26;
+        int enableDisableY = mechanizedY - 26;
 
-        placementButton = addDrawableChild(ButtonWidget.builder(
-                        bindingText("screen.tiger_macro.toggle_key", TigerMacroClient.TOGGLE_MACRO_KEY),
-                        button -> startCapture(MacroKeybinds.BindingType.PLACEMENT))
-                .dimensions(center - fieldWidth / 2, toggleY, fieldWidth, 20)
-                .build());
-
-        globalButton = addDrawableChild(ButtonWidget.builder(
-                        bindingText("screen.tiger_macro.global_key", TigerMacroClient.TOGGLE_GLOBAL_KEY),
-                        button -> startCapture(MacroKeybinds.BindingType.GLOBAL))
-                .dimensions(center - fieldWidth / 2, globalY, fieldWidth, 20)
+        enableDisableButton = addDrawableChild(ButtonWidget.builder(
+                        bindingText(
+                                "screen.tiger_macro.enable_disable_key",
+                                TigerMacroClient.ENABLE_DISABLE_KEY
+                        ),
+                        button -> startCapture(MacroKeybinds.BindingType.ENABLE_DISABLE))
+                .dimensions(center - fieldWidth / 2, enableDisableY, fieldWidth, 20)
                 .build());
 
         mechanizedButton = addDrawableChild(ButtonWidget.builder(
-                        bindingText("screen.tiger_macro.mechanized_key", TigerMacroClient.MECHANIZED_KEY),
+                        bindingText(
+                                "screen.tiger_macro.mechanized_key",
+                                TigerMacroClient.MECHANIZED_KEY
+                        ),
                         button -> startCapture(MacroKeybinds.BindingType.MECHANIZED))
                 .dimensions(center - fieldWidth / 2, mechanizedY, fieldWidth, 20)
                 .build());
 
         settingsButton = addDrawableChild(ButtonWidget.builder(
-                        bindingText("screen.tiger_macro.config_key", TigerMacroClient.OPEN_CONFIG_KEY),
+                        bindingText(
+                                "screen.tiger_macro.config_key",
+                                TigerMacroClient.OPEN_CONFIG_KEY
+                        ),
                         button -> startCapture(MacroKeybinds.BindingType.SETTINGS))
                 .dimensions(center - fieldWidth / 2, settingsY, fieldWidth, 20)
                 .build());
@@ -106,16 +110,14 @@ public final class MacroConfigScreen extends Screen {
 
     private Text bindingText(String translationKey, KeyBinding keyBinding) {
         if (capturing != null && MacroKeybinds.getBinding(capturing) == keyBinding) {
-            return Text.translatable(translationKey, Text.translatable("screen.tiger_macro.set_key"));
+            return Text.translatable(
+                    translationKey,
+                    Text.translatable("screen.tiger_macro.set_key")
+            );
         }
-        return Text.translatable(translationKey, keyBinding.getBoundKeyLocalizedText());
-    }
-
-    private Text globalStatusText() {
         return Text.translatable(
-                TigerMacroClient.getController().isGlobalEnabled()
-                        ? "screen.tiger_macro.enabled"
-                        : "screen.tiger_macro.disabled"
+                translationKey,
+                keyBinding.getBoundKeyLocalizedText()
         );
     }
 
@@ -137,13 +139,14 @@ public final class MacroConfigScreen extends Screen {
 
             InputUtil.Key candidate = InputUtil.fromKeyCode(input);
             if (MacroKeybinds.conflictsWithOtherControls(capturing, candidate)) {
-                errorMessage = Text.translatable("screen.tiger_macro.key_in_use").getString();
+                errorMessage = Text.translatable(
+                        "screen.tiger_macro.key_in_use"
+                ).getString();
                 return true;
             }
 
             MacroKeybinds.getBinding(capturing).setBoundKey(candidate);
             KeyBinding.updateKeysByCode();
-            // Keep edits staged until Save so Escape/Cancel reliably restores the old keys.
             capturing = null;
             errorMessage = null;
             refreshBindingButtons();
@@ -159,43 +162,46 @@ public final class MacroConfigScreen extends Screen {
     }
 
     private void refreshBindingButtons() {
-        if (placementButton != null) {
-            placementButton.setMessage(
-                    bindingText("screen.tiger_macro.toggle_key", TigerMacroClient.TOGGLE_MACRO_KEY));
-        }
-        if (globalButton != null) {
-            globalButton.setMessage(
-                    bindingText("screen.tiger_macro.global_key", TigerMacroClient.TOGGLE_GLOBAL_KEY));
+        if (enableDisableButton != null) {
+            enableDisableButton.setMessage(bindingText(
+                    "screen.tiger_macro.enable_disable_key",
+                    TigerMacroClient.ENABLE_DISABLE_KEY
+            ));
         }
         if (mechanizedButton != null) {
-            mechanizedButton.setMessage(
-                    bindingText("screen.tiger_macro.mechanized_key", TigerMacroClient.MECHANIZED_KEY));
+            mechanizedButton.setMessage(bindingText(
+                    "screen.tiger_macro.mechanized_key",
+                    TigerMacroClient.MECHANIZED_KEY
+            ));
         }
         if (settingsButton != null) {
-            settingsButton.setMessage(
-                    bindingText("screen.tiger_macro.config_key", TigerMacroClient.OPEN_CONFIG_KEY));
+            settingsButton.setMessage(bindingText(
+                    "screen.tiger_macro.config_key",
+                    TigerMacroClient.OPEN_CONFIG_KEY
+            ));
         }
     }
 
     private void saveAndClose() {
         TigerMacroClient.getConfig().setDelayMs(delaySlider.getDelayMs());
         TigerMacroClient.getConfig().save();
+
         KeyBinding.updateKeysByCode();
         client.options.write();
-        TigerMacroClient.getController().resetMacroState();
+
+        TigerMacroClient.getController().applySavedSettings(originalMacroEnabled);
         client.setScreen(parent);
     }
 
     private void cancelAndClose() {
-        TigerMacroClient.TOGGLE_MACRO_KEY.setBoundKey(originalPlacementKey);
-        TigerMacroClient.TOGGLE_GLOBAL_KEY.setBoundKey(originalGlobalKey);
+        TigerMacroClient.ENABLE_DISABLE_KEY.setBoundKey(originalEnableDisableKey);
         TigerMacroClient.MECHANIZED_KEY.setBoundKey(originalMechanizedKey);
         TigerMacroClient.OPEN_CONFIG_KEY.setBoundKey(originalSettingsKey);
         KeyBinding.updateKeysByCode();
         client.options.write();
 
         TigerMacroClient.getConfig().setDelayMs(originalDelayMs);
-        TigerMacroClient.getController().resetMacroState();
+        TigerMacroClient.getController().applySavedSettings(originalMacroEnabled);
         client.setScreen(parent);
     }
 
@@ -207,20 +213,25 @@ public final class MacroConfigScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
         // Screen.render() already handles the background in 1.21.11.
-        // Calling renderBackground() before super.render() caused the exact crash
-        // seen in the report: "Can only blur once per frame".
+        // Calling renderBackground() before super.render() caused the previous
+        // "Can only blur once per frame" crash.
         super.render(context, mouseX, mouseY, deltaTicks);
 
+        int center = width / 2;
         int saveY = height - 28;
-        int globalStatusY = saveY - 39;
-        int macroStatusY = globalStatusY - 17;
-        int currentDelayY = macroStatusY - 21;
+        int sliderY = saveY - 78;
 
-        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 8, 0xFFFFFF);
+        context.drawCenteredTextWithShadow(
+                textRenderer,
+                title,
+                center,
+                8,
+                0xFFFFFF
+        );
         context.drawCenteredTextWithShadow(
                 textRenderer,
                 Text.translatable("screen.tiger_macro.placement_macro"),
-                width / 2,
+                center,
                 25,
                 0xFFFFFF
         );
@@ -232,36 +243,22 @@ public final class MacroConfigScreen extends Screen {
                                 ? TigerMacroClient.getConfig().getDelayMs()
                                 : delaySlider.getDelayMs()
                 ),
-                width / 2,
-                currentDelayY + 15,
+                center,
+                sliderY - 17,
                 0xFFFFFF
         );
-
-        Text macroStatus = Text.translatable(
-                "screen.tiger_macro.macro_status",
+        context.drawCenteredTextWithShadow(
+                textRenderer,
                 Text.translatable(
-                        TigerMacroClient.getController().isMacroEnabled()
-                                ? "screen.tiger_macro.on"
-                                : "screen.tiger_macro.off"
-                )
-        );
-        context.drawCenteredTextWithShadow(
-                textRenderer,
-                macroStatus,
-                width / 2,
-                macroStatusY + 7,
-                0xFFFFFF
-        );
-
-        Text globalStatus = Text.translatable(
-                "screen.tiger_macro.global_status",
-                globalStatusText()
-        );
-        context.drawCenteredTextWithShadow(
-                textRenderer,
-                globalStatus,
-                width / 2,
-                globalStatusY + 7,
+                        "screen.tiger_macro.macro_status",
+                        Text.translatable(
+                                TigerMacroClient.getController().isMacroEnabled()
+                                        ? "screen.tiger_macro.on"
+                                        : "screen.tiger_macro.off"
+                        )
+                ),
+                center,
+                sliderY + 28,
                 0xFFFFFF
         );
 
@@ -269,7 +266,7 @@ public final class MacroConfigScreen extends Screen {
             context.drawCenteredTextWithShadow(
                     textRenderer,
                     Text.literal(errorMessage),
-                    width / 2,
+                    center,
                     saveY - 11,
                     0xFF5555
             );
@@ -301,7 +298,12 @@ public final class MacroConfigScreen extends Screen {
 
         @Override
         protected void updateMessage() {
-            setMessage(Text.translatable("screen.tiger_macro.repeat_delay", delayMs));
+            setMessage(
+                    Text.translatable(
+                            "screen.tiger_macro.repeat_delay",
+                            delayMs
+                    )
+            );
         }
 
         @Override
@@ -316,13 +318,18 @@ public final class MacroConfigScreen extends Screen {
 
         private static double normalizedValue(int delay) {
             return (MacroConfig.clampDelay(delay) - MacroConfig.MIN_DELAY_MS)
-                    / (double) (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS);
+                    / (double) (
+                    MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS
+            );
         }
 
         private int fromNormalized(double value) {
             return MacroConfig.MIN_DELAY_MS
                     + (int) Math.round(
-                    value * (MacroConfig.MAX_DELAY_MS - MacroConfig.MIN_DELAY_MS)
+                    value * (
+                            MacroConfig.MAX_DELAY_MS
+                                    - MacroConfig.MIN_DELAY_MS
+                    )
             );
         }
     }
