@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - build/tiger-macro-1.21.11
   workflow_dispatch:
 
 permissions:
