@@ -28,8 +28,13 @@ public final class TigerMacroClient implements ClientModInitializer {
 
     private static ScheduledFuture<?> pendingRepeat;
     private static long repeatGeneration;
+
     private static boolean macroKeyHeld;
+    private static boolean toggleKeyDown;
+    private static boolean openMenuKeyDown;
+
     private static int lastMacroKeyCode;
+
     private static boolean lastWindowFocused;
     private static Object lastWorld;
     private static Object lastScreen;
@@ -68,9 +73,11 @@ public final class TigerMacroClient implements ClientModInitializer {
 
         lastMacroKeyCode = config.getMacroKeyCode();
         ClientTickEvents.END_CLIENT_TICK.register(TigerMacroClient::clientTick);
+
         Runtime.getRuntime().addShutdownHook(
                 new Thread(TigerMacroClient::shutdownStatic, "Tiger Macro Shutdown")
         );
+
         initialized = true;
     }
 
@@ -88,34 +95,41 @@ public final class TigerMacroClient implements ClientModInitializer {
             lastWindowFocused = focused;
             lastWorld = world;
             lastScreen = screen;
+
+            // Re-arm edge detection so entering/leaving a screen or world can never
+            // create a fake toggle/menu press.
+            toggleKeyDown = physicallyHeld(client, config.getToggleKeyCode());
+            openMenuKeyDown = physicallyHeld(client, config.getOpenMenuKeyCode());
         }
 
-        if (screen != null) {
-            // Consume pending menu/toggle presses while a screen is open so a queued
-            // keyboard event cannot unexpectedly reopen the menu after closing it.
-            while (toggleKey.wasPressed()) {
-                // Intentionally consumed; macro controls are handled only in gameplay.
-            }
-            while (openMenuKey.wasPressed()) {
-                // Intentionally consumed while already in a screen.
-            }
-            macroKeyHeld = physicallyHeld(client, config.getMacroKeyCode());
+        int toggleCode = config.getToggleKeyCode();
+        int openCode = config.getOpenMenuKeyCode();
+
+        boolean toggleDown = focused && physicallyHeld(client, toggleCode);
+        boolean openDown = focused && physicallyHeld(client, openCode);
+
+        boolean togglePressed = toggleDown && !toggleKeyDown;
+        boolean openPressed = openDown && !openMenuKeyDown;
+
+        toggleKeyDown = toggleDown;
+        openMenuKeyDown = openDown;
+
+        // These controls use physical key edges instead of KeyBinding.wasPressed().
+        // This makes them independent of screen event queues and guarantees that a
+        // toggle press cannot be swallowed simply because a GUI is open.
+        if (togglePressed) {
+            config.setEnabled(!config.isEnabled());
+            cancelRepeatAndResync(client);
+        }
+
+        if (openPressed && client.currentScreen == null) {
+            cancelRepeatAndResync(client);
+            client.setScreen(new MacroScreen(null));
             return;
         }
 
-        while (toggleKey.wasPressed()) {
-            toggleMacro(client);
-        }
-
-        while (openMenuKey.wasPressed()) {
-            cancelRepeatAndResync(client);
-            // Queue the screen change onto the client executor. This avoids changing
-            // the active screen in the middle of key-repeat processing.
-            client.execute(() -> {
-                if (client.currentScreen == null) {
-                    client.setScreen(new MacroScreen(null));
-                }
-            });
+        if (client.currentScreen != null) {
+            macroKeyHeld = physicallyHeld(client, config.getMacroKeyCode());
             return;
         }
 
@@ -142,16 +156,10 @@ public final class TigerMacroClient implements ClientModInitializer {
 
         if (!macroKeyHeld) {
             macroKeyHeld = true;
-            // First physical activation remains Minecraft's normal key action.
-            // Only the subsequent repeats are scheduled.
+            // Let the real physical key press perform Minecraft's first action.
+            // The first synthetic repeat happens only after one full delay.
             scheduleNextRepeat(client, config.getDelayMs());
         }
-    }
-
-    private static void toggleMacro(MinecraftClient client) {
-        boolean newState = !config.isEnabled();
-        config.setEnabled(newState);
-        cancelRepeatAndResync(client);
     }
 
     private static void syncBindingsToConfig() {
@@ -161,12 +169,17 @@ public final class TigerMacroClient implements ClientModInitializer {
 
         if (toggleCode != config.getToggleKeyCode()) {
             config.setToggleKeyCode(toggleCode);
+            toggleKeyDown = false;
         }
         if (macroCode != config.getMacroKeyCode()) {
             config.setMacroKeyCode(macroCode);
+            macroKeyHeld = false;
+            lastMacroKeyCode = macroCode;
+            stopPendingRepeatOnly();
         }
         if (openCode != config.getOpenMenuKeyCode()) {
             config.setOpenMenuKeyCode(openCode);
+            openMenuKeyDown = false;
         }
     }
 
@@ -217,10 +230,10 @@ public final class TigerMacroClient implements ClientModInitializer {
     public static void delayChanged() {
         if (!initialized) return;
 
-        // A delay change invalidates the currently scheduled repeat. When the
-        // configuration screen is closed, resumeRepeatingIfPossible() starts a
-        // fresh timer using the new delay.
         MinecraftClient client = MinecraftClient.getInstance();
+
+        // Changing delay always invalidates the previous schedule. A new schedule is
+        // created when the menu is closed or on the next gameplay tick while held.
         repeatGeneration++;
         stopPendingRepeatOnly();
     }
