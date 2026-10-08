@@ -49,13 +49,12 @@ public final class MacroSettingsScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
+        super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(textRenderer, title, this.width / 2, this.height / 2 - 70, 0xFFFFFF);
         Text status = macroManager.isEnabled()
                 ? Text.translatable("text.tigermacro.status_on")
                 : Text.translatable("text.tigermacro.status_off");
         context.drawCenteredTextWithShadow(textRenderer, status, this.width / 2, this.height / 2 - 42, 0xFFFFFF);
-        super.render(context, mouseX, mouseY, delta);
     }
 
     @Override
