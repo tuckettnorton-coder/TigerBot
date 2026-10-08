@@ -15,9 +15,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class SpacebarMacro {
-    private static final long INITIAL_DELAY_NANOS = 0L;
     private static final int MIN_DELAY_MS = 10;
     private static final int MAX_DELAY_MS = 500;
 
@@ -51,6 +51,8 @@ public final class SpacebarMacro {
                 thread.setDaemon(true);
                 return thread;
             });
+
+    private static final AtomicLong REPEAT_GENERATION = new AtomicLong();
 
     private static volatile ScheduledFuture<?> repeatTask;
     private static volatile boolean repeatHeld;
@@ -142,6 +144,7 @@ public final class SpacebarMacro {
 
     public static void stopRepeating() {
         repeatHeld = false;
+        REPEAT_GENERATION.incrementAndGet();
 
         ScheduledFuture<?> task = repeatTask;
         repeatTask = null;
@@ -156,17 +159,24 @@ public final class SpacebarMacro {
             oldTask.cancel(false);
         }
 
+        long generation = REPEAT_GENERATION.incrementAndGet();
+        long intervalNanos = TimeUnit.MILLISECONDS.toNanos(repeatDelayMs);
+
+        // Wait one full selected interval before the first repeat. The physical
+        // press already triggers the first action; repeating immediately caused
+        // a duplicate action at the moment the key was pressed.
         repeatTask = SCHEDULER.scheduleAtFixedRate(
-                SpacebarMacro::emitRepeat,
-                INITIAL_DELAY_NANOS,
-                TimeUnit.MILLISECONDS.toNanos(repeatDelayMs),
+                () -> emitRepeat(generation),
+                intervalNanos,
+                intervalNanos,
                 TimeUnit.NANOSECONDS
         );
     }
 
-    private static void emitRepeat() {
+    private static void emitRepeat(long generation) {
         MinecraftClient minecraft = client;
-        if (minecraft == null || !enabled || !repeatHeld) {
+        if (minecraft == null || !enabled || !repeatHeld
+                || REPEAT_GENERATION.get() != generation) {
             return;
         }
 
@@ -175,14 +185,17 @@ public final class SpacebarMacro {
             return;
         }
 
-        KeyInput input = new KeyInput(
-                repeatKeyCode,
-                repeatScancode,
-                0
-        );
+        int keyCode = repeatKeyCode;
+        int scancode = repeatScancode;
+        KeyInput input = new KeyInput(keyCode, scancode, 0);
 
         minecraft.execute(() -> {
-            if (!enabled || !repeatHeld || !minecraft.isWindowFocused()) {
+            // A scheduled callback may already be queued when the key is released
+            // or pressed again. Reject stale callbacks to prevent burst/double actions.
+            if (!enabled || !repeatHeld || !minecraft.isWindowFocused()
+                    || REPEAT_GENERATION.get() != generation
+                    || repeatKeyCode != keyCode
+                    || repeatScancode != scancode) {
                 return;
             }
 
