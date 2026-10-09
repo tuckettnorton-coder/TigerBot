@@ -39,6 +39,8 @@ public final class MacroController {
     private static volatile long heldWindow;
     private static volatile int heldStartPlayerTick;
     private static volatile int lastPulsePlayerTick = Integer.MIN_VALUE;
+    private static volatile long lastPulseNanos;
+    private static volatile boolean hasSentSyntheticPulse;
     private static volatile long activeGeneration = -1L;
     private static ScheduledFuture<?> repeatingTask;
 
@@ -122,6 +124,8 @@ public final class MacroController {
         Minecraft client = Minecraft.getInstance();
         heldStartPlayerTick = client.player != null ? client.player.tickCount : Integer.MIN_VALUE;
         lastPulsePlayerTick = heldStartPlayerTick;
+        lastPulseNanos = System.nanoTime();
+        hasSentSyntheticPulse = false;
         activeGeneration = GENERATIONS.incrementAndGet();
         scheduleRepeats();
     }
@@ -137,17 +141,14 @@ public final class MacroController {
 
         MacroConfig config = MacroConfig.get();
         long generation = activeGeneration;
-        int configuredInterval = MacroConfig.clamp(config.intervalMs, 1, 500);
-        // Sub-tick intervals can queue multiple use actions together and double-place blocks.
-        // Recheck at most every 25 ms; the player-tick guard below allows only one actual pulse per tick.
-        int interval = Math.max(configuredInterval, MIN_SCHEDULER_INTERVAL_MS);
         int delay = MacroConfig.clamp(config.repeatDelayMs, 0, 1000);
 
-        // A zero delay still waits one millisecond so the physical key-down is processed first.
+        // Check twice per normal client tick. The player-tick guard limits actual pulses to one per tick,
+        // while the pulse-time check below preserves the configured repeat interval without tick-boundary drift.
         repeatingTask = TIMER.scheduleAtFixedRate(
                 () -> queuePulse(generation),
                 Math.max(1, delay),
-                interval,
+                MIN_SCHEDULER_INTERVAL_MS,
                 TimeUnit.MILLISECONDS
         );
     }
@@ -177,6 +178,12 @@ public final class MacroController {
                     if (playerTick <= heldStartPlayerTick || playerTick == lastPulsePlayerTick) {
                         return;
                     }
+                    int configuredInterval = MacroConfig.clamp(MacroConfig.get().intervalMs, 1, 500);
+                    long now = System.nanoTime();
+                    if (hasSentSyntheticPulse
+                            && now - lastPulseNanos < TimeUnit.MILLISECONDS.toNanos(configuredInterval)) {
+                        return;
+                    }
 
                     KeyboardHandler keyboard = client.keyboardHandler;
                     KeyboardHandlerInvoker invoker = (KeyboardHandlerInvoker) keyboard;
@@ -188,6 +195,8 @@ public final class MacroController {
                         // Releasing here caused use-item actions to flicker off between pulses.
                         invoker.tigerMacro$invokeKeyPress(heldWindow, GLFW.GLFW_PRESS, event);
                         lastPulsePlayerTick = playerTick;
+                        lastPulseNanos = System.nanoTime();
+                        hasSentSyntheticPulse = true;
                     } finally {
                         SYNTHETIC_EVENT.remove();
                     }
