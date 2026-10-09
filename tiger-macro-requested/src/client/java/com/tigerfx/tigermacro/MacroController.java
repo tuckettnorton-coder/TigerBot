@@ -180,7 +180,7 @@ public final class MacroController {
         if (!config.enabled || heldKey != config.targetKey || client.player == null || client.screen != null) {
             return false;
         }
-        if (client.getWindow().getHandle() != heldWindow) {
+        if (GLFW.glfwGetCurrentContext() != heldWindow) {
             return false;
         }
         return GLFW.glfwGetKey(heldWindow, heldKey) == GLFW.GLFW_PRESS;
