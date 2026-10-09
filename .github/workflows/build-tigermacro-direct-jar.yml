@@ -1,0 +1,35 @@
+name: Build Tiger Macro direct JAR
+
+on:
+  push:
+    branches:
+      - "build/tigermacro-direct-jar-20261009"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Build and test mod
+        run: gradle --no-daemon clean build
+        working-directory: tiger-macro-requested
+      - name: Upload installable Fabric JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiger-macro-1.21.11-jar
+          path: tiger-macro-requested/build/libs/tiger-macro-1.0.0.jar
+          if-no-files-found: error
+          retention-days: 7
