@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class MacroController {
     private static final Logger LOGGER = LoggerFactory.getLogger("Tiger Macro");
     // Minecraft processes gameplay input on client ticks; never emit multiple macro pulses in one tick.
-    private static final int MIN_PULSE_INTERVAL_MS = 50;
+    private static final int MIN_SCHEDULER_INTERVAL_MS = 25;
     private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(task -> {
         Thread thread = new Thread(task, "TigerMacro-Timer");
         thread.setDaemon(true);
@@ -139,8 +139,8 @@ public final class MacroController {
         long generation = activeGeneration;
         int configuredInterval = MacroConfig.clamp(config.intervalMs, 1, 500);
         // Sub-tick intervals can queue multiple use actions together and double-place blocks.
-        // Keep the setting, but cap actual synthetic pulses to at most one per 50 ms / client tick.
-        int interval = Math.max(configuredInterval, MIN_PULSE_INTERVAL_MS);
+        // Recheck at most every 25 ms; the player-tick guard below allows only one actual pulse per tick.
+        int interval = Math.max(configuredInterval, MIN_SCHEDULER_INTERVAL_MS);
         int delay = MacroConfig.clamp(config.repeatDelayMs, 0, 1000);
 
         // A zero delay still waits one millisecond so the physical key-down is processed first.
