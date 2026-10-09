@@ -21,6 +21,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class MacroController {
     private static final Logger LOGGER = LoggerFactory.getLogger("Tiger Macro");
+    // Minecraft processes gameplay input on client ticks; never emit multiple macro pulses in one tick.
+    private static final int MIN_PULSE_INTERVAL_MS = 50;
     private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(task -> {
         Thread thread = new Thread(task, "TigerMacro-Timer");
         thread.setDaemon(true);
@@ -35,6 +37,8 @@ public final class MacroController {
     private static volatile int heldScanCode;
     private static volatile int heldModifiers;
     private static volatile long heldWindow;
+    private static volatile int heldStartPlayerTick;
+    private static volatile int lastPulsePlayerTick = Integer.MIN_VALUE;
     private static volatile long activeGeneration = -1L;
     private static ScheduledFuture<?> repeatingTask;
 
@@ -115,6 +119,9 @@ public final class MacroController {
         heldScanCode = scanCode;
         heldModifiers = modifiers;
         heldWindow = window;
+        Minecraft client = Minecraft.getInstance();
+        heldStartPlayerTick = client.player != null ? client.player.tickCount : Integer.MIN_VALUE;
+        lastPulsePlayerTick = heldStartPlayerTick;
         activeGeneration = GENERATIONS.incrementAndGet();
         scheduleRepeats();
     }
@@ -130,7 +137,10 @@ public final class MacroController {
 
         MacroConfig config = MacroConfig.get();
         long generation = activeGeneration;
-        int interval = MacroConfig.clamp(config.intervalMs, 1, 500);
+        int configuredInterval = MacroConfig.clamp(config.intervalMs, 1, 500);
+        // Sub-tick intervals can queue multiple use actions together and double-place blocks.
+        // Keep the setting, but cap actual synthetic pulses to at most one per 50 ms / client tick.
+        int interval = Math.max(configuredInterval, MIN_PULSE_INTERVAL_MS);
         int delay = MacroConfig.clamp(config.repeatDelayMs, 0, 1000);
 
         // A zero delay still waits one millisecond so the physical key-down is processed first.
@@ -161,6 +171,13 @@ public final class MacroController {
                     }
 
                     Minecraft client = Minecraft.getInstance();
+                    int playerTick = client.player.tickCount;
+                    // Let Minecraft consume the original physical press first, then allow at most
+                    // one synthetic press during each subsequent player tick.
+                    if (playerTick <= heldStartPlayerTick || playerTick == lastPulsePlayerTick) {
+                        return;
+                    }
+
                     KeyboardHandler keyboard = client.keyboardHandler;
                     KeyboardHandlerInvoker invoker = (KeyboardHandlerInvoker) keyboard;
                     SYNTHETIC_EVENT.set(true);
@@ -170,6 +187,7 @@ public final class MacroController {
                         // Windows-style autorepeat sends repeated key-downs, not down/up pairs.
                         // Releasing here caused use-item actions to flicker off between pulses.
                         invoker.tigerMacro$invokeKeyPress(heldWindow, GLFW.GLFW_PRESS, event);
+                        lastPulsePlayerTick = playerTick;
                     } finally {
                         SYNTHETIC_EVENT.remove();
                     }
