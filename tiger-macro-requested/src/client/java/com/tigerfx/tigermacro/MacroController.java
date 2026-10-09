@@ -23,6 +23,8 @@ public final class MacroController {
     private static final Logger LOGGER = LoggerFactory.getLogger("Tiger Macro");
     // Minecraft processes gameplay input on client ticks; never emit multiple macro pulses in one tick.
     private static final int MIN_SCHEDULER_INTERVAL_MS = 25;
+    // A short tap must remain a single placement; repeats only begin after a deliberate hold.
+    private static final int MIN_INITIAL_REPEAT_DELAY_MS = 250;
     private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(task -> {
         Thread thread = new Thread(task, "TigerMacro-Timer");
         thread.setDaemon(true);
@@ -142,12 +144,16 @@ public final class MacroController {
         MacroConfig config = MacroConfig.get();
         long generation = activeGeneration;
         int delay = MacroConfig.clamp(config.repeatDelayMs, 0, 1000);
+        // Even with a configured zero delay, don't create a second placement for a short physical tap.
+        // The key must remain held for at least 250 ms before the first synthetic repeat; later repeats
+        // still use the configured interval, limited by Minecraft's tick rate.
+        int firstRepeatDelay = Math.max(delay, MIN_INITIAL_REPEAT_DELAY_MS);
 
         // Check twice per normal client tick. The player-tick guard limits actual pulses to one per tick,
         // while the pulse-time check below preserves the configured repeat interval without tick-boundary drift.
         repeatingTask = TIMER.scheduleAtFixedRate(
                 () -> queuePulse(generation),
-                Math.max(1, delay),
+                firstRepeatDelay,
                 MIN_SCHEDULER_INTERVAL_MS,
                 TimeUnit.MILLISECONDS
         );
