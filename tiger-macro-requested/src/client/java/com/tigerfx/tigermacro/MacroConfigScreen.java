@@ -30,19 +30,23 @@ public final class MacroConfigScreen extends Screen {
         toggleButton = this.addRenderableWidget(Button.builder(toggleText(), button -> {
             MacroController.setEnabled(!MacroConfig.get().enabled);
             button.setMessage(toggleText());
-        }).bounds(centerX - 100, centerY - 40, 200, 20).build());
+        }).bounds(centerX - 100, centerY - 52, 200, 20).build());
+
+        this.addRenderableWidget(new DelaySlider(
+                centerX - 125, centerY - 20, 250, 20, MacroConfig.get().repeatDelayMs
+        ));
 
         this.addRenderableWidget(new IntervalSlider(
-                centerX - 125, centerY - 8, 250, 20, MacroConfig.get().intervalMs
+                centerX - 125, centerY + 12, 250, 20, MacroConfig.get().intervalMs
         ));
 
         targetKeyButton = this.addRenderableWidget(Button.builder(targetKeyText(), button -> {
             capturingTargetKey = true;
             button.setMessage(Component.literal("Press a key (Esc cancels)..."));
-        }).bounds(centerX - 100, centerY + 24, 200, 20).build());
+        }).bounds(centerX - 100, centerY + 44, 200, 20).build());
 
         this.addRenderableWidget(Button.builder(Component.literal("Close"), button -> onClose())
-                .bounds(centerX - 100, centerY + 62, 200, 20).build());
+                .bounds(centerX - 100, centerY + 76, 200, 20).build());
     }
 
     @Override
@@ -56,10 +60,10 @@ public final class MacroConfigScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
         super.render(graphics, mouseX, mouseY, delta);
-        graphics.drawCenteredString(this.font, Component.literal("Tiger Macro Settings"), this.width / 2, this.height / 2 - 92, 0xFFFFFF);
-        graphics.drawCenteredString(this.font, Component.literal("Repeats only while the chosen key is held in-game."), this.width / 2, this.height / 2 - 68, 0xC8C8C8);
+        graphics.drawCenteredString(this.font, Component.literal("Tiger Macro Settings"), this.width / 2, this.height / 2 - 116, 0xFFFFFF);
+        graphics.drawCenteredString(this.font, Component.literal("Repeats while held. Lower interval = faster repeat."), this.width / 2, this.height / 2 - 94, 0xC8C8C8);
         if (capturingTargetKey) {
-            graphics.drawCenteredString(this.font, Component.literal("Press your target key. Escape cancels."), this.width / 2, this.height / 2 + 94, 0xFFFF55);
+            graphics.drawCenteredString(this.font, Component.literal("Press your target key. Escape cancels."), this.width / 2, this.height / 2 + 104, 0xFFFF55);
         }
     }
 
@@ -127,6 +131,29 @@ public final class MacroConfigScreen extends Screen {
         String name = GLFW.glfwGetKeyName(key, 0);
         if (name != null && !name.isBlank()) return name.toUpperCase(Locale.ROOT);
         return "KEY " + key;
+    }
+
+    private static final class DelaySlider extends AbstractSliderButton {
+        private DelaySlider(int x, int y, int width, int height, int repeatDelayMs) {
+            super(x, y, width, height, Component.empty(), MacroConfig.clamp(repeatDelayMs, 0, 1000) / 1000.0);
+            updateMessage();
+        }
+
+        private int delay() {
+            return MacroConfig.clamp((int) Math.round(this.value * 1000.0), 0, 1000);
+        }
+
+        @Override
+        protected void updateMessage() {
+            setMessage(Component.literal("Repeat delay: " + delay() + " ms"));
+        }
+
+        @Override
+        protected void applyValue() {
+            MacroConfig.get().repeatDelayMs = delay();
+            MacroConfig.save();
+            MacroController.configChanged();
+        }
     }
 
     private static final class IntervalSlider extends AbstractSliderButton {

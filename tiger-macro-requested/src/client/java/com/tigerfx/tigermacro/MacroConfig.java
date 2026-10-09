@@ -19,6 +19,7 @@ public final class MacroConfig {
     private static MacroConfig current = new MacroConfig();
 
     public int intervalMs = 1;
+    public int repeatDelayMs = 0;
     public boolean enabled = false;
     public int targetKey = GLFW.GLFW_KEY_SPACE;
 
@@ -42,6 +43,7 @@ public final class MacroConfig {
             current = new MacroConfig();
         }
         current.intervalMs = clamp(current.intervalMs, 1, 500);
+        current.repeatDelayMs = clamp(current.repeatDelayMs, 0, 1000);
         if (current.targetKey <= 0) {
             current.targetKey = GLFW.GLFW_KEY_SPACE;
         }

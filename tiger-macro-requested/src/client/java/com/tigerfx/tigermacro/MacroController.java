@@ -14,7 +14,11 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Handles the physical hold state and emits synthetic press/release pairs on the client thread. */
+/**
+ * Tracks the physical hold and emits repeated key-down events on the client thread.
+ * It deliberately does not synthesize key-up events for repeat pulses: only the real
+ * physical release should end a held action such as eating or blocking with a shield.
+ */
 public final class MacroController {
     private static final Logger LOGGER = LoggerFactory.getLogger("Tiger Macro");
     private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(task -> {
@@ -94,7 +98,7 @@ public final class MacroController {
         }
     }
 
-    /** Called when interval or target-key settings change. */
+    /** Called when the delay, interval, or target-key settings change. */
     public static synchronized void configChanged() {
         MacroConfig config = MacroConfig.get();
         if (!config.enabled || !physicallyHeld || heldKey != config.targetKey) {
@@ -123,9 +127,19 @@ public final class MacroController {
         if (!physicallyHeld || !MacroConfig.get().enabled || heldKey < 0) {
             return;
         }
+
+        MacroConfig config = MacroConfig.get();
         long generation = activeGeneration;
-        int interval = MacroConfig.clamp(MacroConfig.get().intervalMs, 1, 500);
-        repeatingTask = TIMER.scheduleAtFixedRate(() -> queuePulse(generation), interval, interval, TimeUnit.MILLISECONDS);
+        int interval = MacroConfig.clamp(config.intervalMs, 1, 500);
+        int delay = MacroConfig.clamp(config.repeatDelayMs, 0, 1000);
+
+        // A zero delay still waits one millisecond so the physical key-down is processed first.
+        repeatingTask = TIMER.scheduleAtFixedRate(
+                () -> queuePulse(generation),
+                Math.max(1, delay),
+                interval,
+                TimeUnit.MILLISECONDS
+        );
     }
 
     private static void queuePulse(long generation) {
@@ -152,8 +166,10 @@ public final class MacroController {
                     SYNTHETIC_EVENT.set(true);
                     try {
                         KeyEvent event = new KeyEvent(heldKey, heldScanCode, heldModifiers);
+
+                        // Windows-style autorepeat sends repeated key-downs, not down/up pairs.
+                        // Releasing here caused use-item actions to flicker off between pulses.
                         invoker.tigerMacro$invokeKeyPress(heldWindow, GLFW.GLFW_PRESS, event);
-                        invoker.tigerMacro$invokeKeyPress(heldWindow, GLFW.GLFW_RELEASE, event);
                     } finally {
                         SYNTHETIC_EVENT.remove();
                     }
