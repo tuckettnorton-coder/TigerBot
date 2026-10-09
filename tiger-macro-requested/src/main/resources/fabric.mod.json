@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "tigermacro",
+  "version": "${version}",
+  "name": "Tiger Macro",
+  "description": "Client-side held-key repeat control with a 1–500 ms interval.",
+  "contributors": ["TigerFX"],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.tigerfx.tigermacro.TigerMacroClient"
+    ]
+  },
+  "mixins": [
+    "tigermacro.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
