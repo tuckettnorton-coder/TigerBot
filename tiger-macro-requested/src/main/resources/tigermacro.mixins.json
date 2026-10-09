@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.tigerfx.tigermacro.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "KeyboardHandlerMixin",
+    "KeyboardHandlerInvoker"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
