@@ -18,16 +18,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Java 21
+      - name: Set up Java 25 for the Gradle/Fabric build tools
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25'
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.7.1'
-      - name: Build mod
+      - name: Build mod (bytecode target Java 21)
         run: gradle --no-daemon clean build -p TigerAuction-1.21.11
       - name: Upload JAR
         uses: actions/upload-artifact@v4
