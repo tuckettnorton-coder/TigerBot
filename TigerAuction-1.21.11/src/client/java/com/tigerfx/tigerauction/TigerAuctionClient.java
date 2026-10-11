@@ -18,7 +18,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -236,7 +236,7 @@ public final class TigerAuctionClient implements ClientModInitializer {
         auctionItem = item;
         auctionQuantity = quantity;
         auctionMinimumBid = minimumBid;
-        auctionHostName = minecraft.player.getGameProfile().getName();
+        auctionHostName = minecraft.player.getGameProfile().name();
         auctionEndTimeMs = System.currentTimeMillis() + durationSeconds * 1000L;
         highestBidByPlayer.clear();
         auctionActive = true;
@@ -284,7 +284,7 @@ public final class TigerAuctionClient implements ClientModInitializer {
         }
         auctionActive = false;
         String host = minecraft != null && minecraft.player != null
-                ? minecraft.player.getGameProfile().getName() : auctionHostName;
+                ? minecraft.player.getGameProfile().name() : auctionHostName;
         sendChat("[Tiger Auction] CANCELLED by " + host + ". No winner was selected.");
         localMessage("Auction cancelled.");
     }
@@ -319,7 +319,7 @@ public final class TigerAuctionClient implements ClientModInitializer {
 
     private static Item itemFromId(String id) {
         try {
-            ResourceLocation key = ResourceLocation.parse(id);
+            Identifier key = Identifier.parse(id);
             Item item = BuiltInRegistries.ITEM.get(key);
             return item == null || item == Items.AIR ? Items.DIAMOND : item;
         } catch (RuntimeException ignored) {
