@@ -320,8 +320,10 @@ public final class TigerAuctionClient implements ClientModInitializer {
     private static Item itemFromId(String id) {
         try {
             Identifier key = Identifier.parse(id);
-            Item item = BuiltInRegistries.ITEM.get(key);
-            return item == null || item == Items.AIR ? Items.DIAMOND : item;
+            return BuiltInRegistries.ITEM.get(key)
+                    .map(reference -> reference.value())
+                    .filter(item -> item != Items.AIR)
+                    .orElse(Items.DIAMOND);
         } catch (RuntimeException ignored) {
             return Items.DIAMOND;
         }
