@@ -48,6 +48,10 @@ export default {
     // Acknowledge immediately, before any texture or image work.
     await interaction.deferUpdate();
 
+    // Do not start rendering if this click was superseded while Discord was
+    // acknowledging it.
+    if (data.renderRequestSequence !== requestSequence) return;
+
     try {
       const textureMap = data.renderTextures || await loadVanillaTextureMap(data);
       data.renderTextures = textureMap;
@@ -59,8 +63,9 @@ export default {
           data: { size: data.size, blocks: data.blocks },
           pov,
           textureMap
-        }),
-        { shouldCancel: () => data.renderRequestedPov !== pov }
+        }, {
+          shouldCancel: () => data.renderRequestedPov !== pov
+        })
       );
 
       // A queued render can be skipped if the user has already chosen another
