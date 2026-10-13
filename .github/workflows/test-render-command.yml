@@ -6,11 +6,19 @@ on:
       - main
       - feature/schematic-render-command
       - feat/render-material-dropdown-textures-20261013
+      - feat/render-five-pov-material-dropdown-20261013
     paths:
       - 'src/commands/Tools/render.js'
+      - 'src/services/renderViewUi.js'
+      - 'src/interactions/buttons/renderPov.js'
+      - 'src/services/renderMaterialUi.js'
+      - 'src/interactions/buttons/renderMaterials.js'
+      - 'src/interactions/buttons/renderMaterialPage.js'
+      - 'src/interactions/selectMenus/renderMaterialPicker.js'
       - 'src/handlers/loaders/commandLoader.js'
       - 'src/app.js'
       - 'tests/render.test.js'
+      - 'tests/render-ui.test.js'
       - 'tests/render-ui.test.js'
       - 'src/services/renderMaterialUi.js'
       - 'src/interactions/buttons/renderMaterials.js'
@@ -44,6 +52,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Check command registration syntax
-        run: node --check src/app.js && node --check src/handlers/loaders/commandLoader.js && node --check src/commands/Tools/render.js && node --check src/services/renderMaterialUi.js && node --check src/interactions/buttons/renderMaterials.js && node --check src/interactions/buttons/renderMaterialPage.js && node --check src/interactions/selectMenus/renderMaterialPicker.js
+        run: node --check src/app.js && node --check src/handlers/loaders/commandLoader.js && node --check src/commands/Tools/render.js && node --check src/services/renderMaterialUi.js && node --check src/services/renderViewUi.js && node --check src/interactions/buttons/renderMaterials.js && node --check src/interactions/buttons/renderMaterialPage.js && node --check src/interactions/buttons/renderPov.js && node --check src/interactions/selectMenus/renderMaterialPicker.js
       - name: Run render tests
         run: node --test tests/render.test.js tests/render-ui.test.js
