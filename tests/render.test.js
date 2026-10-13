@@ -264,6 +264,24 @@ test('creates a valid-sized PNG preview containing rendered pixels', () => {
   assert.equal(hasNonBackgroundPixel, true);
 });
 
+test('renders five distinct camera POVs from the same schematic', () => {
+  const result = analyze(multiRegionFixture());
+  const signatures = [1, 2, 3, 4, 5].map(pov => {
+    const png = makePng(result, pov);
+    assert.deepEqual(
+      [...png.subarray(0, 8)],
+      [137, 80, 78, 71, 13, 10, 26, 10]
+    );
+    assert.equal(png.readUInt32BE(16), 1600);
+    assert.equal(png.readUInt32BE(20), 1200);
+    let hash = 2166136261;
+    for (const byte of png) hash = Math.imul(hash ^ byte, 16777619);
+    return hash >>> 0;
+  });
+
+  assert.equal(new Set(signatures).size, 5, 'each POV should render a different camera angle');
+});
+
 test('returns a clear error for invalid compressed input', () => {
   assert.throws(() => analyze(Buffer.from('not a schematic')), /valid gzip-compressed/i);
 });
