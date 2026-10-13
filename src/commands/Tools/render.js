@@ -259,14 +259,18 @@ export function analyze(buffer) {
   };
 }
 
+function isUnderPov(povIndex) {
+  return povIndex === 3;
+}
+
 function getPovYaw(povIndex) {
   if (povIndex === 1) return 0;
-  if (povIndex === 2) return (Math.PI * 2) / 3;
-  if (povIndex === 3) return (Math.PI * 4) / 3;
+  if (povIndex === 2) return Math.PI;
+  if (povIndex === 3) return Math.PI / 4;
   if (povIndex >= 4 && povIndex <= 7) return Math.PI / 4;
   if (povIndex === 8) return 0;
-  if (povIndex === 9) return Math.PI / 2;
-  if (povIndex === 10) return Math.PI;
+  if (povIndex === 9) return Math.PI;
+  if (povIndex === 10) return Math.PI / 2;
   return 0;
 }
 
@@ -306,7 +310,8 @@ export function getPovSceneBlocks(data, pov = 1) {
   ];
   // Cut along a plane perpendicular to the current viewing direction.
   // This keeps exactly one half of the depth span instead of making a diagonal
-  // x+z cut through the structure. POV 10 looks from the opposite side.
+  // x+z cut through the structure. POV 9 keeps the opposite half to POV 8;
+  // POV 10 uses a perpendicular side angle.
   const minDepth = Math.min(...corners.map(point => point[1]));
   const maxDepth = Math.max(...corners.map(point => point[1]));
   const cutDepth = minDepth + Math.max(1, maxDepth - minDepth) * 0.5;
@@ -344,6 +349,7 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
   const [sx, sy, sz] = data.size;
   const povIndex = Math.max(1, Math.min(10, Number.parseInt(pov, 10) || 1));
   const yaw = getPovYaw(povIndex);
+  const isUnder = isUnderPov(povIndex);
   const cosine = Math.cos(yaw);
   const sine = Math.sin(yaw);
   const rotate = (x, z) => {
@@ -397,14 +403,20 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
   const projectedWidth = horizontalSpan * half;
   const projectedHeight = sceneHeight * unit + horizontalSpan * half;
   const xOffset = (W - projectedWidth) / 2 + viewDepth * half;
-  const yOffset = (H - projectedHeight) / 2 + sceneHeight * unit;
+  // From underneath, invert the horizontal-depth projection while keeping
+  // vertical world height moving toward the top of the image.
+  const yOffset = isUnder
+    ? (H + projectedHeight) / 2
+    : (H - projectedHeight) / 2 + sceneHeight * unit;
   const pt = (x, y, z) => {
     const [viewX, viewZ] = rotate(x, z);
     const localX = viewX - minViewX;
     const localZ = viewZ - minViewZ;
     return [
       xOffset + (localX - localZ) * half,
-      yOffset + (localX + localZ) * half - y * unit
+      isUnder
+        ? yOffset - (localX + localZ) * half - y * unit
+        : yOffset + (localX + localZ) * half - y * unit
     ];
   };
   const sideVisible = (normalX, normalZ) => {
@@ -459,7 +471,7 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
     const bottomFront = pt(x + 1, y, z + 1);
     const bottomBack = pt(x, y, z + 1);
     const [depthX, depthZ] = rotate(x + 0.5, z + 0.5);
-    const depth = (depthX - minViewX) + (depthZ - minViewZ) + y * 0.001;
+    const depth = (depthX - minViewX) + (depthZ - minViewZ) + (isUnder ? -y : y) * 0.001;
 
     if (sideVisible(1, 0) && !occupied.has(key(x + 1, y, z))) {
       faces.push({
@@ -485,7 +497,14 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
         points: [topLeft, topRight, bottomRight, bottomLeft]
       });
     }
-    if (!occupied.has(key(x, y + 1, z))) {
+    if (isUnder) {
+      if (!occupied.has(key(x, y - 1, z))) {
+        faces.push({
+          ...base, face: 'bottom', side: 'bottom', depth, order: 2,
+          points: [bottomLeft, bottomRight, bottomFront, bottomBack]
+        });
+      }
+    } else if (!occupied.has(key(x, y + 1, z))) {
       faces.push({
         ...base, face: 'top', side: 'top', depth, order: 2,
         points: [topLeft, topRight, topFront, topBack]
@@ -632,7 +651,9 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
     const maxY = Math.min(H - 1, Math.ceil(Math.max(...points.map(point => point[1]))));
     const start = face.face === 'top'
       ? pt(face.x, face.y + 1, face.z)
-      : face.side === '+x'
+      : face.face === 'bottom'
+        ? pt(face.x, face.y, face.z)
+        : face.side === '+x'
         ? pt(face.x + 1, face.y + 1, face.z)
         : face.side === '-x' || face.side === '-z'
           ? pt(face.x, face.y + 1, face.z)
@@ -656,7 +677,7 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
           const px = x + 0.5, py = y + 0.5;
           let u, v;
 
-          if (face.face === 'top') {
+          if (face.face === 'top' || face.face === 'bottom') {
             const dx = px - start[0];
             const dy = py - start[1];
             u = (dx + dy) / unit;
@@ -672,13 +693,13 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
           }
 
           const at = (y * W + x) * 4;
-          const textureFace = face.face === 'top' ? 'top' : 'side';
+          const textureFace = face.face === 'top' ? 'top' : face.face === 'bottom' ? 'bottom' : 'side';
           const sample = sampleVanillaTexture(face.name, textureFace, u, v);
 
           if (sample) {
             // Apply directional face lighting to actual vanilla texture pixels.
             // Alpha is composited, rather than made opaque, for glass/ice-like blocks.
-            const faceLight = face.face === 'top' ? 1.04 : face.face === 'x' ? 0.72 : 0.86;
+            const faceLight = face.face === 'top' ? 1.04 : face.face === 'bottom' ? 0.62 : face.face === 'x' ? 0.72 : 0.86;
             const alpha = sample[3] / 255;
             pixels[at] = Math.round(pixels[at] * (1 - alpha) + Math.min(255, sample[0] * faceLight) * alpha);
             pixels[at + 1] = Math.round(pixels[at + 1] * (1 - alpha) + Math.min(255, sample[1] * faceLight) * alpha);

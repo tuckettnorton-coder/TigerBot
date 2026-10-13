@@ -1,7 +1,7 @@
 import { inflateSync } from 'node:zlib';
 
 const DEFAULT_TEXTURE_VERSION = '1.21.11';
-const TEXTURE_HOST = 'https://mcasset.cloud';
+const TEXTURE_HOST = 'https://assets.mcasset.cloud';
 const MAX_TEXTURES_PER_RENDER = 180;
 const TEXTURE_FETCH_CONCURRENCY = 16;
 const TEXTURE_FETCH_TIMEOUT_MS = 2200;
