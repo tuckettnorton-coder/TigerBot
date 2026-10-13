@@ -172,7 +172,7 @@ test('public render panel hides the material list behind a View Materials button
   assert.equal(responsePayload.components[2].components[0].data.label, 'Materials List');
   const description = responsePayload.embeds[0].data.description;
   assert.match(description, /Materials List/);
-  assert.doesNotMatch(description, /Materials list|stone|dirt|glass/i);
+  assert.doesNotMatch(description, /stone|dirt|glass/i);
 });
 
 test('decodes continuous packed states across 64-bit boundaries', () => {
