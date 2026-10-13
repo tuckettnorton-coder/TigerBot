@@ -2,10 +2,14 @@ import { inflateSync } from 'node:zlib';
 
 const DEFAULT_TEXTURE_VERSION = '1.21.11';
 const TEXTURE_HOST = 'https://assets.mcasset.cloud';
-const MAX_TEXTURES_PER_RENDER = 180;
+const MAX_TEXTURES_PER_RENDER = 512;
+const MAX_BLOCK_MODELS_PER_RENDER = 160;
 const TEXTURE_FETCH_CONCURRENCY = 16;
+const MODEL_FETCH_CONCURRENCY = 20;
 const TEXTURE_FETCH_TIMEOUT_MS = 2200;
+const MODEL_FETCH_TIMEOUT_MS = 2600;
 const textureCache = new Map();
+const jsonResourceCache = new Map();
 
 const WOOD_FAMILIES = new Set([
   'oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak',
@@ -237,9 +241,11 @@ function resolveTextureVersion() {
 }
 
 async function fetchTexture(filename) {
-  if (textureCache.has(filename)) return textureCache.get(filename);
+  const version = resolveTextureVersion();
+  const cacheKey = version + ':' + filename;
+  if (textureCache.has(cacheKey)) return textureCache.get(cacheKey);
 
-  const url = TEXTURE_HOST + '/' + resolveTextureVersion() +
+  const url = TEXTURE_HOST + '/' + version +
     '/assets/minecraft/textures/block/' + encodeURIComponent(filename) + '.png';
 
   const request = (async () => {
@@ -254,12 +260,12 @@ async function fetchTexture(filename) {
     }
   })();
 
-  textureCache.set(filename, request);
+  textureCache.set(cacheKey, request);
   // Missing textures (or a temporary CDN outage) should be retried on a later
   // render instead of permanently sticking with the procedural fallback.
   request.then(texture => {
-    if (!texture && textureCache.get(filename) === request) {
-      textureCache.delete(filename);
+    if (!texture && textureCache.get(cacheKey) === request) {
+      textureCache.delete(cacheKey);
     }
   });
   return request;
@@ -279,6 +285,124 @@ async function mapWithConcurrency(items, limit, fn) {
   return output;
 }
 
+function minecraftResourcePath(value) {
+  if (typeof value !== 'string' || !value) return null;
+  const colon = value.indexOf(':');
+  if (colon >= 0) {
+    if (value.slice(0, colon) !== 'minecraft') return null;
+    value = value.slice(colon + 1);
+  }
+  if (!/^[a-z0-9_./-]+$/.test(value) || value.includes('..')) return null;
+  return value;
+}
+
+async function fetchAssetJson(relativePath) {
+  if (!/^(?:blockstates|models)\/[a-z0-9_./-]+\.json$/.test(relativePath) ||
+      relativePath.includes('..')) return null;
+
+  const version = resolveTextureVersion();
+  const cacheKey = version + ':' + relativePath;
+  if (jsonResourceCache.has(cacheKey)) return jsonResourceCache.get(cacheKey);
+
+  const url = TEXTURE_HOST + '/' + version + '/assets/minecraft/' + relativePath;
+  const request = (async () => {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(MODEL_FETCH_TIMEOUT_MS)
+      });
+      if (!response.ok) return null;
+      const text = await response.text();
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  })();
+
+  jsonResourceCache.set(cacheKey, request);
+  request.then(value => {
+    if (!value && jsonResourceCache.get(cacheKey) === request) {
+      jsonResourceCache.delete(cacheKey);
+    }
+  });
+  return request;
+}
+
+function firstModelReference(blockState) {
+  let value = null;
+  if (blockState?.variants && typeof blockState.variants === 'object') {
+    value = Object.values(blockState.variants)[0] ?? null;
+  } else if (Array.isArray(blockState?.multipart) && blockState.multipart.length) {
+    value = blockState.multipart[0]?.apply ?? null;
+  }
+
+  if (Array.isArray(value)) value = value[0] ?? null;
+  return minecraftResourcePath(value?.model);
+}
+
+function resolveModelTextureValue(textures, value) {
+  for (let depth = 0; depth < 12; depth++) {
+    if (value && typeof value === 'object') {
+      value = value.sprite;
+      continue;
+    }
+    if (typeof value !== 'string') return null;
+    if (value.startsWith('#')) {
+      value = textures[value.slice(1)];
+      continue;
+    }
+    break;
+  }
+
+  const resource = minecraftResourcePath(value);
+  if (!resource || !resource.startsWith('block/')) return null;
+  return resource.slice('block/'.length);
+}
+
+async function loadModelFaceTextureNames(modelReference) {
+  let current = modelReference;
+  const textures = Object.create(null);
+  let elements = null;
+
+  for (let depth = 0; depth < 20 && current; depth++) {
+    const model = await fetchAssetJson('models/' + current + '.json');
+    if (!model || typeof model !== 'object') break;
+
+    // Visit the child before its parents: child texture keys must win.
+    for (const [key, value] of Object.entries(model.textures || {})) {
+      if (!(key in textures)) textures[key] = value;
+    }
+    if (elements === null && Array.isArray(model.elements)) {
+      elements = model.elements;
+    }
+
+    current = minecraftResourcePath(model.parent);
+  }
+
+  const faces = Object.create(null);
+  for (const element of elements || []) {
+    for (const [face, details] of Object.entries(element.faces || {})) {
+      if (faces[face]) continue;
+      const texture = resolveModelTextureValue(textures, details?.texture);
+      if (texture) faces[face] = texture;
+    }
+  }
+  return faces;
+}
+
+async function loadMinecraftModelTextureMap(blockNames) {
+  const entries = await mapWithConcurrency(
+    blockNames.slice(0, MAX_BLOCK_MODELS_PER_RENDER),
+    MODEL_FETCH_CONCURRENCY,
+    async blockName => {
+      const blockState = await fetchAssetJson('blockstates/' + blockName + '.json');
+      const modelReference = firstModelReference(blockState);
+      if (!modelReference) return [blockName, Object.create(null)];
+      return [blockName, await loadModelFaceTextureNames(modelReference)];
+    }
+  );
+  return new Map(entries);
+}
+
 /**
  * Download/cache only the textures used by the most common block types.
  * Failure is non-fatal: missing textures retain the existing procedural
@@ -287,10 +411,22 @@ async function mapWithConcurrency(items, limit, fn) {
 export async function loadVanillaTextureMap(data) {
   const blockNames = (Array.isArray(data?.counts) ? data.counts : [])
     .filter(item => Array.isArray(item) && item[0])
-    .slice(0, 160)
+    .slice(0, MAX_BLOCK_MODELS_PER_RENDER)
     .map(([name]) => cleanName(name));
 
+  // Resolve Minecraft's official blockstate -> model -> parent texture chain.
+  // This uses each block's declared per-face texture instead of guessing
+  // filenames such as "blockname_top" for every material.
+  const modelFaces = await loadMinecraftModelTextureMap(blockNames);
+
   const names = new Set();
+  for (const [, faces] of modelFaces) {
+    for (const texture of Object.values(faces)) {
+      if (texture) names.add(texture);
+    }
+  }
+
+  // Keep the previous resolver as a safe fallback for missing assets/models.
   for (const blockName of blockNames) {
     names.add(getBlockTextureName(blockName, 'top'));
     names.add(getBlockTextureName(blockName, 'side'));
@@ -303,5 +439,13 @@ export async function loadVanillaTextureMap(data) {
     await fetchTexture(filename)
   ]);
 
-  return new Map(loaded.filter(([, texture]) => texture));
+  const textureMap = new Map(loaded.filter(([, texture]) => texture));
+  for (const [blockName, faces] of modelFaces) {
+    for (const [face, texture] of Object.entries(faces)) {
+      // Point each model face at the shared decoded image buffer instead of
+      // cloning image pixels once per face.
+      textureMap.set('blockface:' + blockName + ':' + face, texture);
+    }
+  }
+  return textureMap;
 }
