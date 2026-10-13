@@ -6,6 +6,24 @@ const MAX_VIEW_ENTRIES = 40;
 const MAX_CACHED_BLOCKS = 250_000;
 let cachedBlockCount = 0;
 
+const POV_BUTTON_LABELS = {
+  1: 'Front',
+  2: 'Opposite',
+  3: 'Under',
+  4: 'Top −1',
+  5: 'Top −2',
+  6: 'Top −3',
+  7: 'Top −4',
+  8: 'Half · Front',
+  9: 'Half · Back',
+  10: 'Half · Side'
+};
+
+export function getPovButtonLabel(pov) {
+  return POV_BUTTON_LABELS[Number(pov)] || 'POV ' + String(pov);
+}
+
+
 function deleteEntry(id) {
   const entry = viewStore.get(id);
   if (entry) cachedBlockCount -= entry.data.blocks?.length || 0;
@@ -54,7 +72,7 @@ export function buildRenderViewComponents(id, activePov = 1) {
   const firstPovRow = new ActionRowBuilder().addComponents(
     [1, 2, 3, 4, 5].map(pov => new ButtonBuilder()
       .setCustomId('render_pov:' + id + ':' + pov)
-      .setLabel(String(pov))
+      .setLabel(getPovButtonLabel(pov))
       .setStyle(Number(activePov) === pov ? ButtonStyle.Primary : ButtonStyle.Secondary)
     )
   );
