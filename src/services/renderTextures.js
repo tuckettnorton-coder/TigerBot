@@ -383,7 +383,21 @@ async function loadModelFaceTextureNames(modelReference) {
     for (const [face, details] of Object.entries(element.faces || {})) {
       if (faces[face]) continue;
       const texture = resolveModelTextureValue(textures, details?.texture);
-      if (texture) faces[face] = texture;
+      if (!texture) continue;
+
+      const uv = Array.isArray(details?.uv) && details.uv.length === 4 &&
+        details.uv.every(value => typeof value === 'number' && Number.isFinite(value))
+        ? [...details.uv]
+        : null;
+      const rotationValue = Number(details?.rotation);
+      const rotation = [0, 90, 180, 270].includes(rotationValue) ? rotationValue : 0;
+      const tintindex = Number.isInteger(details?.tintindex) && details.tintindex >= 0
+        ? details.tintindex
+        : null;
+
+      // Keep face metadata alongside the texture. The rasterizer needs these
+      // values to map the pixels the same way vanilla's block model does.
+      faces[face] = { texture, uv, rotation, tintindex };
     }
   }
   return faces;
@@ -404,6 +418,34 @@ async function loadMinecraftModelTextureMap(blockNames) {
 }
 
 /**
+ * Convert normalized coordinates on a block face to Minecraft model UV units.
+ * Vanilla face UV rectangles use a 0–16 coordinate space. Face rotation is a
+ * quarter-turn of the texture within that rectangle, not a camera rotation.
+ */
+export function mapBlockFaceUv(u, v, descriptor = null) {
+  let s = u;
+  let t = v;
+  const rotation = Number(descriptor?.rotation) || 0;
+
+  if (rotation === 90) {
+    [s, t] = [t, 1 - s];
+  } else if (rotation === 180) {
+    [s, t] = [1 - s, 1 - t];
+  } else if (rotation === 270) {
+    [s, t] = [1 - t, s];
+  }
+
+  const uv = descriptor?.uv;
+  if (Array.isArray(uv) && uv.length === 4 && uv.every(Number.isFinite)) {
+    return [
+      uv[0] + s * (uv[2] - uv[0]),
+      uv[1] + t * (uv[3] - uv[1])
+    ];
+  }
+  return [s * 16, t * 16];
+}
+
+/**
  * Download/cache only the textures used by the most common block types.
  * Failure is non-fatal: missing textures retain the existing procedural
  * fallback, so a CDN outage never prevents /render from producing an image.
@@ -421,7 +463,8 @@ export async function loadVanillaTextureMap(data) {
 
   const names = new Set();
   for (const [, faces] of modelFaces) {
-    for (const texture of Object.values(faces)) {
+    for (const face of Object.values(faces)) {
+      const texture = typeof face === 'string' ? face : face?.texture;
       if (texture) names.add(texture);
     }
   }
@@ -441,10 +484,10 @@ export async function loadVanillaTextureMap(data) {
 
   const textureMap = new Map(loaded.filter(([, texture]) => texture));
   for (const [blockName, faces] of modelFaces) {
-    for (const [face, texture] of Object.entries(faces)) {
-      // Point each model face at the shared decoded image buffer instead of
-      // cloning image pixels once per face.
-      textureMap.set('blockface:' + blockName + ':' + face, texture);
+    for (const [face, descriptor] of Object.entries(faces)) {
+      // The image pixels stay shared by texture name; only small face metadata
+      // is stored per block face.
+      textureMap.set('blockface:' + blockName + ':' + face, descriptor);
     }
   }
   return textureMap;
