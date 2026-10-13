@@ -130,6 +130,46 @@ test('exports /render as a valid slash command with a required attachment', () =
   assert.equal(payload.options[0].required, true);
 });
 
+test('public render panel hides the material list behind a View Materials button', async () => {
+  const schematic = multiRegionFixture();
+  const originalFetch = globalThis.fetch;
+  let deferArgs;
+  let responsePayload;
+
+  globalThis.fetch = async () => ({
+    ok: true,
+    arrayBuffer: async () => schematic.buffer.slice(
+      schematic.byteOffset,
+      schematic.byteOffset + schematic.byteLength
+    )
+  });
+
+  const interaction = {
+    options: {
+      getAttachment: () => ({
+        name: 'test.litematic',
+        size: schematic.length,
+        url: 'https://example.test/test.litematic'
+      })
+    },
+    deferReply: async (...args) => { deferArgs = args; },
+    editReply: async payload => { responsePayload = payload; return payload; }
+  };
+
+  try {
+    await renderCommand.execute(interaction);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.deepEqual(deferArgs, []);
+  assert.equal(responsePayload.components.length, 1);
+  assert.equal(responsePayload.components[0].components[0].data.custom_id.startsWith('render_materials:'), true);
+  const description = responsePayload.embeds[0].data.description;
+  assert.match(description, /View Materials/);
+  assert.doesNotMatch(description, /Materials list|stone|dirt|glass/i);
+});
+
 test('decodes continuous packed states across 64-bit boundaries', () => {
   const paletteSize = 17;
   const indices = Array.from({ length: 30 }, (_, index) => (index * 7) % paletteSize);
