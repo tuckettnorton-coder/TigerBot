@@ -332,6 +332,12 @@ test('POVs 4–7 progressively remove top layers and POVs 8–10 cut the sides',
   assert.ok(sideCutX.length > 0 && sideCutX.length < exterior.length, 'POV 8 cuts one side');
   assert.ok(sideCutZ.length > 0 && sideCutZ.length < exterior.length, 'POV 9 cuts a perpendicular side');
   assert.ok(oppositeSideCut.length > 0 && oppositeSideCut.length < exterior.length, 'POV 10 cuts from the opposite side');
+  assert.ok(sideCutX.every(block => block.z < 5),
+    'POV 8 keeps the half-depth nearest its viewing direction');
+  assert.ok(sideCutZ.every(block => block.x < 5),
+    'POV 9 keeps the half-depth on the perpendicular axis');
+  assert.ok(oppositeSideCut.every(block => block.z >= 5),
+    'POV 10 keeps the opposite half-depth');
 
   assert.ok(interior.some(block => block.x === 5 && block.y === 5 && block.z === 5),
     'POV 4 keeps central blocks visible');
