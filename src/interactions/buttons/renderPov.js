@@ -4,16 +4,16 @@ import { buildRenderViewComponents, getRenderView } from '../../services/renderV
 import { loadVanillaTextureMap } from '../../services/renderTextures.js';
 
 const POV_DESCRIPTIONS = {
-  1: 'Exterior view · front corner',
-  2: 'Exterior view · second corner',
-  3: 'Exterior view · third corner',
-  4: 'Top cutaway · 1 top layer removed',
-  5: 'Top cutaway · 2 top layers removed',
-  6: 'Top cutaway · 3 top layers removed',
-  7: 'Top cutaway · 4 top layers removed',
-  8: 'Side cutaway · half removed from the X-facing side',
-  9: 'Side cutaway · half removed from the Z-facing side',
-  10: 'Opposite-side cutaway · half removed from the other side'
+  1: 'Front · full exterior view',
+  2: 'Back · exact opposite exterior view',
+  3: 'Underneath · looking at the underside',
+  4: 'Top cut · 1 top layer removed',
+  5: 'Top cut · 2 top layers removed',
+  6: 'Top cut · 3 top layers removed',
+  7: 'Top cut · 4 top layers removed',
+  8: 'Half cut · front half retained at the midpoint',
+  9: 'Half cut · opposite half retained at the midpoint',
+  10: 'Half cut · side half retained at the midpoint'
 };
 
 export default {
