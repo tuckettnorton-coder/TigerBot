@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync, inflateSync } from 'node:zlib';
-import { analyze, decodeStates, makePng } from '../src/commands/Tools/render.js';
+import renderCommand, { analyze, decodeStates, makePng } from '../src/commands/Tools/render.js';
 
 const int32 = value => {
   const out = Buffer.alloc(4);
@@ -118,6 +118,17 @@ const multiRegionFixture = () => schematicBuffer([
     indices: [1]
   }
 ], [4, 2, 1]);
+
+test('exports /render as a valid slash command with a required attachment', () => {
+  const payload = renderCommand.data.toJSON();
+  assert.equal(payload.name, 'render');
+  assert.ok(payload.description.length > 0);
+  assert.equal(typeof renderCommand.execute, 'function');
+  assert.equal(payload.options.length, 1);
+  assert.equal(payload.options[0].name, 'file');
+  assert.equal(payload.options[0].type, 11);
+  assert.equal(payload.options[0].required, true);
+});
 
 test('decodes continuous packed states across 64-bit boundaries', () => {
   const paletteSize = 17;

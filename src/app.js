@@ -361,6 +361,38 @@ class TitanBot extends Client {
       } else {
         logger.error('The /schematic command was not loaded and could not be registered.');
       }
+
+      // Register /render directly as a final safeguard, matching /schematic.
+      const renderCommand = this.commands.get('render');
+      if (renderCommand?.data?.toJSON) {
+        const renderPayload = renderCommand.data.toJSON();
+        for (const guild of this.guilds.cache.values()) {
+          try {
+            const existing = await this.rest.get(
+              `/applications/${this.config.bot.clientId}/guilds/${guild.id}/commands`
+            );
+            const existingRender = existing.find(command => command.name === 'render');
+
+            if (existingRender) {
+              await this.rest.patch(
+                `/applications/${this.config.bot.clientId}/guilds/${guild.id}/commands/${existingRender.id}`,
+                { body: renderPayload }
+              );
+            } else {
+              await this.rest.post(
+                `/applications/${this.config.bot.clientId}/guilds/${guild.id}/commands`,
+                { body: renderPayload }
+              );
+            }
+
+            logger.info(`Verified /render registration in guild ${guild.id}`);
+          } catch (error) {
+            logger.error(`Failed to register /render in guild ${guild.id}:`, error);
+          }
+        }
+      } else {
+        logger.error('The /render command was not loaded and could not be registered.');
+      }
     } catch (error) {
       logger.error('Error registering commands:', error);
     }
