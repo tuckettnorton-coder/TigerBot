@@ -196,7 +196,9 @@ export function analyze(buffer) {
     const states = decodeStates(region.BlockStates, names.length, volume);
 
     prepared.push({
-      sx, sy, sz, volume, originX, originY, originZ, names, states
+      sx, sy, sz, volume, originX, originY, originZ,
+      flipX: rawX < 0, flipY: rawY < 0, flipZ: rawZ < 0,
+      names, states
     });
     minX = Math.min(minX, originX);
     minY = Math.min(minY, originY);
@@ -214,7 +216,7 @@ export function analyze(buffer) {
   let seenPreviewBlocks = 0;
 
   for (const region of prepared) {
-    const { sx, sy, sz, volume, originX, originY, originZ, names, states } = region;
+    const { sx, sy, sz, volume, originX, originY, originZ, flipX, flipY, flipZ, names, states } = region;
     for (let i = 0; i < volume; i++) {
       const name = names[states[i]];
       if (/^(?:minecraft:)?(?:air|cave_air|void_air)$/.test(name)) continue;
@@ -223,10 +225,13 @@ export function analyze(buffer) {
       counts.set(name, (counts.get(name) || 0) + 1);
       seenPreviewBlocks++;
 
+      const localX = i % sx;
+      const localY = Math.floor(i / (sx * sz));
+      const localZ = Math.floor(i / sx) % sz;
       const block = {
-        x: originX - minX + (i % sx),
-        y: originY - minY + Math.floor(i / (sx * sz)),
-        z: originZ - minZ + (Math.floor(i / sx) % sz),
+        x: originX - minX + (flipX ? sx - 1 - localX : localX),
+        y: originY - minY + (flipY ? sy - 1 - localY : localY),
+        z: originZ - minZ + (flipZ ? sz - 1 - localZ : localZ),
         color: blockColor(name)
       };
 
