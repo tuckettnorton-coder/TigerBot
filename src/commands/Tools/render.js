@@ -1,5 +1,6 @@
 import { AttachmentBuilder, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import { getBlockTextureName, loadVanillaTextureMap } from '../../services/renderTextures.js';
 import { saveRenderMaterials } from '../../services/renderMaterialUi.js';
 import { buildRenderViewComponents, saveRenderView } from '../../services/renderViewUi.js';
 import { deflateSync, gunzipSync } from 'node:zlib';
@@ -320,7 +321,7 @@ export function getPovSceneBlocks(data, pov = 1) {
   return cutaway.length ? cutaway : data.blocks;
 }
 
-export function makePng(data, pov = 1) {
+export function makePng(data, pov = 1, textureMap = new Map()) {
   const W = 2400, H = 1800;
   const pixels = Buffer.alloc(W * H * 4);
 
@@ -609,6 +610,22 @@ export function makePng(data, pov = 1) {
     return light(color, faceLight);
   }
 
+  function sampleVanillaTexture(blockName, faceName, u, v) {
+    const textureName = getBlockTextureName(blockName, faceName);
+    const texture = textureMap.get(textureName);
+    if (!texture || !texture.width || !texture.height || !texture.pixels) return null;
+
+    const tx = Math.max(0, Math.min(texture.width - 1, Math.floor(Math.max(0, Math.min(0.999999, u)) * texture.width)));
+    const ty = Math.max(0, Math.min(texture.height - 1, Math.floor(Math.max(0, Math.min(0.999999, v)) * texture.height)));
+    const at = (ty * texture.width + tx) * 4;
+    return [
+      texture.pixels[at],
+      texture.pixels[at + 1],
+      texture.pixels[at + 2],
+      texture.pixels[at + 3]
+    ];
+  }
+
   function fillPolygon(face) {
     const points = face.points;
     const minY = Math.max(0, Math.floor(Math.min(...points.map(point => point[1]))));
@@ -654,13 +671,27 @@ export function makePng(data, pov = 1) {
             v = (py - start[1] - localX * half) / unit;
           }
 
-          const color = textureColor(face.face, face, u, v);
-          const rgb = hexRgb(color);
           const at = (y * W + x) * 4;
-          pixels[at] = rgb[0];
-          pixels[at + 1] = rgb[1];
-          pixels[at + 2] = rgb[2];
-          pixels[at + 3] = 255;
+          const textureFace = face.face === 'top' ? 'top' : 'side';
+          const sample = sampleVanillaTexture(face.name, textureFace, u, v);
+
+          if (sample) {
+            // Apply directional face lighting to actual vanilla texture pixels.
+            // Alpha is composited, rather than made opaque, for glass/ice-like blocks.
+            const faceLight = face.face === 'top' ? 1.04 : face.face === 'x' ? 0.72 : 0.86;
+            const alpha = sample[3] / 255;
+            pixels[at] = Math.round(pixels[at] * (1 - alpha) + Math.min(255, sample[0] * faceLight) * alpha);
+            pixels[at + 1] = Math.round(pixels[at + 1] * (1 - alpha) + Math.min(255, sample[1] * faceLight) * alpha);
+            pixels[at + 2] = Math.round(pixels[at + 2] * (1 - alpha) + Math.min(255, sample[2] * faceLight) * alpha);
+            pixels[at + 3] = 255;
+          } else {
+            const color = textureColor(face.face, face, u, v);
+            const rgb = hexRgb(color);
+            pixels[at] = rgb[0];
+            pixels[at + 1] = rgb[1];
+            pixels[at + 2] = rgb[2];
+            pixels[at + 3] = 255;
+          }
         }
       }
     }
@@ -738,7 +769,11 @@ export default {
       if (!response.ok) throw new Error('Failed to download the uploaded file.');
 
       const data = analyze(Buffer.from(await response.arrayBuffer()));
-      const png = makePng(data);
+      // Fetch/cache real vanilla 16×16 block textures when online. Each fetch
+      // is bounded and failures fall back to procedural pixels automatically.
+      const textureMap = await loadVanillaTextureMap(data);
+      data.renderTextures = textureMap;
+      const png = makePng(data, 1, textureMap);
       const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
       const materialId = randomUUID();
       saveRenderMaterials(materialId, data);
@@ -756,7 +791,7 @@ export default {
         .setFooter({ text: 'Minecraft-style pixel textures and visible-face shading; counts come directly from the schematic.' });
 
       embed.setFooter({
-        text: 'POV 1/10 · High-resolution Minecraft-style textures and face lighting; counts come directly from the schematic.'
+        text: 'POV 1/10 · Vanilla block textures where available; counts come directly from the schematic.'
       });
 
       return interaction.editReply({
