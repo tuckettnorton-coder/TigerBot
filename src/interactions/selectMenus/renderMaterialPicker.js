@@ -16,16 +16,11 @@ export default {
       });
     }
 
-    const selectedIndex = Number(interaction.values?.[0]);
-    if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= entry.counts.length) {
-      return interaction.update({
-        embeds: [buildMaterialsEmbed(entry, page)],
-        components: buildMaterialComponents(id, entry, page)
-      });
-    }
-
+    // Material names and counts are already visible in the dropdown options.
+    // Keep the private browser open so the user can switch between options
+    // without opening a separate inspection panel for every block type.
     return interaction.update({
-      embeds: [buildMaterialsEmbed(entry, page, selectedIndex)],
+      embeds: [buildMaterialsEmbed(entry, page)],
       components: buildMaterialComponents(id, entry, page)
     });
   }
