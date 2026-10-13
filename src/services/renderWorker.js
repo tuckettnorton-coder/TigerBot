@@ -1,6 +1,7 @@
 import { Worker } from 'node:worker_threads';
 
 const MAX_ACTIVE_WORKERS = 2;
+const MAX_PENDING_JOBS = 32;
 const WORKER_TIMEOUT_MS = 60_000;
 const pendingJobs = [];
 let activeWorkers = 0;
@@ -10,9 +11,19 @@ let activeWorkers = 0;
  * Supported tasks: "analyze" (gzip/NBT decode + block extraction) and
  * "render" (2400×1800 PNG rasterization).
  */
-export function runRenderWorker(task, payload = {}) {
+export function runRenderWorker(task, payload = {}, options = {}) {
   return new Promise((resolve, reject) => {
-    pendingJobs.push({ task, payload, resolve, reject });
+    if (pendingJobs.length >= MAX_PENDING_JOBS) {
+      reject(new Error('Schematic renderer is busy. Please try the view again in a moment.'));
+      return;
+    }
+    pendingJobs.push({
+      task,
+      payload,
+      resolve,
+      reject,
+      shouldCancel: options.shouldCancel
+    });
     dispatchNext();
   });
 }
@@ -20,6 +31,15 @@ export function runRenderWorker(task, payload = {}) {
 function dispatchNext() {
   while (activeWorkers < MAX_ACTIVE_WORKERS && pendingJobs.length) {
     const job = pendingJobs.shift();
+    try {
+      if (job.shouldCancel?.()) {
+        job.resolve(null);
+        continue;
+      }
+    } catch (error) {
+      job.reject(error);
+      continue;
+    }
     activeWorkers++;
     executeJob(job);
   }

@@ -298,14 +298,15 @@ test('render worker returns a valid PNG while rasterization runs off the caller 
     resolve();
   }, 0));
 
-  const png = await runRenderWorker('render', {
+  const pngPromise = runRenderWorker('render', {
     data,
     pov: 1,
     textureMap: new Map()
   });
-  await tick;
+  await new Promise(resolve => setImmediate(resolve));
 
-  assert.equal(eventLoopTicked, true);
+  assert.equal(eventLoopTicked, true, 'the main event loop should keep processing while PNG work runs');
+  const png = await pngPromise;
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.equal(png.readUInt32BE(16), 2400);
   assert.equal(png.readUInt32BE(20), 1800);
@@ -331,4 +332,14 @@ test('render PNG cache shares simultaneous renders for the same schematic and PO
   assert.equal(getCachedRenderPng(id, 2), expected);
   cacheRenderPng(id, 3, Buffer.from('another-test'));
   assert.ok(getCachedRenderPng(id, 3));
+});
+
+
+test('obsolete POV renders waiting in the worker queue can be skipped', async () => {
+  const result = await runRenderWorker(
+    'render',
+    { data: {}, pov: 7, textureMap: new Map() },
+    { shouldCancel: () => true }
+  );
+  assert.equal(result, null);
 });

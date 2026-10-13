@@ -43,6 +43,7 @@ export default {
     // quick succession, only the latest request should update the preview.
     const requestSequence = (data.renderRequestSequence || 0) + 1;
     data.renderRequestSequence = requestSequence;
+    data.renderRequestedPov = pov;
 
     // Acknowledge immediately, before any texture or image work.
     await interaction.deferUpdate();
@@ -58,11 +59,13 @@ export default {
           data: { size: data.size, blocks: data.blocks },
           pov,
           textureMap
-        })
+        }),
+        { shouldCancel: () => data.renderRequestedPov !== pov }
       );
 
-      // Ignore an older click if a newer POV was requested while this image ran.
-      if (data.renderRequestSequence !== requestSequence) return;
+      // A queued render can be skipped if the user has already chosen another
+      // view; an identical latest request can still share the active render.
+      if (!png || data.renderRequestSequence !== requestSequence) return;
 
       const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
       const currentEmbed = interaction.message.embeds?.[0];

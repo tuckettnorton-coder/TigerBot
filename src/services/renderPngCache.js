@@ -54,7 +54,7 @@ export function getOrCreateRenderPng(id, pov, factory) {
 
   const promise = Promise.resolve()
     .then(factory)
-    .then(png => cacheRenderPng(id, pov, png))
+    .then(png => png ? cacheRenderPng(id, pov, png) : null)
     .finally(() => {
       if (inFlight.get(key) === promise) inFlight.delete(key);
     });
