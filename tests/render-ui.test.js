@@ -107,8 +107,8 @@ test('material panel lists names and counts directly without dropdowns or inspec
   const controls = buildMaterialComponents(id, getRenderMaterials(id), 0)[0].toJSON().components;
   const embed = buildMaterialsEmbed(getRenderMaterials(id), 0).toJSON();
 
-  assert.match(embed.description, /stone — \\*\\*18\\*\\*/i);
-  assert.match(embed.description, /oak planks — \\*\\*12\\*\\*/i);
+  assert.ok(embed.description.includes('• stone — **18**'));
+  assert.ok(embed.description.includes('• oak planks — **12**'));
   assert.equal(controls.length, 1);
   assert.equal(controls[0].label, 'Dismiss');
   assert.doesNotMatch(embed.description, /dropdown|select a material/i);
