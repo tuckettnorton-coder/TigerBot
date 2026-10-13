@@ -1,6 +1,6 @@
-import { ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, SlashCommandBuilder } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, SlashCommandBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { mkdir } from 'fs/promises';
-import { addSchematic } from '../../services/schematicService.js';
+import { addSchematic, listSchematics, MAX_OPTIONS } from '../../services/schematicService.js';
 
 export default {
   data: new SlashCommandBuilder()
@@ -20,6 +20,9 @@ export default {
         .addAttachmentOption((option) =>
           option.setName('file').setDescription('The schematic file').setRequired(true)
         )
+    )
+    .addSubcommand((subcommand) =>
+      subcommand.setName('remove').setDescription('Remove a schematic from the library')
     ),
 
   async execute(interaction) {
@@ -42,6 +45,35 @@ export default {
       return interaction.reply({
         embeds: [embed],
         components: [new ActionRowBuilder().addComponents(button)],
+      });
+    }
+
+    if (subcommand === 'remove') {
+      const entries = await listSchematics();
+
+      if (!entries.length) {
+        return interaction.reply({
+          content: 'There are no schematics in the library to remove.',
+          ephemeral: true,
+        });
+      }
+
+      const options = entries.slice(-MAX_OPTIONS).reverse().map((entry) =>
+        new StringSelectMenuOptionBuilder()
+          .setLabel(String(entry.title || entry.filename || 'Untitled schematic').slice(0, 100))
+          .setDescription(String(entry.filename || 'Schematic file').slice(0, 100))
+          .setValue(String(entry.id))
+      );
+
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId('schematic_remove_select')
+        .setPlaceholder('Choose a schematic to remove...')
+        .addOptions(options);
+
+      return interaction.reply({
+        content: 'Select the schematic you want to remove from the library. This removes it from the download panel.',
+        components: [new ActionRowBuilder().addComponents(menu)],
+        ephemeral: true,
       });
     }
 
