@@ -62,4 +62,17 @@ export async function getSchematic(id) {
   return { ...entry, path: path.join(FILES_DIR, entry.storedName) };
 }
 
+export async function removeSchematic(id) {
+  if (typeof id !== 'string' || !id) return null;
+
+  const entries = await loadEntries();
+  const entry = entries.find((item) => item.id === id);
+  if (!entry) return null;
+
+  // Remove the schematic from the library index so it no longer appears in the
+  // download panel or building schematic choices.
+  await saveEntries(entries.filter((item) => item.id !== id));
+  return entry;
+}
+
 export { MAX_OPTIONS };
