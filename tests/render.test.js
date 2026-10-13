@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deflateSync, gzipSync, inflateSync } from 'node:zlib';
+import { gzipSync, inflateSync } from 'node:zlib';
 import { analyze, decodeStates, makePng } from '../src/commands/Tools/render.js';
 
 const int32 = value => {
