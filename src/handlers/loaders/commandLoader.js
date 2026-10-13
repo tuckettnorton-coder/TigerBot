@@ -79,6 +79,24 @@ export async function loadCommands(client) {
             logger.error('Error explicitly loading schematic command:', error);
         }
     }
+
+    // Render must be loaded explicitly like /schematic so it is always present
+    // in the command collection before slash-command registration.
+    if (!uniqueCommandNames.has('render')) {
+        try {
+            const renderModule = await import('../../commands/Tools/render.js');
+            const renderCommand = renderModule.default || renderModule;
+            if (renderCommand?.data?.name && renderCommand?.execute) {
+                renderCommand.category = 'Tools';
+                renderCommand.filePath = path.join(commandsPath, 'Tools', 'render.js').replace(/\\\\/g, '/');
+                uniqueCommandNames.add('render');
+                client.commands.set('render', renderCommand);
+                logger.info('Loaded command: render (explicit tool registration)');
+            }
+        } catch (error) {
+            logger.error('Error explicitly loading render command:', error);
+        }
+    }
     
     for (const filePath of commandFiles) {
         try {
