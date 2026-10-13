@@ -152,6 +152,29 @@ test('analyzes multiple positioned regions and negative region sizes correctly',
   ]);
 });
 
+
+test('preserves Y and Z orientation for reversed Litematica regions', () => {
+  const schematic = schematicBuffer([
+    {
+      name: 'reversed_yz',
+      position: { x: 0, y: 7, z: 3 },
+      size: { x: 1, y: -2, z: -2 },
+      palette: ['minecraft:air', 'minecraft:stone', 'minecraft:dirt', 'minecraft:glass'],
+      indices: [1, 2, 3, 1]
+    }
+  ], [1, 2, 2]);
+
+  const result = analyze(schematic);
+  assert.deepEqual(result.size, [1, 2, 2]);
+  assert.equal(result.total, 4);
+  assert.deepEqual(result.blocks.map(block => [block.x, block.y, block.z]), [
+    [0, 1, 1],
+    [0, 1, 0],
+    [0, 0, 1],
+    [0, 0, 0]
+  ]);
+});
+
 test('creates a valid-sized PNG preview containing rendered pixels', () => {
   const result = analyze(multiRegionFixture());
   const png = makePng(result);
