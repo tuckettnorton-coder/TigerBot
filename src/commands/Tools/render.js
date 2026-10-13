@@ -258,6 +258,62 @@ export function analyze(buffer) {
   };
 }
 
+export function getPovSceneBlocks(data, pov = 1) {
+  const povIndex = Math.max(1, Math.min(5, Number.parseInt(pov, 10) || 1));
+  if (povIndex < 4) return data.blocks;
+
+  const [sx, , sz] = data.size;
+  const yaw = ((povIndex - 1) * Math.PI * 2) / 5;
+  const cosine = Math.cos(yaw);
+  const sine = Math.sin(yaw);
+  const rotate = (x, z) => {
+    const dx = x - sx / 2;
+    const dz = z - sz / 2;
+    return [
+      dx * cosine - dz * sine + sx / 2,
+      dx * sine + dz * cosine + sz / 2
+    ];
+  };
+
+  const corners = [
+    rotate(0, 0),
+    rotate(sx, 0),
+    rotate(0, sz),
+    rotate(sx, sz)
+  ];
+  const minViewX = Math.min(...corners.map(point => point[0]));
+  const minViewZ = Math.min(...corners.map(point => point[1]));
+  const depthValues = corners.map(point =>
+    (point[0] - minViewX) + (point[1] - minViewZ)
+  );
+  const minDepth = Math.min(...depthValues);
+  const maxDepth = Math.max(...depthValues);
+  const depthSpan = Math.max(1, maxDepth - minDepth);
+
+  // POV 4 removes the near-facing section so the viewer can see the build's
+  // inner structure instead of another exterior angle.
+  const cutDepth = povIndex === 4
+    ? minDepth + depthSpan * 0.62
+    : minDepth + depthSpan * 0.53;
+
+  return data.blocks.filter(block => {
+    const [viewX, viewZ] = rotate(block.x + 0.5, block.z + 0.5);
+    const depth = (viewX - minViewX) + (viewZ - minViewZ);
+    if (depth > cutDepth) return false;
+
+    // POV 5 is a deeper center cutaway: remove some of the upper near-side
+    // shell as well, exposing more of the inside from above.
+    if (
+      povIndex === 5 &&
+      block.y >= data.size[1] * 0.78 &&
+      depth >= minDepth + depthSpan * 0.18
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
 export function makePng(data, pov = 1) {
   const W = 1600, H = 1200;
   const pixels = Buffer.alloc(W * H * 4);
@@ -360,13 +416,14 @@ export function makePng(data, pov = 1) {
     }
   }
 
+  const sceneBlocks = getPovSceneBlocks(data, povIndex);
   const key = (x, y, z) => x + ',' + y + ',' + z;
-  const occupied = new Set(data.blocks.map(block => key(block.x, block.y, block.z)));
+  const occupied = new Set(sceneBlocks.map(block => key(block.x, block.y, block.z)));
   const faces = [];
 
   // Draw only block faces oriented toward this camera. As the POV changes,
   // the visible world-axis sides change too, not just the image coordinates.
-  for (const block of data.blocks) {
+  for (const block of sceneBlocks) {
     const x = block.x, y = block.y, z = block.z;
     const color = block.color || '#a8a8a8';
     const name = block.name || 'unknown';
