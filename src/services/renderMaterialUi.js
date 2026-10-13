@@ -47,7 +47,7 @@ export function formatMaterialName(name) {
   return String(name).replace(/^minecraft:/, '').replace(/_/g, ' ');
 }
 
-export function buildMaterialsEmbed(entry, page = 0, selectedIndex = null) {
+export function buildMaterialsEmbed(entry, page = 0) {
   const totalPages = Math.max(1, Math.ceil(entry.counts.length / MATERIALS_PER_PAGE));
   const safePage = Math.max(0, Math.min(totalPages - 1, Number(page) || 0));
   const start = safePage * MATERIALS_PER_PAGE;
@@ -61,18 +61,11 @@ export function buildMaterialsEmbed(entry, page = 0, selectedIndex = null) {
 
   if (entry.counts.length) {
     description +=
-      'Open the dropdown below to browse exact block counts.\n' +
+      'Use the dropdown to switch between material types; each option already shows its count.\n' +
       '**Showing:** ' + (start + 1).toLocaleString('en-US') + '–' +
       end.toLocaleString('en-US') + ' of ' + entry.counts.length.toLocaleString('en-US') + ' types.';
   } else {
     description += 'No non-air materials were found in this schematic.';
-  }
-
-  if (Number.isInteger(selectedIndex) && selectedIndex >= 0 && selectedIndex < entry.counts.length) {
-    const [name, count] = entry.counts[selectedIndex];
-    description +=
-      '\n\n**Selected material:** ' + formatMaterialName(name).slice(0, 120) +
-      '\n**Exact count:** ' + count.toLocaleString('en-US') + ' blocks.';
   }
 
   return new EmbedBuilder()
@@ -96,7 +89,7 @@ export function buildMaterialComponents(id, entry, page = 0) {
 
   const select = new StringSelectMenuBuilder()
     .setCustomId('render_material_picker:' + id + ':' + safePage)
-    .setPlaceholder('Choose a material to inspect its exact count')
+    .setPlaceholder('Select a material type · counts shown beside names')
     .setMinValues(1)
     .setMaxValues(1)
     .addOptions(options);
