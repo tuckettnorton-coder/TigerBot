@@ -95,10 +95,10 @@ test('render panel exposes ten POV buttons and a separate Materials List button'
 test('POV controls stay disabled until their preview PNG is prepared', () => {
   const id = 'render-view-readiness-test';
   const rows = buildRenderViewComponents(id, 1, new Set([1])).map(row => row.toJSON());
-  assert.equal(rows[0].components[0].disabled, false);
+  assert.equal(Boolean(rows[0].components[0].disabled), false);
   assert.equal(rows[0].components[1].disabled, true);
   assert.equal(rows[1].components[4].disabled, true);
-  assert.equal(rows[2].components[0].disabled, false);
+  assert.equal(Boolean(rows[2].components[0].disabled), false);
 });
 
 test('camera POV cache preserves the render data needed to make a new angle', () => {
