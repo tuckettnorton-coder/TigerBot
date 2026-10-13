@@ -1,5 +1,6 @@
 import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
-import { makePng } from '../../commands/Tools/render.js';
+import { runRenderWorker } from '../../services/renderWorker.js';
+import { getOrCreateRenderPng } from '../../services/renderPngCache.js';
 import { buildRenderViewComponents, getRenderView } from '../../services/renderViewUi.js';
 import { loadVanillaTextureMap } from '../../services/renderTextures.js';
 
@@ -38,45 +39,75 @@ export default {
       });
     }
 
-    // Acknowledge before rendering; high-resolution schematics can take longer
-    // than Discord's initial three-second interaction window.
+    // Record the newest click before yielding. If several POVs are clicked in
+    // quick succession, only the latest request should update the preview.
+    const requestSequence = (data.renderRequestSequence || 0) + 1;
+    data.renderRequestSequence = requestSequence;
+    data.renderRequestedPov = pov;
+
+    // Acknowledge immediately, before any texture or image work.
     await interaction.deferUpdate();
 
-    const textureMap = data.renderTextures || await loadVanillaTextureMap(data);
-    data.renderTextures = textureMap;
+    // Do not start rendering if this click was superseded while Discord was
+    // acknowledging it.
+    if (data.renderRequestSequence !== requestSequence) return;
 
-    // Reuse recently viewed angles rather than rebuilding a 2400×1800 PNG
-    // on every click. Two cached PNGs per schematic keep memory use bounded.
-    if (!(data.renderPngCache instanceof Map)) data.renderPngCache = new Map();
-    let png = data.renderPngCache.get(pov);
-    if (png) {
-      data.renderPngCache.delete(pov);
-      data.renderPngCache.set(pov, png);
-    } else {
-      png = makePng(data, pov, textureMap);
-      data.renderPngCache.set(pov, png);
-      while (data.renderPngCache.size > 2) {
-        data.renderPngCache.delete(data.renderPngCache.keys().next().value);
+    try {
+      const textureMap = data.renderTextures || await loadVanillaTextureMap(data);
+      data.renderTextures = textureMap;
+
+      // The expensive PNG rasterizer runs in a worker thread, not on the bot's
+      // main event loop. Identical in-progress POV clicks share one render.
+      const png = await getOrCreateRenderPng(id, pov, () =>
+        runRenderWorker('render', {
+          data: { size: data.size, blocks: data.blocks },
+          pov,
+          textureMap
+        }, {
+          shouldCancel: () => data.renderRequestedPov !== pov
+        })
+      );
+
+      // A queued render can be skipped if the user has already chosen another
+      // view; an identical latest request can still share the active render.
+      if (!png || data.renderRequestSequence !== requestSequence) return;
+
+      const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
+      const currentEmbed = interaction.message.embeds?.[0];
+      const embed = currentEmbed
+        ? new EmbedBuilder(currentEmbed.data)
+        : new EmbedBuilder().setTitle('🧱 Minecraft Schematic');
+
+      embed
+        .setImage('attachment://schematic-render.png')
+        .setFooter({ text: 'POV ' + pov + '/10 · ' + POV_DESCRIPTIONS[pov] });
+
+      const payload = {
+        embeds: [embed],
+        attachments: [],
+        files: [attachment],
+        components: buildRenderViewComponents(id, pov)
+      };
+
+      // Serialize final edits for this schematic, so two fast clicks cannot
+      // finish out of order and leave the earlier POV displayed last.
+      const previousUpdate = data.renderUpdateQueue || Promise.resolve();
+      const nextUpdate = previousUpdate.catch(() => {}).then(() => {
+        if (data.renderRequestSequence !== requestSequence) return;
+        return interaction.editReply(payload);
+      });
+      data.renderUpdateQueue = nextUpdate.catch(() => {});
+      return await nextUpdate;
+    } catch (error) {
+      // The interaction has already been acknowledged, so report a render
+      // failure privately instead of leaving a permanent loading indicator.
+      if (data.renderRequestSequence === requestSequence) {
+        return interaction.followUp({
+          content: 'Could not load that POV. Please click the view again. (' +
+            String(error?.message || 'render error').slice(0, 180) + ')',
+          ephemeral: true
+        });
       }
     }
-    const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
-    const currentEmbed = interaction.message.embeds?.[0];
-    const embed = currentEmbed
-      ? new EmbedBuilder(currentEmbed.data)
-      : new EmbedBuilder().setTitle('🧱 Minecraft Schematic');
-
-    embed
-      .setImage('attachment://schematic-render.png')
-      .setFooter({ text: 'POV ' + pov + '/10 · ' + POV_DESCRIPTIONS[pov] });
-
-    // The interaction's original response is the clicked message. Editing it
-    // through the acknowledged interaction webhook is more reliable than a
-    // second channel-message PATCH after deferUpdate().
-    return interaction.editReply({
-      embeds: [embed],
-      attachments: [],
-      files: [attachment],
-      components: buildRenderViewComponents(id, pov)
-    });
   }
 };
