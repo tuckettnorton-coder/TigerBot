@@ -9,6 +9,7 @@ on:
       - feat/render-five-pov-material-dropdown-20261013
     paths:
       - 'src/commands/Tools/render.js'
+      - 'src/services/renderTextures.js'
       - 'src/services/renderMaterialUi.js'
       - 'src/services/renderViewUi.js'
       - 'src/interactions/buttons/renderMaterials.js'
@@ -25,6 +26,7 @@ on:
       - main
     paths:
       - 'src/commands/Tools/render.js'
+      - 'src/services/renderTextures.js'
       - 'src/services/renderMaterialUi.js'
       - 'src/services/renderViewUi.js'
       - 'src/interactions/buttons/renderMaterials.js'
