@@ -44,7 +44,21 @@ export default {
 
     const textureMap = data.renderTextures || await loadVanillaTextureMap(data);
     data.renderTextures = textureMap;
-    const png = makePng(data, pov, textureMap);
+
+    // Reuse recently viewed angles rather than rebuilding a 2400×1800 PNG
+    // on every click. Two cached PNGs per schematic keep memory use bounded.
+    if (!(data.renderPngCache instanceof Map)) data.renderPngCache = new Map();
+    let png = data.renderPngCache.get(pov);
+    if (png) {
+      data.renderPngCache.delete(pov);
+      data.renderPngCache.set(pov, png);
+    } else {
+      png = makePng(data, pov, textureMap);
+      data.renderPngCache.set(pov, png);
+      while (data.renderPngCache.size > 2) {
+        data.renderPngCache.delete(data.renderPngCache.keys().next().value);
+      }
+    }
     const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
     const currentEmbed = interaction.message.embeds?.[0];
     const embed = currentEmbed
@@ -55,7 +69,10 @@ export default {
       .setImage('attachment://schematic-render.png')
       .setFooter({ text: 'POV ' + pov + '/10 · ' + POV_DESCRIPTIONS[pov] });
 
-    return interaction.message.edit({
+    // The interaction's original response is the clicked message. Editing it
+    // through the acknowledged interaction webhook is more reliable than a
+    // second channel-message PATCH after deferUpdate().
+    return interaction.editReply({
       embeds: [embed],
       attachments: [],
       files: [attachment],
