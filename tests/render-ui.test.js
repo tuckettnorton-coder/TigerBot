@@ -234,23 +234,83 @@ test('vanilla texture PNG decoder preserves RGBA pixels', () => {
   assert.deepEqual(decoded.pixels, expected);
 });
 
-test('vanilla texture loader caches and returns the actual PNG pixels', async () => {
+test('vanilla texture loader resolves official blockstate/model face textures and PNG pixels', async () => {
   const expected = Buffer.from([240, 30, 60, 255]);
   const png = textureTestPng(expected, 1, 1);
   const previousFetch = globalThis.fetch;
-  let requested = '';
+  const requested = [];
 
   globalThis.fetch = async url => {
-    requested = String(url);
-    return { ok: true, arrayBuffer: async () => png };
+    const address = String(url);
+    requested.push(address);
+    if (address.endsWith('/blockstates/stone.json')) {
+      return {
+        ok: true,
+        text: async () => JSON.stringify({
+          variants: { '': { model: 'minecraft:block/stone' } }
+        })
+      };
+    }
+    if (address.endsWith('/models/block/stone.json')) {
+      return {
+        ok: true,
+        text: async () => JSON.stringify({
+          parent: 'minecraft:block/cube_all',
+          textures: { all: 'minecraft:block/stone' }
+        })
+      };
+    }
+    if (address.endsWith('/models/block/cube_all.json')) {
+      return {
+        ok: true,
+        text: async () => JSON.stringify({
+          parent: 'minecraft:block/cube',
+          textures: {
+            particle: '#all',
+            down: '#all',
+            up: '#all',
+            north: '#all',
+            south: '#all',
+            east: '#all',
+            west: '#all'
+          }
+        })
+      };
+    }
+    if (address.endsWith('/models/block/cube.json')) {
+      return {
+        ok: true,
+        text: async () => JSON.stringify({
+          elements: [{
+            faces: {
+              up: { texture: '#up' },
+              down: { texture: '#down' },
+              north: { texture: '#north' },
+              south: { texture: '#south' },
+              east: { texture: '#east' },
+              west: { texture: '#west' }
+            }
+          }]
+        })
+      };
+    }
+    if (address.endsWith('/textures/block/stone.png')) {
+      return { ok: true, arrayBuffer: async () => png };
+    }
+    return { ok: false, text: async () => '' };
   };
 
   try {
     const textureMap = await loadVanillaTextureMap({
       counts: [['minecraft:stone', 10]]
     });
-    assert.match(requested, /^https:\/\/assets\.mcasset\.cloud\/1\.21\.11\/assets\/minecraft\/textures\/block\/stone\.png$/);
-    assert.ok(textureMap.has('stone'));
+    assert.ok(requested.some(url => url.endsWith('/blockstates/stone.json')));
+    assert.ok(requested.some(url => url.endsWith('/models/block/stone.json')));
+    assert.ok(requested.some(url => url.endsWith('/models/block/cube_all.json')));
+    assert.ok(requested.some(url => /^https:\/\/assets\.mcasset\.cloud\/1\.21\.11\/assets\/minecraft\/textures\/block\/stone\.png$/.test(url)));
+    assert.equal(textureMap.get('blockface:stone:up'), 'stone');
+    assert.equal(textureMap.get('blockface:stone:down'), 'stone');
+    assert.equal(textureMap.get('blockface:stone:north'), 'stone');
     assert.deepEqual(textureMap.get('stone').pixels, expected);
   } finally {
     globalThis.fetch = previousFetch;
@@ -343,4 +403,77 @@ test('obsolete POV renders waiting in the worker queue can be skipped', async ()
     { shouldCancel: () => true }
   );
   assert.equal(result, null);
+});
+
+
+test('Minecraft model mapping preserves distinct textures for different block faces', async () => {
+  const originalFetch = globalThis.fetch;
+  const redPng = textureTestPng(Buffer.from([240, 20, 20, 255]), 1, 1);
+  const bluePng = textureTestPng(Buffer.from([20, 40, 240, 255]), 1, 1);
+  const requested = [];
+
+  globalThis.fetch = async url => {
+    const address = String(url);
+    requested.push(address);
+    if (address.endsWith('/blockstates/furnace.json')) {
+      return { ok: true, text: async () => JSON.stringify({ variants: { '': { model: 'minecraft:block/furnace' } } }) };
+    }
+    if (address.endsWith('/models/block/furnace.json')) {
+      return {
+        ok: true,
+        text: async () => JSON.stringify({
+          parent: 'minecraft:block/orientable',
+          textures: {
+            top: 'minecraft:block/furnace_top',
+            side: 'minecraft:block/furnace_side',
+            front: 'minecraft:block/furnace_front'
+          }
+        })
+      };
+    }
+    if (address.endsWith('/models/block/orientable.json')) {
+      return {
+        ok: true,
+        text: async () => JSON.stringify({
+          textures: {
+            top: '#top',
+            bottom: '#top',
+            side: '#side',
+            front: '#front'
+          },
+          elements: [{
+            faces: {
+              up: { texture: '#top' },
+              down: { texture: '#bottom' },
+              north: { texture: '#front' },
+              south: { texture: '#side' },
+              east: { texture: '#side' },
+              west: { texture: '#side' }
+            }
+          }]
+        })
+      };
+    }
+    if (address.endsWith('/textures/block/furnace_top.png') ||
+        address.endsWith('/textures/block/furnace_side.png') ||
+        address.endsWith('/textures/block/furnace_front.png')) {
+      return {
+        ok: true,
+        arrayBuffer: async () => address.endsWith('/textures/block/furnace_front.png') ? bluePng : redPng
+      };
+    }
+    return { ok: false, text: async () => '' };
+  };
+
+  try {
+    const textureMap = await loadVanillaTextureMap({
+      counts: [['minecraft:furnace', 3]]
+    });
+    assert.equal(textureMap.get('blockface:furnace:up'), 'furnace_top');
+    assert.equal(textureMap.get('blockface:furnace:north'), 'furnace_front');
+    assert.equal(textureMap.get('blockface:furnace:south'), 'furnace_side');
+    assert.ok(requested.some(url => url.endsWith('/textures/block/furnace_front.png')));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

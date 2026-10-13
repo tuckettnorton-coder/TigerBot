@@ -631,9 +631,15 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
     return light(color, faceLight);
   }
 
-  function sampleVanillaTexture(blockName, faceName, u, v) {
-    const textureName = getBlockTextureName(blockName, faceName);
-    const texture = textureMap.get(textureName);
+  function sampleVanillaTexture(blockName, faceName, u, v, modelFaceName = faceName) {
+    const normalizedName = String(blockName || 'unknown')
+      .replace(/^minecraft:/, '')
+      .replace(/\[.*$/, '')
+      .toLowerCase();
+    const modelTextureName = textureMap.get('blockface:' + normalizedName + ':' + modelFaceName);
+    const fallbackTextureName = getBlockTextureName(blockName, faceName);
+    const texture = (typeof modelTextureName === 'string' && textureMap.get(modelTextureName)) ||
+      textureMap.get(fallbackTextureName);
     if (!texture || !texture.width || !texture.height || !texture.pixels) return null;
 
     const tx = Math.max(0, Math.min(texture.width - 1, Math.floor(Math.max(0, Math.min(0.999999, u)) * texture.width)));
@@ -696,7 +702,13 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
 
           const at = (y * W + x) * 4;
           const textureFace = face.face === 'top' ? 'top' : face.face === 'bottom' ? 'bottom' : 'side';
-          const sample = sampleVanillaTexture(face.name, textureFace, u, v);
+          const modelFaceName = face.face === 'top' ? 'up'
+            : face.face === 'bottom' ? 'down'
+              : face.side === '+x' ? 'east'
+                : face.side === '-x' ? 'west'
+                  : face.side === '+z' ? 'south'
+                    : 'north';
+          const sample = sampleVanillaTexture(face.name, textureFace, u, v, modelFaceName);
 
           if (sample) {
             // Apply directional face lighting to actual vanilla texture pixels.
