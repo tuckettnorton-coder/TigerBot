@@ -417,7 +417,7 @@ export function makePng(data) {
     const variation = (noise % 19) - 9;
     let color = block.color;
 
-    if (/grass_block|^grass$|moss/.test(name)) {
+    if (/grass_block|^grass$/.test(name)) {
       if (face === 'top') {
         const greens = ['#4f8435', '#568d38', '#60983d', '#4a7c30', '#6ba044'];
         color = greens[noise % greens.length];
