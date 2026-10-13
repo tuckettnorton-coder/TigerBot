@@ -149,7 +149,7 @@ test('public render panel hides the material list behind a View Materials button
       getAttachment: () => ({
         name: 'test.litematic',
         size: schematic.length,
-        url: 'https://example.test/test.litematic'
+        url: 'https://cdn.discordapp.com/attachments/123/456/test.litematic'
       })
     },
     deferReply: async (...args) => { deferArgs = args; },

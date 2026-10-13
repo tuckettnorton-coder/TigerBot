@@ -30,7 +30,7 @@ export default { name: 'building_schematic', async execute(interaction) {
 
     const uploadLabel = new LabelBuilder()
       .setLabel('Upload your schematic')
-      .setDescription('Upload a ZIP, .schem, or .litematic file.')
+      .setDescription('Upload a .litematic file for an automatic cinematic preview. Other formats can still be shared with staff.')
       .setFileUploadComponent(fileUpload);
 
     const modal = new ModalBuilder()
