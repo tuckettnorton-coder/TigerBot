@@ -68,12 +68,13 @@ export function getRenderView(id) {
   return entry.data;
 }
 
-export function buildRenderViewComponents(id, activePov = 1) {
+export function buildRenderViewComponents(id, activePov = 1, readyPovs = null) {
   const firstPovRow = new ActionRowBuilder().addComponents(
     [1, 2, 3, 4, 5].map(pov => new ButtonBuilder()
       .setCustomId('render_pov:' + id + ':' + pov)
       .setLabel(getPovButtonLabel(pov))
       .setStyle(Number(activePov) === pov ? ButtonStyle.Primary : ButtonStyle.Secondary)
+      .setDisabled(readyPovs instanceof Set && !readyPovs.has(pov))
     )
   );
 
@@ -82,6 +83,7 @@ export function buildRenderViewComponents(id, activePov = 1) {
       .setCustomId('render_pov:' + id + ':' + pov)
       .setLabel(getPovButtonLabel(pov))
       .setStyle(Number(activePov) === pov ? ButtonStyle.Primary : ButtonStyle.Secondary)
+      .setDisabled(readyPovs instanceof Set && !readyPovs.has(pov))
     )
   );
 
