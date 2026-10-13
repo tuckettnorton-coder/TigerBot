@@ -24,7 +24,7 @@ test('private material list renders directly and paginates only when it exceeds 
     name: 'Pagination Test',
     size: [30, 12, 8],
     total: 900,
-    counts: sampleCounts(120)
+    counts: sampleCounts(200)
   });
 
   const entry = getRenderMaterials(id);
@@ -98,7 +98,7 @@ test('camera POV cache preserves the render data needed to make a new angle', ()
 test('material panel lists names and counts directly without dropdowns or inspection controls', () => {
   const id = 'render-dropdown-options-test';
   saveRenderMaterials(id, {
-    name: 'Dropdown Test',
+    name: 'Material Test',
     size: [2, 2, 2],
     total: 30,
     counts: [['minecraft:stone', 18], ['minecraft:oak_planks', 12]]
