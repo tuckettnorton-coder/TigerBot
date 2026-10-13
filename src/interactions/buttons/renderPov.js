@@ -1,6 +1,7 @@
 import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
 import { makePng } from '../../commands/Tools/render.js';
 import { buildRenderViewComponents, getRenderView } from '../../services/renderViewUi.js';
+import { loadVanillaTextureMap } from '../../services/renderTextures.js';
 
 const POV_DESCRIPTIONS = {
   1: 'Exterior view · front corner',
@@ -41,7 +42,9 @@ export default {
     // than Discord's initial three-second interaction window.
     await interaction.deferUpdate();
 
-    const png = makePng(data, pov);
+    const textureMap = data.renderTextures || await loadVanillaTextureMap(data);
+    data.renderTextures = textureMap;
+    const png = makePng(data, pov, textureMap);
     const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
     const currentEmbed = interaction.message.embeds?.[0];
     const embed = currentEmbed
