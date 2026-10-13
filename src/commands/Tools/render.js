@@ -1,10 +1,11 @@
-import { AttachmentBuilder, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import { randomUUID } from 'node:crypto';
+import { saveRenderMaterials } from '../../services/renderMaterialUi.js';
 import { deflateSync, gunzipSync } from 'node:zlib';
 
 const MAX_UNCOMPRESSED_BYTES = 64 * 1024 * 1024;
 const MAX_REGION_VOLUME = 5_000_000;
 const MAX_RENDER_BLOCKS = 100_000;
-const MAX_DRAWN_BLOCKS = 18_000;
 
 export function parseNbt(input) {
   let data;
@@ -232,6 +233,7 @@ export function analyze(buffer) {
         x: originX - minX + (flipX ? sx - 1 - localX : localX),
         y: originY - minY + (flipY ? sy - 1 - localY : localY),
         z: originZ - minZ + (flipZ ? sz - 1 - localZ : localZ),
+        name: name.replace(/^minecraft:/, ''),
         color: blockColor(name)
       };
 
@@ -256,67 +258,280 @@ export function analyze(buffer) {
 }
 
 export function makePng(data) {
-  const W = 1200, H = 1000;
+  const W = 1600, H = 1200;
   const pixels = Buffer.alloc(W * H * 4);
-  for (let i = 0; i < W * H; i++) {
-    pixels[i * 4] = 34;
-    pixels[i * 4 + 1] = 35;
-    pixels[i * 4 + 2] = 41;
-    pixels[i * 4 + 3] = 255;
+
+  // A soft sky-to-slate backdrop makes the structure stand out without the
+  // flat, unfinished background of the old preview.
+  for (let y = 0; y < H; y++) {
+    const t = y / Math.max(1, H - 1);
+    const r = Math.round(24 + t * 12);
+    const g = Math.round(29 + t * 11);
+    const b = Math.round(42 + t * 13);
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      pixels[i] = r;
+      pixels[i + 1] = g;
+      pixels[i + 2] = b;
+      pixels[i + 3] = 255;
+    }
   }
 
   const [sx, sy, sz] = data.size;
-  const maxUnit = Math.min(
-    12,
-    (W - 100) * 2 / (sx + sz),
-    (H - 140) / (sy + (sx + sz) / 2)
-  );
-  const unit = Math.max(0.05, maxUnit);
+  const halfMax = Math.max(1, sx + sz);
+  const heightMax = Math.max(1, sy + (sx + sz) / 2);
+  const unit = Math.max(0.00001, Math.min(
+    18,
+    (W - 180) * 2 / halfMax,
+    (H - 180) / heightMax
+  ));
   const half = unit / 2;
   const projectedWidth = (sx + sz) * half;
   const projectedHeight = sy * unit + (sx + sz) * half;
   const xOffset = (W - projectedWidth) / 2 + sz * half;
   const yOffset = (H - projectedHeight) / 2 + sy * unit;
-  const pt = (x, y, z) => [xOffset + (x - z) * half, yOffset + (x + z) * half - y * unit];
+  const pt = (x, y, z) => [
+    xOffset + (x - z) * half,
+    yOffset + (x + z) * half - y * unit
+  ];
 
-  const faces = [];
-  const stride = Math.max(1, Math.ceil(data.blocks.length / MAX_DRAWN_BLOCKS));
-  for (let i = 0; i < data.blocks.length; i += stride) {
-    const b = data.blocks[i], x = b.x, y = b.y, z = b.z, c = b.color;
-    const a = pt(x, y + 1, z), d = pt(x + 1, y + 1, z), e = pt(x + 1, y + 1, z + 1), f = pt(x, y + 1, z + 1);
-    const g = pt(x + 1, y, z), h = pt(x + 1, y, z + 1), j = pt(x, y, z + 1);
-    faces.push({
-      k: x + z + y * 0.001,
-      polys: [
-        { pts: [d, e, h, g], color: shade(c, 0.70) },
-        { pts: [f, e, h, j], color: shade(c, 0.84) },
-        { pts: [a, d, e, f], color: c }
-      ]
-    });
+  function blendPixel(x, y, rgb, alpha) {
+    if (x < 0 || x >= W || y < 0 || y >= H) return;
+    const at = (y * W + x) * 4;
+    pixels[at] = Math.round(pixels[at] * (1 - alpha) + rgb[0] * alpha);
+    pixels[at + 1] = Math.round(pixels[at + 1] * (1 - alpha) + rgb[1] * alpha);
+    pixels[at + 2] = Math.round(pixels[at + 2] * (1 - alpha) + rgb[2] * alpha);
   }
-  faces.sort((a, b) => a.k - b.k);
 
-  function fillPolygon(points, hex) {
-    const rgb = [
-      parseInt(hex.slice(1, 3), 16),
-      parseInt(hex.slice(3, 5), 16),
-      parseInt(hex.slice(5, 7), 16)
-    ];
+  // A subtle ground shadow anchors the build rather than leaving it floating.
+  const shadowRx = Math.max(10, Math.min(W * 0.34, projectedWidth * 0.52));
+  const shadowRy = Math.max(3, Math.min(25, shadowRx * 0.07));
+  const shadowCy = Math.min(H - 2, (H + projectedHeight) / 2 + 14);
+  const shadowTop = Math.max(0, Math.floor(shadowCy - shadowRy));
+  const shadowBottom = Math.min(H - 1, Math.ceil(shadowCy + shadowRy));
+  for (let y = shadowTop; y <= shadowBottom; y++) {
+    const dy = (y - shadowCy) / shadowRy;
+    for (let x = Math.max(0, Math.floor(W / 2 - shadowRx));
+      x <= Math.min(W - 1, Math.ceil(W / 2 + shadowRx)); x++) {
+      const dx = (x - W / 2) / shadowRx;
+      const distance = dx * dx + dy * dy;
+      if (distance < 1) {
+        blendPixel(x, y, [8, 11, 18], (1 - distance) * 0.32);
+      }
+    }
+  }
+
+  const key = (x, y, z) => x + ',' + y + ',' + z;
+  const occupied = new Set(data.blocks.map(block => key(block.x, block.y, block.z)));
+  const faces = [];
+
+  // Only paint outward-facing surfaces. Drawing all six faces over one
+  // another made the previous preview look like stacked plastic bricks.
+  for (const block of data.blocks) {
+    const x = block.x, y = block.y, z = block.z;
+    const color = block.color || '#a8a8a8';
+    const name = block.name || 'unknown';
+    const base = { x, y, z, color, name };
+    const topLeft = pt(x, y + 1, z);
+    const topRight = pt(x + 1, y + 1, z);
+    const topFront = pt(x + 1, y + 1, z + 1);
+    const topBack = pt(x, y + 1, z + 1);
+    const bottomRight = pt(x + 1, y, z);
+    const bottomFront = pt(x + 1, y, z + 1);
+    const bottomBack = pt(x, y, z + 1);
+    const depth = x + z + y * 0.001;
+
+    if (!occupied.has(key(x + 1, y, z))) {
+      faces.push({
+        ...base,
+        face: 'x',
+        depth,
+        order: 0,
+        points: [topRight, topFront, bottomFront, bottomRight]
+      });
+    }
+    if (!occupied.has(key(x, y, z + 1))) {
+      faces.push({
+        ...base,
+        face: 'z',
+        depth,
+        order: 1,
+        points: [topBack, topFront, bottomFront, bottomBack]
+      });
+    }
+    if (!occupied.has(key(x, y + 1, z))) {
+      faces.push({
+        ...base,
+        face: 'top',
+        depth,
+        order: 2,
+        points: [topLeft, topRight, topFront, topBack]
+      });
+    }
+  }
+
+  faces.sort((a, b) => a.depth - b.depth || a.order - b.order);
+
+  const hexRgb = hex => [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16)
+  ];
+  const toHex = rgb => '#' + rgb.map(channel =>
+    Math.max(0, Math.min(255, Math.round(channel))).toString(16).padStart(2, '0')
+  ).join('');
+  const adjust = (hex, amount) => toHex(hexRgb(hex).map(channel => channel + amount));
+  const light = (hex, factor) => toHex(hexRgb(hex).map(channel => channel * factor));
+
+  function hashPixel(x, y, z, tx, ty) {
+    let h = Math.imul((x + 4099) | 0, 73856093);
+    h ^= Math.imul((y + 8191) | 0, 19349663);
+    h ^= Math.imul((z + 16381) | 0, 83492791);
+    h ^= Math.imul((tx + 31) | 0, 2654435761);
+    h ^= Math.imul((ty + 17) | 0, 1597334677);
+    h ^= h >>> 13;
+    h = Math.imul(h, 1274126177);
+    return (h ^ (h >>> 16)) >>> 0;
+  }
+
+  function oreColor(name) {
+    if (/diamond/.test(name)) return '#55e5df';
+    if (/emerald/.test(name)) return '#46df78';
+    if (/gold/.test(name)) return '#f2d34a';
+    if (/iron/.test(name)) return '#e1ad8d';
+    if (/copper/.test(name)) return '#e58c5a';
+    if (/lapis/.test(name)) return '#3769db';
+    if (/redstone/.test(name)) return '#e84943';
+    if (/coal/.test(name)) return '#28282b';
+    if (/quartz/.test(name)) return '#f1e8d9';
+    if (/netherite|ancient_debris/.test(name)) return '#a87963';
+    return '#b4b9c0';
+  }
+
+  function textureColor(face, block, u, v) {
+    const name = block.name;
+    const txCount = Math.max(2, Math.min(16, Math.floor(unit / 1.55)));
+    const tx = Math.max(0, Math.min(txCount - 1, Math.floor(u * txCount)));
+    const ty = Math.max(0, Math.min(txCount - 1, Math.floor(v * txCount)));
+    const noise = hashPixel(block.x, block.y, block.z, tx, ty);
+    const variation = (noise % 19) - 9;
+    let color = block.color;
+
+    if (/grass_block|^grass$/.test(name)) {
+      if (face === 'top') {
+        const greens = ['#4f8435', '#568d38', '#60983d', '#4a7c30', '#6ba044'];
+        color = greens[noise % greens.length];
+      } else if (v < 0.20) {
+        color = ['#578d35', '#61973c', '#4d7e2f'][noise % 3];
+      } else {
+        color = ['#785238', '#835b3c', '#704b32'][noise % 3];
+      }
+    } else if (/ore/.test(name)) {
+      color = /deepslate/.test(name) ? '#4e5055' : '#777a7c';
+      if ((noise % 13) < 3 || ((tx + ty + block.x + block.z) % 11 === 0)) {
+        color = oreColor(name);
+      } else if (noise % 5 === 0) {
+        color = adjust(color, -14);
+      }
+    } else if (/stone|deepslate|cobble|andesite|diorite|granite|tuff|bedrock|blackstone/.test(name)) {
+      if (noise % 11 === 0) color = adjust(block.color, -18);
+      else if (noise % 7 === 0) color = adjust(block.color, 11);
+      else color = adjust(block.color, variation * 0.7);
+      if (/cobble/.test(name) && (tx % 5 === 0 || ty % 5 === 0)) color = adjust(color, -16);
+    } else if (/dirt|mud|podzol|mycelium/.test(name)) {
+      if (noise % 5 === 0) color = adjust(block.color, -13);
+      else if (noise % 4 === 0) color = adjust(block.color, 10);
+      else color = adjust(block.color, variation);
+    } else if (/sand|sandstone|end_stone|gravel|clay/.test(name)) {
+      color = adjust(block.color, noise % 6 === 0 ? -10 : variation * 0.6);
+      if (/sandstone/.test(name) && ty % 5 === 0) color = adjust(color, -11);
+    } else if (/planks/.test(name)) {
+      color = adjust(block.color, variation);
+      if (ty % 4 === 0) color = adjust(color, -14);
+      if (tx % 8 === 0) color = adjust(color, -7);
+    } else if (/log|wood|bamboo_block|stem|hyphae/.test(name)) {
+      if (face === 'top' && /log|wood/.test(name)) {
+        const dx = tx - (txCount - 1) / 2;
+        const dy = ty - (txCount - 1) / 2;
+        const ring = Math.floor(Math.sqrt(dx * dx + dy * dy));
+        color = ring % 3 === 0 ? adjust(block.color, -13) : adjust(block.color, 7);
+      } else {
+        color = adjust(block.color, variation * 0.85);
+        if (tx % 5 === 0) color = adjust(color, -15);
+      }
+    } else if (/leaves|vine|azalea|moss_block|moss_carpet/.test(name)) {
+      const greens = ['#477b38', '#52873b', '#5d9140', '#3f7134', '#68994a'];
+      color = greens[noise % greens.length];
+      if (noise % 9 === 0) color = adjust(color, -17);
+    } else if (/brick|terracotta|magma|nether_brick/.test(name)) {
+      color = adjust(block.color, variation * 0.6);
+      const mortar = ty % 4 === 0 || ((ty % 4 === 2) && tx % 6 === 0);
+      if (mortar) color = adjust(color, -29);
+    } else if (/glass|ice/.test(name)) {
+      color = ['#a9d8e9', '#b8e5f1', '#99cfe2'][noise % 3];
+      if (u < 0.12 || v < 0.12 || u > 0.88 || v > 0.88 || noise % 17 === 0) {
+        color = '#e1f7ff';
+      }
+    } else if (/water/.test(name)) {
+      color = noise % 5 === 0 ? '#2e6dad' : '#397bc4';
+      if ((tx + ty + block.x) % 5 === 0) color = adjust(color, 14);
+    } else if (/wool|concrete|concrete_powder|carpet|coral/.test(name)) {
+      color = adjust(block.color, variation * 0.35);
+    } else if (/redstone|repeater|comparator|lever|torch|lantern/.test(name)) {
+      color = adjust(block.color, variation * 0.5);
+    } else {
+      color = adjust(block.color, variation * 0.55);
+    }
+
+    const faceLight = face === 'top' ? 1.04 : face === 'x' ? 0.72 : 0.86;
+    return light(color, faceLight);
+  }
+
+  function fillPolygon(face) {
+    const points = face.points;
     const minY = Math.max(0, Math.floor(Math.min(...points.map(point => point[1]))));
     const maxY = Math.min(H - 1, Math.ceil(Math.max(...points.map(point => point[1]))));
+    const start = face.face === 'top'
+      ? pt(face.x, face.y + 1, face.z)
+      : face.face === 'x'
+        ? pt(face.x + 1, face.y + 1, face.z)
+        : pt(face.x, face.y + 1, face.z + 1);
+
     for (let y = minY; y <= maxY; y++) {
+      const scanY = y + 0.5;
       const xs = [];
       for (let i = 0; i < points.length; i++) {
         const a = points[i], b = points[(i + 1) % points.length];
-        if ((a[1] <= y && b[1] > y) || (b[1] <= y && a[1] > y)) {
-          xs.push(a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]));
+        if ((a[1] <= scanY && b[1] > scanY) || (b[1] <= scanY && a[1] > scanY)) {
+          xs.push(a[0] + (scanY - a[1]) * (b[0] - a[0]) / (b[1] - a[1]));
         }
       }
       xs.sort((a, b) => a - b);
+
       for (let k = 0; k + 1 < xs.length; k += 2) {
-        const x0 = Math.max(0, Math.ceil(xs[k]));
-        const x1 = Math.min(W - 1, Math.floor(xs[k + 1]));
+        const x0 = Math.max(0, Math.ceil(xs[k] - 0.5));
+        const x1 = Math.min(W - 1, Math.floor(xs[k + 1] - 0.5));
         for (let x = x0; x <= x1; x++) {
+          const px = x + 0.5, py = y + 0.5;
+          let u, v;
+
+          if (face.face === 'top') {
+            const dx = px - start[0];
+            const dy = py - start[1];
+            u = (dx + dy) / unit;
+            v = (dy - dx) / unit;
+          } else if (face.face === 'x') {
+            const localZ = (start[0] - px) / half;
+            u = localZ;
+            v = (py - start[1] - localZ * half) / unit;
+          } else {
+            const localX = (px - start[0]) / half;
+            u = localX;
+            v = (py - start[1] - localX * half) / unit;
+          }
+
+          const color = textureColor(face.face, face, u, v);
+          const rgb = hexRgb(color);
           const at = (y * W + x) * 4;
           pixels[at] = rgb[0];
           pixels[at + 1] = rgb[1];
@@ -327,8 +542,37 @@ export function makePng(data) {
     }
   }
 
+  function drawLine(start, end, hex) {
+    let x0 = Math.round(start[0]), y0 = Math.round(start[1]);
+    const x1 = Math.round(end[0]), y1 = Math.round(end[1]);
+    const dx = Math.abs(x1 - x0), sxStep = x0 < x1 ? 1 : -1;
+    const dy = -Math.abs(y1 - y0), syStep = y0 < y1 ? 1 : -1;
+    let error = dx + dy;
+    const rgb = hexRgb(hex);
+
+    while (true) {
+      if (x0 >= 0 && x0 < W && y0 >= 0 && y0 < H) {
+        const at = (y0 * W + x0) * 4;
+        pixels[at] = rgb[0];
+        pixels[at + 1] = rgb[1];
+        pixels[at + 2] = rgb[2];
+        pixels[at + 3] = 255;
+      }
+      if (x0 === x1 && y0 === y1) break;
+      const twice = 2 * error;
+      if (twice >= dy) { error += dy; x0 += sxStep; }
+      if (twice <= dx) { error += dx; y0 += syStep; }
+    }
+  }
+
+  // Stroke each face immediately after filling it. Foreground faces can then
+  // cover edges behind them, matching normal isometric depth ordering.
   for (const face of faces) {
-    for (const polygon of face.polys) fillPolygon(polygon.pts, polygon.color);
+    fillPolygon(face);
+    const edgeColor = light(face.color, face.face === 'top' ? 0.57 : 0.48);
+    for (let i = 0; i < face.points.length; i++) {
+      drawLine(face.points[i], face.points[(i + 1) % face.points.length], edgeColor);
+    }
   }
 
   const raw = Buffer.alloc(H * (1 + W * 4));
@@ -370,7 +614,6 @@ export function makePng(data) {
     chunk('IEND', Buffer.alloc(0))
   ]);
 }
-
 export default {
   data: new SlashCommandBuilder()
     .setName('render')
@@ -402,27 +645,33 @@ export default {
       const data = analyze(Buffer.from(await response.arrayBuffer()));
       const png = makePng(data);
       const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
-      const materials = data.counts.slice(0, 20)
-        .map(([name, count]) =>
-          '• ' + name.replace(/^minecraft:/, '').slice(0, 80) + ': **' +
-          count.toLocaleString('en-US') + '**'
-        )
-        .join('\n');
-      const extra = data.counts.length > 20
-        ? '\n…and ' + (data.counts.length - 20) + ' other block types.'
-        : '';
+      const materialId = randomUUID();
+      saveRenderMaterials(materialId, data);
+
       const embed = new EmbedBuilder()
         .setTitle('🧱 ' + data.name.slice(0, 240))
         .setDescription(
           '**Dimensions:** ' + data.size.join(' × ') + ' blocks\n' +
           '**Non-air blocks:** ' + data.total.toLocaleString('en-US') + '\n' +
-          '**Block types:** ' + data.counts.length + '\n\n' +
-          '**Materials list**\n' + (materials || 'No blocks found.') + extra
+          '**Block types:** ' + data.counts.length.toLocaleString('en-US') + '\n\n' +
+          'Click **View Materials** below to privately browse the exact block counts.'
         )
         .setImage('attachment://schematic-render.png')
-        .setFooter({ text: 'Preview uses simplified block colors; material counts are read from the file.' });
+        .setFooter({ text: 'Minecraft-style pixel textures and visible-face shading; counts come directly from the schematic.' });
 
-      return interaction.editReply({ embeds: [embed], files: [attachment] });
+      const materialButton = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('render_materials:' + materialId)
+          .setLabel('View Materials')
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji('🧱')
+      );
+
+      return interaction.editReply({
+        embeds: [embed],
+        files: [attachment],
+        components: [materialButton]
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown rendering error.';
       return interaction.editReply('❌ Could not render this schematic: ' + message.slice(0, 1500));

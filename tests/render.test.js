@@ -130,6 +130,46 @@ test('exports /render as a valid slash command with a required attachment', () =
   assert.equal(payload.options[0].required, true);
 });
 
+test('public render panel hides the material list behind a View Materials button', async () => {
+  const schematic = multiRegionFixture();
+  const originalFetch = globalThis.fetch;
+  let deferArgs;
+  let responsePayload;
+
+  globalThis.fetch = async () => ({
+    ok: true,
+    arrayBuffer: async () => schematic.buffer.slice(
+      schematic.byteOffset,
+      schematic.byteOffset + schematic.byteLength
+    )
+  });
+
+  const interaction = {
+    options: {
+      getAttachment: () => ({
+        name: 'test.litematic',
+        size: schematic.length,
+        url: 'https://example.test/test.litematic'
+      })
+    },
+    deferReply: async (...args) => { deferArgs = args; },
+    editReply: async payload => { responsePayload = payload; return payload; }
+  };
+
+  try {
+    await renderCommand.execute(interaction);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.deepEqual(deferArgs, []);
+  assert.equal(responsePayload.components.length, 1);
+  assert.equal(responsePayload.components[0].components[0].data.custom_id.startsWith('render_materials:'), true);
+  const description = responsePayload.embeds[0].data.description;
+  assert.match(description, /View Materials/);
+  assert.doesNotMatch(description, /Materials list|stone|dirt|glass/i);
+});
+
 test('decodes continuous packed states across 64-bit boundaries', () => {
   const paletteSize = 17;
   const indices = Array.from({ length: 30 }, (_, index) => (index * 7) % paletteSize);
@@ -193,8 +233,8 @@ test('creates a valid-sized PNG preview containing rendered pixels', () => {
     [...png.subarray(0, 8)],
     [137, 80, 78, 71, 13, 10, 26, 10]
   );
-  assert.equal(png.readUInt32BE(16), 1200);
-  assert.equal(png.readUInt32BE(20), 1000);
+  assert.equal(png.readUInt32BE(16), 1600);
+  assert.equal(png.readUInt32BE(20), 1200);
 
   let offset = 8;
   const idat = [];
@@ -208,12 +248,12 @@ test('creates a valid-sized PNG preview containing rendered pixels', () => {
   }
   assert.deepEqual(chunkTypes, ['IHDR', 'IDAT', 'IEND']);
   const raw = inflateSync(Buffer.concat(idat));
-  assert.equal(raw.length, 1000 * (1 + 1200 * 4));
+  assert.equal(raw.length, 1200 * (1 + 1600 * 4));
 
   let hasNonBackgroundPixel = false;
-  for (let row = 0; row < 1000 && !hasNonBackgroundPixel; row++) {
-    const rowStart = row * (1 + 1200 * 4) + 1;
-    for (let x = 0; x < 1200; x++) {
+  for (let row = 0; row < 1200 && !hasNonBackgroundPixel; row++) {
+    const rowStart = row * (1 + 1600 * 4) + 1;
+    for (let x = 0; x < 1600; x++) {
       const pixel = rowStart + x * 4;
       if (raw[pixel] !== 34 || raw[pixel + 1] !== 35 || raw[pixel + 2] !== 41) {
         hasNonBackgroundPixel = true;
