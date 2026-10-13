@@ -10,6 +10,8 @@ import { setBuildingDraft, getBuildingDraft, clearBuildingDraft } from '../../ut
 import { setMiddlemanDraft } from '../../utils/middlemanDrafts.js';
 import { setPaidAdDraft } from '../../utils/paidAdDrafts.js';
 import { registerTicketEphemeral, clearTicketEphemeral, clearTicketEphemeralLater, resetMainTicketPanel } from '../../utils/ticketEphemeral.js';
+import { sendSchematicRenderToChannel } from '../../commands/Tools/render.js';
+import { logger } from '../../utils/logger.js';
 
 const NUMBER_WORDS={zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
 const SCALE_WORDS={hundred:100,thousand:1_000,million:1_000_000,billion:1_000_000_000};
@@ -57,7 +59,7 @@ export default { name:'ticket_form', async execute(interaction,client,args){try{
      const uploaded=interaction.fields.getUploadedFiles('schematic_upload',true);
      const file=uploaded?.first();
      if(!file)return interaction.reply({content:'❌ Please upload your schematic.',ephemeral:true});
-     setBuildingDraft(interaction.user.id,{schematicUrl:file.url,schematicName:file.name});
+     setBuildingDraft(interaction.user.id,{schematicUrl:file.url,schematicName:file.name,schematicSize:file.size});
      await clearTicketEphemeral(interaction.user.id);
      await interaction.reply({content:'### 🏗️ Building Service\n**Do you have an area dug out?**',components:[yesNoMenu('building_area:yes','Do you have an area dug out?')],ephemeral:true});
      registerTicketEphemeral(interaction.user.id,interaction);
@@ -72,7 +74,26 @@ export default { name:'ticket_form', async execute(interaction,client,args){try{
      await interaction.deferReply({ephemeral:true});const result=await createTicketChannel({guild:interaction.guild,user:interaction.user,typeId,answers});if(result.existing)return interaction.editReply(`You already have an open ticket: ${result.existing}`);
      if(building)await addCalculationToPanel(result.channel,ticket.label,'🧮 Automatic Building Price Calculation',buildBuildingCalculationMessage(building));
      if(digging)await addCalculationToPanel(result.channel,ticket.label,'🧮 Automatic Digging Price Calculation',buildDiggingCalculationMessage(digging));
-     if(schematic==='yes')await result.channel.send('📐 **Schematic uploaded:** [Download '+(draft.schematicName||'schematic')+']('+draft.schematicUrl+')');
+     if(schematic==='yes'){
+       await result.channel.send('📐 **Schematic uploaded:** [Download '+(draft.schematicName||'schematic')+']('+draft.schematicUrl+')');
+       if (/\.litematic$/i.test(String(draft.schematicName || ''))) {
+         const statusMessage = await result.channel.send('🎬 **Preparing your cinematic schematic preview...**\nTigerBot will render the first view now and prepare the other POV buttons in the background.').catch(() => null);
+         if (statusMessage) {
+           void sendSchematicRenderToChannel(result.channel, {
+             url: draft.schematicUrl,
+             name: draft.schematicName,
+             size: draft.schematicSize
+           }, { statusMessage, ticketCinematic: true }).catch(async error => {
+             logger.warn('Automatic building-ticket schematic render failed for ' + result.channel.id + ': ' + (error instanceof Error ? error.message : String(error)));
+             await statusMessage.edit({
+               content: '⚠️ Your schematic was saved to the ticket, but TigerBot could not generate its cinematic preview. Staff can still download the original file.'
+             }).catch(() => {});
+           });
+         }
+       } else {
+         await result.channel.send('ℹ️ Automatic cinematic previews currently support **.litematic** files only. Your uploaded file is still available to the building team.').catch(() => {});
+       }
+     }
      const displayName=interaction.member?.displayName||interaction.user.globalName||interaction.user.username;await logTicket(interaction.guild,`🎫 **Ticket opened** • ${ticket.label} • ${displayName} • ${result.channel}`);clearBuildingDraft(interaction.user.id);await resetMainTicketPanel(interaction.user.id);await clearTicketEphemeral(interaction.user.id);const total=(building?.total||0)+(digging?.total||0);const confirmation=`✅ Ticket created: ${result.channel}${total?`\n💰 **Automatic total: ${new Intl.NumberFormat('en-US').format(total)}**`:''}`;await interaction.editReply(confirmation);clearTicketEphemeralLater(interaction);return;
    }
  }
