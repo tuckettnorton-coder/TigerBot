@@ -116,7 +116,10 @@ public class TigerMacroClient implements ClientModInitializer {
             }
         }, "TigerMessage-LocalTrigger");
 
+        // Prioritize the tiny local trigger listener so the loopback signal is handled promptly.
+        // Actual command sending still runs on Minecraft's main thread to avoid unsafe cross-thread game access.
         receiver.setDaemon(true);
+        receiver.setPriority(Thread.MAX_PRIORITY);
         receiver.start();
     }
 
