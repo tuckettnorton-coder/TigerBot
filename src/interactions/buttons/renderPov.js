@@ -35,10 +35,16 @@ export default {
       ? new EmbedBuilder(currentEmbed.data)
       : new EmbedBuilder().setTitle('🧱 Minecraft Schematic');
 
+    const povDescription = pov === 4
+      ? 'Interior cutaway · near-side section removed to reveal the inside.'
+      : pov === 5
+        ? 'Center cutaway · deeper interior view with part of the upper shell removed.'
+        : 'Exterior camera angle.';
+
     embed
       .setImage('attachment://schematic-render.png')
       .setFooter({
-        text: 'POV ' + pov + '/5 · Minecraft-style pixel textures and visible-face shading; counts come directly from the schematic.'
+        text: 'POV ' + pov + '/5 · ' + povDescription
       });
 
     return interaction.message.edit({
