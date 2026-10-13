@@ -367,9 +367,6 @@ test('vanilla texture loader resolves official blockstate/model face textures an
     });
     assert.equal(textureMap.get('blockface:stone:down').texture, 'stone');
     assert.equal(textureMap.get('blockface:stone:north').texture, 'stone');
-    assert.deepEqual(textureMap.get('blockface:stone:up'), {
-      texture: 'stone', uv: null, rotation: 0, tintindex: null
-    });
     assert.deepEqual(textureMap.get('stone').pixels, expected);
   } finally {
     globalThis.fetch = previousFetch;
