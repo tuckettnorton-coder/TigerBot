@@ -303,7 +303,8 @@ test('render worker returns a valid PNG while rasterization runs off the caller 
     pov: 1,
     textureMap: new Map()
   });
-  await new Promise(resolve => setImmediate(resolve));
+  // Wait for a timer while the worker is rendering, before waiting for its PNG.
+  await tick;
 
   assert.equal(eventLoopTicked, true, 'the main event loop should keep processing while PNG work runs');
   const png = await pngPromise;
