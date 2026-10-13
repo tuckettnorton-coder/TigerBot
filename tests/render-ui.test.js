@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateSync } from 'node:zlib';
-import { makePng } from '../src/commands/Tools/render.js';
+import { createSchematicRender, makePng } from '../src/commands/Tools/render.js';
 import { runRenderWorker } from '../src/services/renderWorker.js';
 import { cacheRenderPng, getCachedRenderPng, getOrCreateRenderPng } from '../src/services/renderPngCache.js';
 import {
@@ -248,6 +248,35 @@ function textureTestPng(rgbaPixels, width, height) {
     textureTestChunk('IEND', Buffer.alloc(0))
   ]);
 }
+
+test('shared render helper rejects unsupported files, unsafe URLs, and oversized schematics', async () => {
+  await assert.rejects(
+    createSchematicRender({
+      name: 'build.schem',
+      size: 100,
+      url: 'https://cdn.discordapp.com/attachments/1/2/build.schem'
+    }),
+    /supports \.litematic files only/i
+  );
+
+  await assert.rejects(
+    createSchematicRender({
+      name: 'build.litematic',
+      size: 100,
+      url: 'https://example.com/build.litematic'
+    }),
+    /uploaded directly to Discord/i
+  );
+
+  await assert.rejects(
+    createSchematicRender({
+      name: 'build.litematic',
+      size: 8 * 1024 * 1024 + 1,
+      url: 'https://cdn.discordapp.com/attachments/1/2/build.litematic'
+    }),
+    /8 MB/i
+  );
+});
 
 test('vanilla texture resolver selects correct top and side texture variants', () => {
   assert.equal(getBlockTextureName('minecraft:oak_log', 'top'), 'oak_log_top');
