@@ -208,7 +208,7 @@ public final class MacroPanelScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
+        context.fill(0, 0, width, height, 0xC0101010);
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 18, 0xFFFFFF);
         int left = Math.max(12, (width - 700) / 2);
         context.drawTextWithShadow(textRenderer,
