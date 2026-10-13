@@ -163,8 +163,10 @@ test('public render panel hides the material list behind a View Materials button
   }
 
   assert.deepEqual(deferArgs, []);
-  assert.equal(responsePayload.components.length, 1);
-  assert.equal(responsePayload.components[0].components[0].data.custom_id.startsWith('render_materials:'), true);
+  assert.equal(responsePayload.components.length, 2);
+  assert.equal(responsePayload.components[0].components.length, 5);
+  assert.deepEqual(responsePayload.components[0].components.map(button => button.data.label), ['1', '2', '3', '4', '5']);
+  assert.equal(responsePayload.components[1].components[0].data.custom_id.startsWith('render_materials:'), true);
   const description = responsePayload.embeds[0].data.description;
   assert.match(description, /View Materials/);
   assert.doesNotMatch(description, /Materials list|stone|dirt|glass/i);
