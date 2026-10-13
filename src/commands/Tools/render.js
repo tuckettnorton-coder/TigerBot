@@ -5,7 +5,8 @@ import { saveRenderMaterials } from '../../services/renderMaterialUi.js';
 import { buildRenderViewComponents, saveRenderView } from '../../services/renderViewUi.js';
 import { deflateSync, gunzipSync } from 'node:zlib';
 import { runRenderWorker } from '../../services/renderWorker.js';
-import { cacheRenderPng } from '../../services/renderPngCache.js';
+import { cacheRenderPng, getOrCreateRenderPng, hasCachedRenderPng } from '../../services/renderPngCache.js';
+import { logger } from '../../utils/logger.js';
 
 const MAX_UNCOMPRESSED_BYTES = 64 * 1024 * 1024;
 const MAX_REGION_VOLUME = 5_000_000;
@@ -775,6 +776,67 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
     chunk('IEND', Buffer.alloc(0))
   ]);
 }
+
+/**
+ * Prepare POV PNGs before enabling their buttons. Button clicks then use one
+ * atomic interaction.update() response without waiting for image generation.
+ */
+async function prepareRenderPovImages(interaction, id, data, textureMap) {
+  const povs = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+  const refreshEnabledButtons = () => {
+    const readyPovs = new Set();
+    for (let pov = 1; pov <= 10; pov++) {
+      if (hasCachedRenderPng(id, pov)) readyPovs.add(pov);
+    }
+    data.renderReadyPovs = readyPovs;
+    const previous = data.renderReadinessUpdateQueue || Promise.resolve();
+    const next = previous.catch(() => {}).then(() =>
+      interaction.editReply({
+        components: buildRenderViewComponents(id, data.renderActivePov || 1, readyPovs)
+      })
+    );
+    data.renderReadinessUpdateQueue = next.catch(error => {
+      logger.warn('Could not update ready POV buttons for render ' + id + ': ' + error.message);
+    });
+    return data.renderReadinessUpdateQueue;
+  };
+
+  await Promise.allSettled(povs.map(async pov => {
+    try {
+      await getOrCreateRenderPng(id, pov, () =>
+        runRenderWorker('render', {
+          data: { size: data.size, blocks: data.blocks },
+          pov,
+          textureMap
+        })
+      );
+      if (hasCachedRenderPng(id, pov)) {
+        await refreshEnabledButtons();
+      } else {
+        logger.warn('POV ' + pov + ' for render ' + id + ' was not retained in the image cache.');
+      }
+    } catch (error) {
+      logger.warn('Failed preparing POV ' + pov + ' for render ' + id + ': ' +
+        (error instanceof Error ? error.message : String(error)));
+    }
+  }));
+
+  const readyPovs = new Set();
+  for (let pov = 1; pov <= 10; pov++) {
+    if (hasCachedRenderPng(id, pov)) readyPovs.add(pov);
+  }
+  data.renderReadyPovs = readyPovs;
+  try {
+    await interaction.editReply({
+      components: buildRenderViewComponents(id, data.renderActivePov || 1, readyPovs)
+    });
+  } catch (error) {
+    logger.warn('Final POV button readiness update failed for render ' + id + ': ' +
+      (error instanceof Error ? error.message : String(error)));
+  }
+}
+
 export default {
   data: new SlashCommandBuilder()
     .setName('render')
@@ -819,6 +881,8 @@ export default {
       });
       cacheRenderPng(materialId, 1, png);
       data.renderTextures = textureMap;
+      data.renderReadyPovs = new Set([1]);
+      data.renderActivePov = 1;
       const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
       saveRenderMaterials(materialId, data);
       saveRenderView(materialId, data);
@@ -829,20 +893,23 @@ export default {
           '**Dimensions:** ' + data.size.join(' × ') + ' blocks\n' +
           '**Non-air blocks:** ' + data.total.toLocaleString('en-US') + '\n' +
           '**Block types:** ' + data.counts.length.toLocaleString('en-US') + '\n\n' +
+          'POV buttons enable automatically as their previews finish preparing.\n' +
           'Click **Materials List** below to open the complete block list in a private panel.'
         )
         .setImage('attachment://schematic-render.png')
-        .setFooter({ text: 'Minecraft-style pixel textures and visible-face shading; counts come directly from the schematic.' });
+        .setFooter({ text: 'POV 1/10 · Preparing the remaining views in the background.' });
 
-      embed.setFooter({
-        text: 'POV 1/10 · Vanilla block textures where available; counts come directly from the schematic.'
-      });
-
-      return interaction.editReply({
+      const responseMessage = await interaction.editReply({
         embeds: [embed],
         files: [attachment],
-        components: buildRenderViewComponents(materialId, 1)
+        components: buildRenderViewComponents(materialId, 1, data.renderReadyPovs)
       });
+
+      // Start preparation only after the first preview has been delivered.
+      if (interaction.client) {
+        void prepareRenderPovImages(interaction, materialId, data, textureMap);
+      }
+      return responseMessage;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown rendering error.';
       return interaction.editReply('❌ Could not render this schematic: ' + message.slice(0, 1500));

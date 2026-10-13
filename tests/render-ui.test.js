@@ -92,6 +92,15 @@ test('render panel exposes ten POV buttons and a separate Materials List button'
   assert.equal(rows[2].components[0].custom_id, 'render_materials:' + id);
 });
 
+test('POV controls stay disabled until their preview PNG is prepared', () => {
+  const id = 'render-view-readiness-test';
+  const rows = buildRenderViewComponents(id, 1, new Set([1])).map(row => row.toJSON());
+  assert.equal(rows[0].components[0].disabled, false);
+  assert.equal(rows[0].components[1].disabled, true);
+  assert.equal(rows[1].components[4].disabled, true);
+  assert.equal(rows[2].components[0].disabled, false);
+});
+
 test('camera POV cache preserves the render data needed to make a new angle', () => {
   const id = 'render-view-cache-test';
   const data = {
@@ -105,38 +114,62 @@ test('camera POV cache preserves the render data needed to make a new angle', ()
   assert.equal(getRenderView(id), data);
 });
 
-test('POV button acknowledges first and edits its original reply using the cached image', async () => {
-  const id = 'render-pov-first-click-test';
+test('POV button updates the view in a single atomic interaction response', async () => {
+  const id = 'render-pov-atomic-update-test-' + Date.now();
   const cachedPng = Buffer.from('cached PNG fixture');
   const data = {
-    name: 'First Click Test',
+    name: 'Atomic Update Test',
     size: [1, 1, 1],
     total: 1,
     counts: [['minecraft:stone', 1]],
     blocks: [{ x: 0, y: 0, z: 0, name: 'stone', color: '#85888a' }],
-    renderTextures: new Map(),
-    renderPngCache: new Map([[2, cachedPng]])
+    renderReadyPovs: new Set([1, 2]),
+    renderActivePov: 1
   };
   saveRenderView(id, data);
+  cacheRenderPng(id, 2, cachedPng);
 
   const sequence = [];
-  let editedPayload;
+  let updatedPayload;
   const interaction = {
     message: { embeds: [] },
-    deferUpdate: async () => { sequence.push('deferUpdate'); },
-    editReply: async payload => {
-      sequence.push('editReply');
-      editedPayload = payload;
+    update: async payload => {
+      sequence.push('update');
+      updatedPayload = payload;
       return payload;
     }
   };
 
   await renderPovButton.execute(interaction, {}, [id, '2']);
 
-  assert.deepEqual(sequence, ['deferUpdate', 'editReply']);
-  assert.equal(data.renderPngCache.get(2), cachedPng, 'cached view should be reused');
-  assert.equal(editedPayload.embeds[0].data.footer.text, 'POV 2/10 · Back · exact opposite exterior view');
-  assert.equal(editedPayload.components.length, 3);
+  assert.deepEqual(sequence, ['update'], 'POV click should use one update response, not defer plus edit');
+  assert.equal(data.renderActivePov, 2);
+  assert.equal(updatedPayload.embeds[0].data.footer.text, 'POV 2/10 · Back · exact opposite exterior view');
+  assert.equal(updatedPayload.files.length, 1);
+  assert.equal(updatedPayload.components.length, 3);
+  assert.equal(updatedPayload.components[0].components[1].data.disabled, false);
+});
+
+test('uncached POV buttons return an immediate clear response instead of silently spinning', async () => {
+  const id = 'render-pov-not-cached-test-' + Date.now();
+  saveRenderView(id, {
+    name: 'Uncached POV Test',
+    size: [1, 1, 1],
+    total: 1,
+    counts: [['minecraft:stone', 1]],
+    blocks: [{ x: 0, y: 0, z: 0, name: 'stone', color: '#85888a' }]
+  });
+
+  let replyPayload;
+  let updateCalled = false;
+  await renderPovButton.execute({
+    reply: async payload => { replyPayload = payload; },
+    update: async () => { updateCalled = true; }
+  }, {}, [id, '2']);
+
+  assert.equal(updateCalled, false);
+  assert.equal(replyPayload.ephemeral, true);
+  assert.match(replyPayload.content, /not ready yet/i);
 });
 
 test('material panel lists names and counts directly without dropdowns or inspection controls', () => {

@@ -168,6 +168,10 @@ test('public render panel hides the material list behind a View Materials button
   assert.equal(responsePayload.components[1].components.length, 5);
   assert.deepEqual(responsePayload.components[0].components.map(button => button.data.label), ['Front', 'Opposite', 'Under', 'Top −1', 'Top −2']);
   assert.deepEqual(responsePayload.components[1].components.map(button => button.data.label), ['Top −3', 'Top −4', 'Half · Front', 'Half · Back', 'Half · Side']);
+
+  assert.equal(responsePayload.components[0].components[0].data.disabled, false);
+  assert.ok(responsePayload.components[0].components.slice(1).every(button => button.data.disabled === true));
+  assert.ok(responsePayload.components[1].components.every(button => button.data.disabled === true));
   assert.equal(responsePayload.components[2].components[0].data.custom_id.startsWith('render_materials:'), true);
   assert.equal(responsePayload.components[2].components[0].data.label, 'Materials List');
   const description = responsePayload.embeds[0].data.description;

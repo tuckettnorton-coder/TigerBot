@@ -1,5 +1,5 @@
-const MAX_CACHE_BYTES = 48 * 1024 * 1024;
-const MAX_CACHE_ENTRIES = 24;
+const MAX_CACHE_BYTES = 128 * 1024 * 1024;
+const MAX_CACHE_ENTRIES = 256;
 const pngCache = new Map();
 const inFlight = new Map();
 let cachedBytes = 0;
@@ -17,6 +17,10 @@ export function getCachedRenderPng(id, pov) {
   pngCache.delete(key);
   pngCache.set(key, png);
   return png;
+}
+
+export function hasCachedRenderPng(id, pov) {
+  return pngCache.has(keyFor(id, pov));
 }
 
 export function cacheRenderPng(id, pov, png) {
