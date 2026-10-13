@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateSync } from 'node:zlib';
 import { makePng } from '../src/commands/Tools/render.js';
+import { runRenderWorker } from '../src/services/renderWorker.js';
+import { cacheRenderPng, getCachedRenderPng, getOrCreateRenderPng } from '../src/services/renderPngCache.js';
 import {
   decodePngTexture,
   getBlockTextureName,
@@ -282,4 +284,51 @@ test('POV button labels identify each view position', () => {
   assert.equal(getPovButtonLabel(8), 'Half · Front');
   assert.equal(getPovButtonLabel(9), 'Half · Back');
   assert.equal(getPovButtonLabel(10), 'Half · Side');
+});
+
+
+test('render worker returns a valid PNG while rasterization runs off the caller thread', async () => {
+  const data = {
+    size: [1, 1, 1],
+    blocks: [{ x: 0, y: 0, z: 0, name: 'stone', color: '#85888a' }]
+  };
+  let eventLoopTicked = false;
+  const tick = new Promise(resolve => setTimeout(() => {
+    eventLoopTicked = true;
+    resolve();
+  }, 0));
+
+  const png = await runRenderWorker('render', {
+    data,
+    pov: 1,
+    textureMap: new Map()
+  });
+  await tick;
+
+  assert.equal(eventLoopTicked, true);
+  assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(png.readUInt32BE(16), 2400);
+  assert.equal(png.readUInt32BE(20), 1800);
+});
+
+test('render PNG cache shares simultaneous renders for the same schematic and POV', async () => {
+  const id = 'render-cache-dedupe-' + Date.now();
+  let calls = 0;
+  const expected = Buffer.from('png-cache-test');
+  const factory = async () => {
+    calls++;
+    await new Promise(resolve => setTimeout(resolve, 10));
+    return expected;
+  };
+
+  const [first, second] = await Promise.all([
+    getOrCreateRenderPng(id, 2, factory),
+    getOrCreateRenderPng(id, 2, factory)
+  ]);
+  assert.equal(calls, 1);
+  assert.equal(first, expected);
+  assert.equal(second, expected);
+  assert.equal(getCachedRenderPng(id, 2), expected);
+  cacheRenderPng(id, 3, Buffer.from('another-test'));
+  assert.ok(getCachedRenderPng(id, 3));
 });

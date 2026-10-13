@@ -4,6 +4,8 @@ import { getBlockTextureName, loadVanillaTextureMap } from '../../services/rende
 import { saveRenderMaterials } from '../../services/renderMaterialUi.js';
 import { buildRenderViewComponents, saveRenderView } from '../../services/renderViewUi.js';
 import { deflateSync, gunzipSync } from 'node:zlib';
+import { runRenderWorker } from '../../services/renderWorker.js';
+import { cacheRenderPng } from '../../services/renderPngCache.js';
 
 const MAX_UNCOMPRESSED_BYTES = 64 * 1024 * 1024;
 const MAX_REGION_VOLUME = 5_000_000;
@@ -789,16 +791,23 @@ export default {
       const response = await fetch(file.url);
       if (!response.ok) throw new Error('Failed to download the uploaded file.');
 
-      const data = analyze(Buffer.from(await response.arrayBuffer()));
+      // NBT decoding and render rasterization can be CPU-heavy. Keep both off
+      // the Discord event loop so other button clicks can be acknowledged on time.
+      const sourceBuffer = Buffer.from(await response.arrayBuffer());
+      const data = await runRenderWorker('analyze', { input: sourceBuffer });
+
       // Fetch/cache real vanilla 16×16 block textures when online. Each fetch
       // is bounded and failures fall back to procedural pixels automatically.
       const textureMap = await loadVanillaTextureMap(data);
-      data.renderTextures = textureMap;
-      const png = makePng(data, 1, textureMap);
-      // Keep the already-rendered first view so returning to it is instant.
-      data.renderPngCache = new Map([[1, png]]);
-      const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
       const materialId = randomUUID();
+      const png = await runRenderWorker('render', {
+        data: { size: data.size, blocks: data.blocks },
+        pov: 1,
+        textureMap
+      });
+      cacheRenderPng(materialId, 1, png);
+      data.renderTextures = textureMap;
+      const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
       saveRenderMaterials(materialId, data);
       saveRenderView(materialId, data);
 
