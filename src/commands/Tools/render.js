@@ -310,7 +310,8 @@ export function getPovSceneBlocks(data, pov = 1) {
   ];
   // Cut along a plane perpendicular to the current viewing direction.
   // This keeps exactly one half of the depth span instead of making a diagonal
-  // x+z cut through the structure. POV 10 looks from the opposite side.
+  // x+z cut through the structure. POV 9 keeps the opposite half to POV 8;
+  // POV 10 uses a perpendicular side angle.
   const minDepth = Math.min(...corners.map(point => point[1]));
   const maxDepth = Math.max(...corners.map(point => point[1]));
   const cutDepth = minDepth + Math.max(1, maxDepth - minDepth) * 0.5;
