@@ -9,6 +9,12 @@ on:
       - feat/render-five-pov-material-dropdown-20261013
     paths:
       - 'src/commands/Tools/render.js'
+      - 'src/interactions/modals/ticket_form.js'
+      - 'src/interactions/selectMenus/building_schematic.js'
+      - 'src/events/schematicUpload.js'
+      - 'src/interactions/modals/ticket_form.js'
+      - 'src/interactions/selectMenus/building_schematic.js'
+      - 'src/events/schematicUpload.js'
       - 'src/services/renderTextures.js'
       - 'src/services/renderMaterialUi.js'
       - 'src/services/renderViewUi.js'
@@ -56,6 +62,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Check command registration syntax
-        run: node --check src/app.js && node --check src/handlers/loaders/commandLoader.js && node --check src/commands/Tools/render.js && node --check src/services/renderTextures.js && node --check src/services/renderMaterialUi.js && node --check src/services/renderViewUi.js && node --check src/interactions/buttons/renderMaterials.js && node --check src/interactions/buttons/renderMaterialPage.js && node --check src/interactions/buttons/renderPov.js && node --check src/interactions/selectMenus/renderMaterialPicker.js
+        run: node --check src/app.js && node --check src/handlers/loaders/commandLoader.js && node --check src/commands/Tools/render.js && node --check src/interactions/modals/ticket_form.js && node --check src/interactions/selectMenus/building_schematic.js && node --check src/events/schematicUpload.js && node --check src/services/renderTextures.js && node --check src/services/renderMaterialUi.js && node --check src/services/renderViewUi.js && node --check src/interactions/buttons/renderMaterials.js && node --check src/interactions/buttons/renderMaterialPage.js && node --check src/interactions/buttons/renderPov.js && node --check src/interactions/selectMenus/renderMaterialPicker.js
       - name: Run render tests
         run: node --test tests/render.test.js tests/render-ui.test.js
