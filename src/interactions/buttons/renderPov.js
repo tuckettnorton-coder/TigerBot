@@ -2,6 +2,19 @@ import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
 import { makePng } from '../../commands/Tools/render.js';
 import { buildRenderViewComponents, getRenderView } from '../../services/renderViewUi.js';
 
+const POV_DESCRIPTIONS = {
+  1: 'Exterior view · front corner',
+  2: 'Exterior view · second corner',
+  3: 'Exterior view · third corner',
+  4: 'Top cutaway · 1 top layer removed',
+  5: 'Top cutaway · 2 top layers removed',
+  6: 'Top cutaway · 3 top layers removed',
+  7: 'Top cutaway · 4 top layers removed',
+  8: 'Side cutaway · half removed from the X-facing side',
+  9: 'Side cutaway · half removed from the Z-facing side',
+  10: 'Opposite-side cutaway · half removed from the other side'
+};
+
 export default {
   name: 'render_pov',
 
@@ -17,15 +30,15 @@ export default {
       });
     }
 
-    if (!Number.isInteger(pov) || pov < 1 || pov > 5) {
+    if (!Number.isInteger(pov) || pov < 1 || pov > 10) {
       return interaction.reply({
-        content: 'That POV is not valid. Choose a view from 1 to 5.',
+        content: 'That POV is not valid. Choose a view from 1 to 10.',
         ephemeral: true
       });
     }
 
-    // Acknowledge before rendering; larger schematics may take more than
-    // Discord's three-second initial interaction window.
+    // Acknowledge before rendering; high-resolution schematics can take longer
+    // than Discord's initial three-second interaction window.
     await interaction.deferUpdate();
 
     const png = makePng(data, pov);
@@ -35,17 +48,9 @@ export default {
       ? new EmbedBuilder(currentEmbed.data)
       : new EmbedBuilder().setTitle('🧱 Minecraft Schematic');
 
-    const povDescription = pov === 4
-      ? 'Interior cutaway · near-side section removed to reveal the inside.'
-      : pov === 5
-        ? 'Center cutaway · deeper interior view with part of the upper shell removed.'
-        : 'Exterior camera angle.';
-
     embed
       .setImage('attachment://schematic-render.png')
-      .setFooter({
-        text: 'POV ' + pov + '/5 · ' + povDescription
-      });
+      .setFooter({ text: 'POV ' + pov + '/10 · ' + POV_DESCRIPTIONS[pov] });
 
     return interaction.message.edit({
       embeds: [embed],
