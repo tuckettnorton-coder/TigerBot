@@ -9,7 +9,7 @@ import {
 } from '../src/services/renderTextures.js';
 import renderMaterialsButton from '../src/interactions/buttons/renderMaterials.js';
 import renderMaterialDismiss from '../src/interactions/buttons/renderMaterialDismiss.js';
-import { buildRenderViewComponents, getRenderView, saveRenderView } from '../src/services/renderViewUi.js';
+import { buildRenderViewComponents, getPovButtonLabel, getRenderView, saveRenderView } from '../src/services/renderViewUi.js';
 import {
   buildMaterialComponents,
   buildMaterialsEmbed,
@@ -79,8 +79,8 @@ test('render panel exposes ten POV buttons and a separate Materials List button'
 
   assert.equal(rows.length, 3);
   assert.equal(rows[0].components.length, 5);
-  assert.deepEqual(rows[0].components.map(button => button.label), ['1', '2', '3', '4', '5']);
-  assert.deepEqual(rows[1].components.map(button => button.label), ['6', '7', '8', '9', '10']);
+  assert.deepEqual(rows[0].components.map(button => button.label), ['Front', 'Opposite', 'Under', 'Top −1', 'Top −2']);
+  assert.deepEqual(rows[1].components.map(button => button.label), ['Top −3', 'Top −4', 'Half · Front', 'Half · Back', 'Half · Side']);
   assert.equal(rows[1].components[2].style, 1, 'active POV is highlighted');
   assert.equal(rows[0].components[0].style, 2);
   assert.equal(rows[1].components[4].custom_id, 'render_pov:' + id + ':10');
@@ -211,7 +211,7 @@ test('vanilla texture loader caches and returns the actual PNG pixels', async ()
     const textureMap = await loadVanillaTextureMap({
       counts: [['minecraft:stone', 10]]
     });
-    assert.match(requested, /1\.21\.11\/assets\/minecraft\/textures\/block\/stone\.png$/);
+    assert.match(requested, /^https:\/\/assets\.mcasset\.cloud\/1\.21\.11\/assets\/minecraft\/textures\/block\/stone\.png$/);
     assert.ok(textureMap.has('stone'));
     assert.deepEqual(textureMap.get('stone').pixels, expected);
   } finally {
@@ -234,4 +234,16 @@ test('schematic render samples supplied vanilla texture pixels', () => {
     { width: 1, height: 1, pixels: Buffer.from([240, 30, 60, 255]) }
   ]]));
   assert.notDeepEqual(textured, procedural);
+});
+
+
+test('POV button labels identify each view position', () => {
+  assert.equal(getPovButtonLabel(1), 'Front');
+  assert.equal(getPovButtonLabel(2), 'Opposite');
+  assert.equal(getPovButtonLabel(3), 'Under');
+  assert.equal(getPovButtonLabel(4), 'Top −1');
+  assert.equal(getPovButtonLabel(7), 'Top −4');
+  assert.equal(getPovButtonLabel(8), 'Half · Front');
+  assert.equal(getPovButtonLabel(9), 'Half · Back');
+  assert.equal(getPovButtonLabel(10), 'Half · Side');
 });
