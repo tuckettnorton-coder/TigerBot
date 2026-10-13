@@ -8,6 +8,7 @@ on:
     paths:
       - 'src/commands/Tools/render.js'
       - 'src/handlers/loaders/commandLoader.js'
+      - 'src/handlers/loaders/commandLoader.js'
       - 'tests/render.test.js'
       - '.github/workflows/test-render-command.yml'
   pull_request:
@@ -15,6 +16,7 @@ on:
       - main
     paths:
       - 'src/commands/Tools/render.js'
+      - 'src/handlers/loaders/commandLoader.js'
       - 'tests/render.test.js'
       - '.github/workflows/test-render-command.yml'
 
