@@ -146,8 +146,8 @@ test('analyzes multiple positioned regions and negative region sizes correctly',
     'minecraft:glass': 1
   });
   assert.deepEqual(result.blocks.map(block => [block.x, block.y, block.z]), [
-    [0, 0, 0],
     [1, 0, 0],
+    [0, 0, 0],
     [3, 1, 0]
   ]);
 });
