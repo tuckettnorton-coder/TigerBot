@@ -2,14 +2,13 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder,
-  StringSelectMenuBuilder
+  EmbedBuilder
 } from 'discord.js';
 
 const materialStore = new Map();
 const STORE_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_STORED_RENDERED_SCHEMATICS = 500;
-const MATERIALS_PER_PAGE = 25;
+const MATERIAL_PAGE_CHAR_LIMIT = 3000;
 
 function removeExpiredEntries(now = Date.now()) {
   for (const [key, value] of materialStore) {
@@ -47,57 +46,64 @@ export function formatMaterialName(name) {
   return String(name).replace(/^minecraft:/, '').replace(/_/g, ' ');
 }
 
+export function getMaterialPages(entry) {
+  const lines = (entry?.counts || []).map(([name, count]) =>
+    '• ' + formatMaterialName(name).slice(0, 120) +
+    ' — **' + Number(count).toLocaleString('en-US') + '**'
+  );
+  if (!lines.length) return [['No non-air materials were found in this schematic.']];
+
+  const pages = [];
+  let page = [];
+  let pageLength = 0;
+  for (const line of lines) {
+    const extraLength = line.length + (page.length ? 1 : 0);
+    if (page.length && pageLength + extraLength > MATERIAL_PAGE_CHAR_LIMIT) {
+      pages.push(page);
+      page = [];
+      pageLength = 0;
+    }
+    page.push(line);
+    pageLength += line.length + (page.length > 1 ? 1 : 0);
+  }
+  if (page.length) pages.push(page);
+  return pages;
+}
+
 export function buildMaterialsEmbed(entry, page = 0) {
-  const totalPages = Math.max(1, Math.ceil(entry.counts.length / MATERIALS_PER_PAGE));
-  const safePage = Math.max(0, Math.min(totalPages - 1, Number(page) || 0));
-  const start = safePage * MATERIALS_PER_PAGE;
-  const end = Math.min(entry.counts.length, start + MATERIALS_PER_PAGE);
+  const pages = getMaterialPages(entry);
+  const safePage = Math.max(0, Math.min(pages.length - 1, Number(page) || 0));
+  const start = pages.slice(0, safePage).reduce((sum, current) => sum + current.length, 0);
+  const displayedCount = pages[safePage].filter(line => line.startsWith('• ')).length;
+  const end = start + displayedCount;
 
   let description =
     '**Structure:** ' + entry.name.slice(0, 180) + '\n' +
     '**Dimensions:** ' + entry.size.join(' × ') + ' blocks\n' +
     '**Non-air blocks:** ' + entry.total.toLocaleString('en-US') + '\n' +
-    '**Material types:** ' + entry.counts.length.toLocaleString('en-US') + '\n\n';
+    '**Material types:** ' + entry.counts.length.toLocaleString('en-US') + '\n\n' +
+    '**Materials**\n' + pages[safePage].join('\n');
 
-  if (entry.counts.length) {
-    description +=
-      'Use the dropdown to switch between material types; each option already shows its count.\n' +
-      '**Showing:** ' + (start + 1).toLocaleString('en-US') + '–' +
-      end.toLocaleString('en-US') + ' of ' + entry.counts.length.toLocaleString('en-US') + ' types.';
-  } else {
-    description += 'No non-air materials were found in this schematic.';
+  if (pages.length > 1) {
+    description += '\n\n**Showing:** ' + (start + 1).toLocaleString('en-US') +
+      '–' + end.toLocaleString('en-US') + ' of ' +
+      entry.counts.length.toLocaleString('en-US') + ' materials · Page ' +
+      (safePage + 1) + '/' + pages.length;
   }
 
   return new EmbedBuilder()
     .setTitle('🧱 Material List')
     .setDescription(description)
-    .setFooter({ text: 'Private material browser · Only visible to you · Expires after 6 hours' });
+    .setFooter({ text: 'Private material list · Press Dismiss when finished' });
 }
 
 export function buildMaterialComponents(id, entry, page = 0) {
-  if (!entry.counts.length) return [];
+  const pages = getMaterialPages(entry);
+  const safePage = Math.max(0, Math.min(pages.length - 1, Number(page) || 0));
+  const controls = [];
 
-  const totalPages = Math.max(1, Math.ceil(entry.counts.length / MATERIALS_PER_PAGE));
-  const safePage = Math.max(0, Math.min(totalPages - 1, Number(page) || 0));
-  const start = safePage * MATERIALS_PER_PAGE;
-  const end = Math.min(entry.counts.length, start + MATERIALS_PER_PAGE);
-  const options = entry.counts.slice(start, end).map(([name, count], offset) => ({
-    label: formatMaterialName(name).slice(0, 100) || 'Unknown block',
-    description: 'Count: ' + count.toLocaleString('en-US'),
-    value: String(start + offset)
-  }));
-
-  const select = new StringSelectMenuBuilder()
-    .setCustomId('render_material_picker:' + id + ':' + safePage)
-    .setPlaceholder('Select a material type · counts shown beside names')
-    .setMinValues(1)
-    .setMaxValues(1)
-    .addOptions(options);
-
-  const rows = [new ActionRowBuilder().addComponents(select)];
-
-  if (totalPages > 1) {
-    const navigation = new ActionRowBuilder().addComponents(
+  if (pages.length > 1) {
+    controls.push(
       new ButtonBuilder()
         .setCustomId('render_material_page:' + id + ':' + (safePage - 1))
         .setLabel('Previous')
@@ -107,10 +113,16 @@ export function buildMaterialComponents(id, entry, page = 0) {
         .setCustomId('render_material_page:' + id + ':' + (safePage + 1))
         .setLabel('Next')
         .setStyle(ButtonStyle.Secondary)
-        .setDisabled(safePage >= totalPages - 1)
+        .setDisabled(safePage >= pages.length - 1)
     );
-    rows.push(navigation);
   }
 
-  return rows;
+  controls.push(
+    new ButtonBuilder()
+      .setCustomId('render_material_dismiss:' + id)
+      .setLabel('Dismiss')
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  return [new ActionRowBuilder().addComponents(controls)];
 }

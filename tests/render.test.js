@@ -163,13 +163,16 @@ test('public render panel hides the material list behind a View Materials button
   }
 
   assert.deepEqual(deferArgs, []);
-  assert.equal(responsePayload.components.length, 2);
+  assert.equal(responsePayload.components.length, 3);
   assert.equal(responsePayload.components[0].components.length, 5);
+  assert.equal(responsePayload.components[1].components.length, 5);
   assert.deepEqual(responsePayload.components[0].components.map(button => button.data.label), ['1', '2', '3', '4', '5']);
-  assert.equal(responsePayload.components[1].components[0].data.custom_id.startsWith('render_materials:'), true);
+  assert.deepEqual(responsePayload.components[1].components.map(button => button.data.label), ['6', '7', '8', '9', '10']);
+  assert.equal(responsePayload.components[2].components[0].data.custom_id.startsWith('render_materials:'), true);
+  assert.equal(responsePayload.components[2].components[0].data.label, 'Materials List');
   const description = responsePayload.embeds[0].data.description;
-  assert.match(description, /View Materials/);
-  assert.doesNotMatch(description, /Materials list|stone|dirt|glass/i);
+  assert.match(description, /Materials List/);
+  assert.doesNotMatch(description, /stone|dirt|glass/i);
 });
 
 test('decodes continuous packed states across 64-bit boundaries', () => {
@@ -235,8 +238,8 @@ test('creates a valid-sized PNG preview containing rendered pixels', () => {
     [...png.subarray(0, 8)],
     [137, 80, 78, 71, 13, 10, 26, 10]
   );
-  assert.equal(png.readUInt32BE(16), 1600);
-  assert.equal(png.readUInt32BE(20), 1200);
+  assert.equal(png.readUInt32BE(16), 2400);
+  assert.equal(png.readUInt32BE(20), 1800);
 
   let offset = 8;
   const idat = [];
@@ -250,12 +253,12 @@ test('creates a valid-sized PNG preview containing rendered pixels', () => {
   }
   assert.deepEqual(chunkTypes, ['IHDR', 'IDAT', 'IEND']);
   const raw = inflateSync(Buffer.concat(idat));
-  assert.equal(raw.length, 1200 * (1 + 1600 * 4));
+  assert.equal(raw.length, 1800 * (1 + 2400 * 4));
 
   let hasNonBackgroundPixel = false;
-  for (let row = 0; row < 1200 && !hasNonBackgroundPixel; row++) {
-    const rowStart = row * (1 + 1600 * 4) + 1;
-    for (let x = 0; x < 1600; x++) {
+  for (let row = 0; row < 1800 && !hasNonBackgroundPixel; row++) {
+    const rowStart = row * (1 + 2400 * 4) + 1;
+    for (let x = 0; x < 2400; x++) {
       const pixel = rowStart + x * 4;
       if (raw[pixel] !== 34 || raw[pixel + 1] !== 35 || raw[pixel + 2] !== 41) {
         hasNonBackgroundPixel = true;
@@ -266,25 +269,39 @@ test('creates a valid-sized PNG preview containing rendered pixels', () => {
   assert.equal(hasNonBackgroundPixel, true);
 });
 
-test('renders five distinct camera POVs from the same schematic', () => {
-  const result = analyze(multiRegionFixture());
-  const signatures = [1, 2, 3, 4, 5].map(pov => {
+test('renders ten distinct camera and cutaway POVs from the same schematic', () => {
+  const blocks = [];
+  for (let y = 0; y < 10; y++) {
+    for (let z = 0; z < 8; z++) {
+      for (let x = 0; x < 8; x++) {
+        blocks.push({ x, y, z, name: 'stone', color: '#85888a' });
+      }
+    }
+  }
+  const result = {
+    name: 'Ten POV fixture',
+    size: [8, 10, 8],
+    total: blocks.length,
+    counts: [['minecraft:stone', blocks.length]],
+    blocks
+  };
+  const signatures = Array.from({ length: 10 }, (_, index) => index + 1).map(pov => {
     const png = makePng(result, pov);
     assert.deepEqual(
       [...png.subarray(0, 8)],
       [137, 80, 78, 71, 13, 10, 26, 10]
     );
-    assert.equal(png.readUInt32BE(16), 1600);
-    assert.equal(png.readUInt32BE(20), 1200);
+    assert.equal(png.readUInt32BE(16), 2400);
+    assert.equal(png.readUInt32BE(20), 1800);
     let hash = 2166136261;
     for (const byte of png) hash = Math.imul(hash ^ byte, 16777619);
     return hash >>> 0;
   });
 
-  assert.equal(new Set(signatures).size, 5, 'each POV should render a different camera angle');
+  assert.equal(new Set(signatures).size, 10, 'each POV should have a unique angle or cutaway');
 });
 
-test('POV 4 and POV 5 cut away the near shell to expose the schematic interior', () => {
+test('POVs 4–7 progressively remove top layers and POVs 8–10 cut the sides', () => {
   const blocks = [];
   for (let y = 0; y < 10; y++) {
     for (let z = 0; z < 10; z++) {
@@ -298,12 +315,23 @@ test('POV 4 and POV 5 cut away the near shell to expose the schematic interior',
   const exterior = getPovSceneBlocks(data, 1);
   const interior = getPovSceneBlocks(data, 4);
   const deeperInterior = getPovSceneBlocks(data, 5);
+  const thirdTopCut = getPovSceneBlocks(data, 6);
+  const fourthTopCut = getPovSceneBlocks(data, 7);
+  const sideCutX = getPovSceneBlocks(data, 8);
+  const sideCutZ = getPovSceneBlocks(data, 9);
+  const oppositeSideCut = getPovSceneBlocks(data, 10);
 
   assert.equal(exterior.length, 1000, 'exterior POV retains the complete schematic');
   assert.ok(interior.length > 0 && interior.length < exterior.length,
-    'POV 4 removes the near-facing section');
+    'POV 4 removes the top layer');
   assert.ok(deeperInterior.length > 0 && deeperInterior.length < interior.length,
-    'POV 5 removes a deeper section and part of the upper shell');
+    'POV 5 removes one more top layer than POV 4');
+
+  assert.ok(thirdTopCut.length < deeperInterior.length, 'POV 6 removes a third top layer');
+  assert.ok(fourthTopCut.length < thirdTopCut.length, 'POV 7 removes a fourth top layer');
+  assert.ok(sideCutX.length > 0 && sideCutX.length < exterior.length, 'POV 8 cuts one side');
+  assert.ok(sideCutZ.length > 0 && sideCutZ.length < exterior.length, 'POV 9 cuts a perpendicular side');
+  assert.ok(oppositeSideCut.length > 0 && oppositeSideCut.length < exterior.length, 'POV 10 cuts from the opposite side');
 
   assert.ok(interior.some(block => block.x === 5 && block.y === 5 && block.z === 5),
     'POV 4 keeps central blocks visible');

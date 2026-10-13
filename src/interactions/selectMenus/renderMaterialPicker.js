@@ -16,9 +16,9 @@ export default {
       });
     }
 
-    // Material names and counts are already visible in the dropdown options.
-    // Keep the private browser open so the user can switch between options
-    // without opening a separate inspection panel for every block type.
+    // Compatibility for a dropdown from a render message created before this
+    // update: replace it with the new plain material list panel. No per-block
+    // inspection panel is opened.
     return interaction.update({
       embeds: [buildMaterialsEmbed(entry, page)],
       components: buildMaterialComponents(id, entry, page)

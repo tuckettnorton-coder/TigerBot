@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import renderMaterialsButton from '../src/interactions/buttons/renderMaterials.js';
+import renderMaterialDismiss from '../src/interactions/buttons/renderMaterialDismiss.js';
 import { buildRenderViewComponents, getRenderView, saveRenderView } from '../src/services/renderViewUi.js';
 import {
   buildMaterialComponents,
   buildMaterialsEmbed,
+  getMaterialPages,
   getRenderMaterials,
   saveRenderMaterials
 } from '../src/services/renderMaterialUi.js';
@@ -16,29 +18,33 @@ function sampleCounts(amount) {
   ]);
 }
 
-test('private material browser uses a dropdown and paginates beyond 25 material types', () => {
+test('private material list renders directly and paginates only when it exceeds the embed size', () => {
   const id = 'render-ui-pagination-test';
   saveRenderMaterials(id, {
     name: 'Pagination Test',
     size: [30, 12, 8],
     total: 900,
-    counts: sampleCounts(30)
+    counts: sampleCounts(200)
   });
 
   const entry = getRenderMaterials(id);
   const firstPage = buildMaterialComponents(id, entry, 0).map(row => row.toJSON());
   const secondPage = buildMaterialComponents(id, entry, 1).map(row => row.toJSON());
 
-  assert.equal(firstPage[0].components[0].type, 3);
-  assert.equal(firstPage[0].components[0].options.length, 25);
-  assert.equal(firstPage[1].components[0].disabled, true);
-  assert.equal(firstPage[1].components[1].disabled, false);
-  assert.equal(secondPage[0].components[0].options.length, 5);
-  assert.equal(secondPage[1].components[0].disabled, false);
-  assert.equal(secondPage[1].components[1].disabled, true);
+  assert.ok(getMaterialPages(entry).length > 1);
+  assert.equal(firstPage.length, 1);
+  assert.equal(firstPage[0].components.length, 3);
+  assert.equal(firstPage[0].components[0].label, 'Previous');
+  assert.equal(firstPage[0].components[0].disabled, true);
+  assert.equal(firstPage[0].components[1].label, 'Next');
+  assert.equal(firstPage[0].components[1].disabled, false);
+  assert.equal(firstPage[0].components[2].label, 'Dismiss');
+  assert.equal(secondPage[0].components[0].disabled, false);
+  assert.equal(secondPage[0].components[1].disabled, true);
+  assert.equal(secondPage[0].components[2].custom_id, 'render_material_dismiss:' + id);
 });
 
-test('View Materials opens a private ephemeral material browser', async () => {
+test('Materials List opens a private ephemeral panel with a dismiss button', async () => {
   const id = 'render-ui-private-test';
   saveRenderMaterials(id, {
     name: 'Private Test',
@@ -55,22 +61,25 @@ test('View Materials opens a private ephemeral material browser', async () => {
   assert.equal(replyPayload.ephemeral, true);
   assert.equal(replyPayload.embeds.length, 1);
   assert.equal(replyPayload.components.length, 1);
-  assert.equal(replyPayload.components[0].toJSON().components[0].type, 3);
+  assert.equal(replyPayload.components[0].toJSON().components[0].type, 2);
+  assert.equal(replyPayload.components[0].toJSON().components[0].label, 'Dismiss');
 });
 
 
-test('render panel exposes five POV buttons and a separate View Materials button', () => {
+test('render panel exposes ten POV buttons and a separate Materials List button', () => {
   const id = 'render-view-controls-test';
-  const rows = buildRenderViewComponents(id, 3).map(row => row.toJSON());
+  const rows = buildRenderViewComponents(id, 8).map(row => row.toJSON());
 
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 3);
   assert.equal(rows[0].components.length, 5);
   assert.deepEqual(rows[0].components.map(button => button.label), ['1', '2', '3', '4', '5']);
-  assert.equal(rows[0].components[2].style, 1, 'active POV is highlighted');
+  assert.deepEqual(rows[1].components.map(button => button.label), ['6', '7', '8', '9', '10']);
+  assert.equal(rows[1].components[2].style, 1, 'active POV is highlighted');
   assert.equal(rows[0].components[0].style, 2);
-  assert.equal(rows[1].components.length, 1);
-  assert.equal(rows[1].components[0].label, 'View Materials');
-  assert.equal(rows[1].components[0].custom_id, 'render_materials:' + id);
+  assert.equal(rows[1].components[4].custom_id, 'render_pov:' + id + ':10');
+  assert.equal(rows[2].components.length, 1);
+  assert.equal(rows[2].components[0].label, 'Materials List');
+  assert.equal(rows[2].components[0].custom_id, 'render_materials:' + id);
 });
 
 test('camera POV cache preserves the render data needed to make a new angle', () => {
@@ -86,21 +95,28 @@ test('camera POV cache preserves the render data needed to make a new angle', ()
   assert.equal(getRenderView(id), data);
 });
 
-test('material dropdown shows counts in the options instead of a separate inspection panel', () => {
+test('material panel lists names and counts directly without dropdowns or inspection controls', () => {
   const id = 'render-dropdown-options-test';
   saveRenderMaterials(id, {
-    name: 'Dropdown Test',
+    name: 'Material Test',
     size: [2, 2, 2],
     total: 30,
     counts: [['minecraft:stone', 18], ['minecraft:oak_planks', 12]]
   });
 
-  const entry = getRenderMaterials(id);
-  const select = buildMaterialComponents(id, entry, 0)[0].toJSON().components[0];
-  const embed = buildMaterialsEmbed(entry, 0).toJSON();
+  const controls = buildMaterialComponents(id, getRenderMaterials(id), 0)[0].toJSON().components;
+  const embed = buildMaterialsEmbed(getRenderMaterials(id), 0).toJSON();
 
-  assert.match(select.placeholder, /material type/i);
-  assert.deepEqual(select.options.map(option => option.label), ['stone', 'oak planks']);
-  assert.deepEqual(select.options.map(option => option.description), ['Count: 18', 'Count: 12']);
-  assert.doesNotMatch(embed.description, /Selected material|Exact count/i);
+  assert.ok(embed.description.includes('• stone — **18**'));
+  assert.ok(embed.description.includes('• oak planks — **12**'));
+  assert.equal(controls.length, 1);
+  assert.equal(controls[0].label, 'Dismiss');
+  assert.doesNotMatch(embed.description, /dropdown|select a material/i);
+});
+
+
+test('Dismiss deletes the ephemeral material panel', async () => {
+  let deleted = false;
+  await renderMaterialDismiss.execute({ deleteReply: async () => { deleted = true; } });
+  assert.equal(deleted, true);
 });

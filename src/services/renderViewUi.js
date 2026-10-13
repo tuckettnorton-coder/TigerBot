@@ -51,8 +51,16 @@ export function getRenderView(id) {
 }
 
 export function buildRenderViewComponents(id, activePov = 1) {
-  const povButtons = new ActionRowBuilder().addComponents(
+  const firstPovRow = new ActionRowBuilder().addComponents(
     [1, 2, 3, 4, 5].map(pov => new ButtonBuilder()
+      .setCustomId('render_pov:' + id + ':' + pov)
+      .setLabel(String(pov))
+      .setStyle(Number(activePov) === pov ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    )
+  );
+
+  const secondPovRow = new ActionRowBuilder().addComponents(
+    [6, 7, 8, 9, 10].map(pov => new ButtonBuilder()
       .setCustomId('render_pov:' + id + ':' + pov)
       .setLabel(String(pov))
       .setStyle(Number(activePov) === pov ? ButtonStyle.Primary : ButtonStyle.Secondary)
@@ -62,12 +70,12 @@ export function buildRenderViewComponents(id, activePov = 1) {
   const materialsButton = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('render_materials:' + id)
-      .setLabel('View Materials')
+      .setLabel('Materials List')
       .setStyle(ButtonStyle.Success)
       .setEmoji('🧱')
   );
 
-  // Discord allows at most five buttons per action row, so the five POVs get
-  // their own row and the materials button sits immediately underneath.
-  return [povButtons, materialsButton];
+  // Discord permits five buttons per row and five action rows per message.
+  // Keep ten POVs in two compact rows, with the material list underneath.
+  return [firstPovRow, secondPovRow, materialsButton];
 }
