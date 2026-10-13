@@ -1,6 +1,7 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import { AttachmentBuilder, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { randomUUID } from 'node:crypto';
 import { saveRenderMaterials } from '../../services/renderMaterialUi.js';
+import { buildRenderViewComponents, saveRenderView } from '../../services/renderViewUi.js';
 import { deflateSync, gunzipSync } from 'node:zlib';
 
 const MAX_UNCOMPRESSED_BYTES = 64 * 1024 * 1024;
@@ -257,7 +258,7 @@ export function analyze(buffer) {
   };
 }
 
-export function makePng(data) {
+export function makePng(data, pov = 1) {
   const W = 1600, H = 1200;
   const pixels = Buffer.alloc(W * H * 4);
 
@@ -278,22 +279,60 @@ export function makePng(data) {
   }
 
   const [sx, sy, sz] = data.size;
-  const halfMax = Math.max(1, sx + sz);
-  const heightMax = Math.max(1, sy + (sx + sz) / 2);
+  const povIndex = Math.max(1, Math.min(5, Number.parseInt(pov, 10) || 1));
+  const yaw = ((povIndex - 1) * Math.PI * 2) / 5;
+  const cosine = Math.cos(yaw);
+  const sine = Math.sin(yaw);
+
+  // Rotate the build around its horizontal center for each of the five POVs.
+  const rotate = (x, z) => {
+    const dx = x - sx / 2;
+    const dz = z - sz / 2;
+    return [
+      dx * cosine - dz * sine + sx / 2,
+      dx * sine + dz * cosine + sz / 2
+    ];
+  };
+
+  const corners = [
+    rotate(0, 0),
+    rotate(sx, 0),
+    rotate(0, sz),
+    rotate(sx, sz)
+  ];
+  const minViewX = Math.min(...corners.map(point => point[0]));
+  const maxViewX = Math.max(...corners.map(point => point[0]));
+  const minViewZ = Math.min(...corners.map(point => point[1]));
+  const maxViewZ = Math.max(...corners.map(point => point[1]));
+  const viewWidth = Math.max(1, maxViewX - minViewX);
+  const viewDepth = Math.max(1, maxViewZ - minViewZ);
+  const horizontalSpan = viewWidth + viewDepth;
+  const halfMax = Math.max(1, horizontalSpan);
+  const heightMax = Math.max(1, sy + horizontalSpan / 2);
   const unit = Math.max(0.00001, Math.min(
     18,
     (W - 180) * 2 / halfMax,
     (H - 180) / heightMax
   ));
   const half = unit / 2;
-  const projectedWidth = (sx + sz) * half;
-  const projectedHeight = sy * unit + (sx + sz) * half;
-  const xOffset = (W - projectedWidth) / 2 + sz * half;
+  const projectedWidth = horizontalSpan * half;
+  const projectedHeight = sy * unit + horizontalSpan * half;
+  const xOffset = (W - projectedWidth) / 2 + viewDepth * half;
   const yOffset = (H - projectedHeight) / 2 + sy * unit;
-  const pt = (x, y, z) => [
-    xOffset + (x - z) * half,
-    yOffset + (x + z) * half - y * unit
-  ];
+  const pt = (x, y, z) => {
+    const [viewX, viewZ] = rotate(x, z);
+    const localX = viewX - minViewX;
+    const localZ = viewZ - minViewZ;
+    return [
+      xOffset + (localX - localZ) * half,
+      yOffset + (localX + localZ) * half - y * unit
+    ];
+  };
+  const sideVisible = (normalX, normalZ) => {
+    const viewNormalX = normalX * cosine - normalZ * sine;
+    const viewNormalZ = normalX * sine + normalZ * cosine;
+    return viewNormalX + viewNormalZ > 0.000001;
+  };
 
   function blendPixel(x, y, rgb, alpha) {
     if (x < 0 || x >= W || y < 0 || y >= H) return;
@@ -325,8 +364,8 @@ export function makePng(data) {
   const occupied = new Set(data.blocks.map(block => key(block.x, block.y, block.z)));
   const faces = [];
 
-  // Only paint outward-facing surfaces. Drawing all six faces over one
-  // another made the previous preview look like stacked plastic bricks.
+  // Draw only block faces oriented toward this camera. As the POV changes,
+  // the visible world-axis sides change too, not just the image coordinates.
   for (const block of data.blocks) {
     const x = block.x, y = block.y, z = block.z;
     const color = block.color || '#a8a8a8';
@@ -336,35 +375,40 @@ export function makePng(data) {
     const topRight = pt(x + 1, y + 1, z);
     const topFront = pt(x + 1, y + 1, z + 1);
     const topBack = pt(x, y + 1, z + 1);
+    const bottomLeft = pt(x, y, z);
     const bottomRight = pt(x + 1, y, z);
     const bottomFront = pt(x + 1, y, z + 1);
     const bottomBack = pt(x, y, z + 1);
-    const depth = x + z + y * 0.001;
+    const [depthX, depthZ] = rotate(x + 0.5, z + 0.5);
+    const depth = (depthX - minViewX) + (depthZ - minViewZ) + y * 0.001;
 
-    if (!occupied.has(key(x + 1, y, z))) {
+    if (sideVisible(1, 0) && !occupied.has(key(x + 1, y, z))) {
       faces.push({
-        ...base,
-        face: 'x',
-        depth,
-        order: 0,
+        ...base, face: 'x', side: '+x', depth, order: 0,
         points: [topRight, topFront, bottomFront, bottomRight]
       });
     }
-    if (!occupied.has(key(x, y, z + 1))) {
+    if (sideVisible(-1, 0) && !occupied.has(key(x - 1, y, z))) {
       faces.push({
-        ...base,
-        face: 'z',
-        depth,
-        order: 1,
+        ...base, face: 'x', side: '-x', depth, order: 0,
+        points: [topLeft, topBack, bottomBack, bottomLeft]
+      });
+    }
+    if (sideVisible(0, 1) && !occupied.has(key(x, y, z + 1))) {
+      faces.push({
+        ...base, face: 'z', side: '+z', depth, order: 1,
         points: [topBack, topFront, bottomFront, bottomBack]
+      });
+    }
+    if (sideVisible(0, -1) && !occupied.has(key(x, y, z - 1))) {
+      faces.push({
+        ...base, face: 'z', side: '-z', depth, order: 1,
+        points: [topLeft, topRight, bottomRight, bottomLeft]
       });
     }
     if (!occupied.has(key(x, y + 1, z))) {
       faces.push({
-        ...base,
-        face: 'top',
-        depth,
-        order: 2,
+        ...base, face: 'top', side: 'top', depth, order: 2,
         points: [topLeft, topRight, topFront, topBack]
       });
     }
@@ -493,9 +537,11 @@ export function makePng(data) {
     const maxY = Math.min(H - 1, Math.ceil(Math.max(...points.map(point => point[1]))));
     const start = face.face === 'top'
       ? pt(face.x, face.y + 1, face.z)
-      : face.face === 'x'
+      : face.side === '+x'
         ? pt(face.x + 1, face.y + 1, face.z)
-        : pt(face.x, face.y + 1, face.z + 1);
+        : face.side === '-x' || face.side === '-z'
+          ? pt(face.x, face.y + 1, face.z)
+          : pt(face.x, face.y + 1, face.z + 1);
 
     for (let y = minY; y <= maxY; y++) {
       const scanY = y + 0.5;
@@ -647,6 +693,7 @@ export default {
       const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
       const materialId = randomUUID();
       saveRenderMaterials(materialId, data);
+      saveRenderView(materialId, data);
 
       const embed = new EmbedBuilder()
         .setTitle('🧱 ' + data.name.slice(0, 240))
@@ -659,18 +706,14 @@ export default {
         .setImage('attachment://schematic-render.png')
         .setFooter({ text: 'Minecraft-style pixel textures and visible-face shading; counts come directly from the schematic.' });
 
-      const materialButton = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('render_materials:' + materialId)
-          .setLabel('View Materials')
-          .setStyle(ButtonStyle.Primary)
-          .setEmoji('🧱')
-      );
+      embed.setFooter({
+        text: 'POV 1/5 · Minecraft-style pixel textures and visible-face shading; counts come directly from the schematic.'
+      });
 
       return interaction.editReply({
         embeds: [embed],
         files: [attachment],
-        components: [materialButton]
+        components: buildRenderViewComponents(materialId, 1)
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown rendering error.';
