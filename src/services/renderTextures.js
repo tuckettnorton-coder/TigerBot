@@ -255,6 +255,13 @@ async function fetchTexture(filename) {
   })();
 
   textureCache.set(filename, request);
+  // Missing textures (or a temporary CDN outage) should be retried on a later
+  // render instead of permanently sticking with the procedural fallback.
+  request.then(texture => {
+    if (!texture && textureCache.get(filename) === request) {
+      textureCache.delete(filename);
+    }
+  });
   return request;
 }
 
