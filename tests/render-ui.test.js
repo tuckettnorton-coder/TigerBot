@@ -183,6 +183,7 @@ test('vanilla texture resolver selects correct top and side texture variants', (
   assert.equal(getBlockTextureName('minecraft:oak_log', 'side'), 'oak_log');
   assert.equal(getBlockTextureName('minecraft:grass_block', 'top'), 'grass_block_top');
   assert.equal(getBlockTextureName('minecraft:grass_block', 'side'), 'grass_block_side');
+  assert.equal(getBlockTextureName('minecraft:grass_block', 'bottom'), 'dirt');
   assert.equal(getBlockTextureName('minecraft:sandstone', 'bottom'), 'sandstone_bottom');
   assert.equal(getBlockTextureName('minecraft:oak_stairs', 'side'), 'oak_planks');
   assert.equal(getBlockTextureName('minecraft:waxed_copper_block', 'top'), 'copper_block');
