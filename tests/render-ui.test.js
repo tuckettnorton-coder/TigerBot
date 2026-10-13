@@ -9,6 +9,7 @@ import {
 } from '../src/services/renderTextures.js';
 import renderMaterialsButton from '../src/interactions/buttons/renderMaterials.js';
 import renderMaterialDismiss from '../src/interactions/buttons/renderMaterialDismiss.js';
+import renderPovButton from '../src/interactions/buttons/renderPov.js';
 import { buildRenderViewComponents, getPovButtonLabel, getRenderView, saveRenderView } from '../src/services/renderViewUi.js';
 import {
   buildMaterialComponents,
@@ -100,6 +101,40 @@ test('camera POV cache preserves the render data needed to make a new angle', ()
   };
   saveRenderView(id, data);
   assert.equal(getRenderView(id), data);
+});
+
+test('POV button acknowledges first and edits its original reply using the cached image', async () => {
+  const id = 'render-pov-first-click-test';
+  const cachedPng = Buffer.from('cached PNG fixture');
+  const data = {
+    name: 'First Click Test',
+    size: [1, 1, 1],
+    total: 1,
+    counts: [['minecraft:stone', 1]],
+    blocks: [{ x: 0, y: 0, z: 0, name: 'stone', color: '#85888a' }],
+    renderTextures: new Map(),
+    renderPngCache: new Map([[2, cachedPng]])
+  };
+  saveRenderView(id, data);
+
+  const sequence = [];
+  let editedPayload;
+  const interaction = {
+    message: { embeds: [] },
+    deferUpdate: async () => { sequence.push('deferUpdate'); },
+    editReply: async payload => {
+      sequence.push('editReply');
+      editedPayload = payload;
+      return payload;
+    }
+  };
+
+  await renderPovButton.execute(interaction, {}, [id, '2']);
+
+  assert.deepEqual(sequence, ['deferUpdate', 'editReply']);
+  assert.equal(data.renderPngCache.get(2), cachedPng, 'cached view should be reused');
+  assert.equal(editedPayload.embeds[0].data.footer.text, 'POV 2/10 · Back · exact opposite exterior view');
+  assert.equal(editedPayload.components.length, 3);
 });
 
 test('material panel lists names and counts directly without dropdowns or inspection controls', () => {

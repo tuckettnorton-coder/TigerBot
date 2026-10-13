@@ -795,6 +795,8 @@ export default {
       const textureMap = await loadVanillaTextureMap(data);
       data.renderTextures = textureMap;
       const png = makePng(data, 1, textureMap);
+      // Keep the already-rendered first view so returning to it is instant.
+      data.renderPngCache = new Map([[1, png]]);
       const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
       const materialId = randomUUID();
       saveRenderMaterials(materialId, data);
