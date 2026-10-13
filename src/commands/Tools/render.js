@@ -280,7 +280,7 @@ export function makePng(data) {
   const [sx, sy, sz] = data.size;
   const halfMax = Math.max(1, sx + sz);
   const heightMax = Math.max(1, sy + (sx + sz) / 2);
-  const unit = Math.max(0.65, Math.min(
+  const unit = Math.max(0.00001, Math.min(
     18,
     (W - 180) * 2 / halfMax,
     (H - 180) / heightMax
