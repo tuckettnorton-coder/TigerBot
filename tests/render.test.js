@@ -193,8 +193,8 @@ test('creates a valid-sized PNG preview containing rendered pixels', () => {
     [...png.subarray(0, 8)],
     [137, 80, 78, 71, 13, 10, 26, 10]
   );
-  assert.equal(png.readUInt32BE(16), 1200);
-  assert.equal(png.readUInt32BE(20), 1000);
+  assert.equal(png.readUInt32BE(16), 1600);
+  assert.equal(png.readUInt32BE(20), 1200);
 
   let offset = 8;
   const idat = [];
@@ -208,12 +208,12 @@ test('creates a valid-sized PNG preview containing rendered pixels', () => {
   }
   assert.deepEqual(chunkTypes, ['IHDR', 'IDAT', 'IEND']);
   const raw = inflateSync(Buffer.concat(idat));
-  assert.equal(raw.length, 1000 * (1 + 1200 * 4));
+  assert.equal(raw.length, 1200 * (1 + 1600 * 4));
 
   let hasNonBackgroundPixel = false;
-  for (let row = 0; row < 1000 && !hasNonBackgroundPixel; row++) {
-    const rowStart = row * (1 + 1200 * 4) + 1;
-    for (let x = 0; x < 1200; x++) {
+  for (let row = 0; row < 1200 && !hasNonBackgroundPixel; row++) {
+    const rowStart = row * (1 + 1600 * 4) + 1;
+    for (let x = 0; x < 1600; x++) {
       const pixel = rowStart + x * 4;
       if (raw[pixel] !== 34 || raw[pixel + 1] !== 35 || raw[pixel + 2] !== 41) {
         hasNonBackgroundPixel = true;
