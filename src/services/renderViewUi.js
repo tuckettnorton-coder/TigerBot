@@ -80,7 +80,7 @@ export function buildRenderViewComponents(id, activePov = 1) {
   const secondPovRow = new ActionRowBuilder().addComponents(
     [6, 7, 8, 9, 10].map(pov => new ButtonBuilder()
       .setCustomId('render_pov:' + id + ':' + pov)
-      .setLabel(String(pov))
+      .setLabel(getPovButtonLabel(pov))
       .setStyle(Number(activePov) === pov ? ButtonStyle.Primary : ButtonStyle.Secondary)
     )
   );
