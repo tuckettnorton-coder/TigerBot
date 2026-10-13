@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync, inflateSync } from 'node:zlib';
-import renderCommand, { analyze, decodeStates, makePng } from '../src/commands/Tools/render.js';
+import renderCommand, { analyze, decodeStates, getPovSceneBlocks, makePng } from '../src/commands/Tools/render.js';
 
 const int32 = value => {
   const out = Buffer.alloc(4);
@@ -282,6 +282,33 @@ test('renders five distinct camera POVs from the same schematic', () => {
   });
 
   assert.equal(new Set(signatures).size, 5, 'each POV should render a different camera angle');
+});
+
+test('POV 4 and POV 5 cut away the near shell to expose the schematic interior', () => {
+  const blocks = [];
+  for (let y = 0; y < 10; y++) {
+    for (let z = 0; z < 10; z++) {
+      for (let x = 0; x < 10; x++) {
+        blocks.push({ x, y, z, name: 'stone', color: '#85888a' });
+      }
+    }
+  }
+  const data = { size: [10, 10, 10], blocks };
+
+  const exterior = getPovSceneBlocks(data, 1);
+  const interior = getPovSceneBlocks(data, 4);
+  const deeperInterior = getPovSceneBlocks(data, 5);
+
+  assert.equal(exterior.length, 1000, 'exterior POV retains the complete schematic');
+  assert.ok(interior.length > 0 && interior.length < exterior.length,
+    'POV 4 removes the near-facing section');
+  assert.ok(deeperInterior.length > 0 && deeperInterior.length < interior.length,
+    'POV 5 removes a deeper section and part of the upper shell');
+
+  assert.ok(interior.some(block => block.x === 5 && block.y === 5 && block.z === 5),
+    'POV 4 keeps central blocks visible');
+  assert.ok(deeperInterior.some(block => block.x === 5 && block.y === 5 && block.z === 5),
+    'POV 5 keeps the central interior visible');
 });
 
 test('returns a clear error for invalid compressed input', () => {
