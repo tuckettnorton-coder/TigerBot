@@ -211,7 +211,7 @@ test('vanilla texture loader caches and returns the actual PNG pixels', async ()
     const textureMap = await loadVanillaTextureMap({
       counts: [['minecraft:stone', 10]]
     });
-    assert.match(requested, /1\\.21\\.11\\/assets\\/minecraft\\/textures\\/block\\/stone\\.png$/);
+    assert.match(requested, /1\.21\.11\/assets\/minecraft\/textures\/block\/stone\.png$/);
     assert.ok(textureMap.has('stone'));
     assert.deepEqual(textureMap.get('stone').pixels, expected);
   } finally {
