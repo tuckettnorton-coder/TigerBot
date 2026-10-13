@@ -6,7 +6,6 @@ import { deflateSync, gunzipSync } from 'node:zlib';
 const MAX_UNCOMPRESSED_BYTES = 64 * 1024 * 1024;
 const MAX_REGION_VOLUME = 5_000_000;
 const MAX_RENDER_BLOCKS = 100_000;
-const MAX_DRAWN_BLOCKS = 100_000;
 
 export function parseNbt(input) {
   let data;
@@ -566,11 +565,10 @@ export function makePng(data) {
     }
   }
 
-  for (const face of faces) fillPolygon(face);
-
-  // Fine, subdued edges define Minecraft's block grid without drawing thick
-  // black LEGO-like outlines around every cube.
+  // Stroke each face immediately after filling it. Foreground faces can then
+  // cover edges behind them, matching normal isometric depth ordering.
   for (const face of faces) {
+    fillPolygon(face);
     const edgeColor = light(face.color, face.face === 'top' ? 0.57 : 0.48);
     for (let i = 0; i < face.points.length; i++) {
       drawLine(face.points[i], face.points[(i + 1) % face.points.length], edgeColor);
