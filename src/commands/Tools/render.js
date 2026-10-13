@@ -1,6 +1,5 @@
 import { AttachmentBuilder, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
-import { gunzipSync } from 'node:zlib';
-import sharp from 'sharp';
+import { deflateSync, gunzipSync } from 'node:zlib';
 
 function parseNbt(input) {
   const data = gunzipSync(input);
@@ -102,30 +101,78 @@ function analyze(buffer) {
   return { name: root.Metadata?.Name || 'Minecraft Schematic', size: [maxX, maxY, maxZ], total, counts: [...counts].sort((a, b) => b[1] - a[1]), blocks };
 }
 
-function makeSvg(data) {
-  const [sx, sy, sz] = data.size, W = 1200, H = 1200;
+function makePng(data) {
+  const W = 1200, H = 1000;
+  const pixels = Buffer.alloc(W * H * 4);
+  for (let i = 0; i < W * H; i++) {
+    pixels[i * 4] = 34; pixels[i * 4 + 1] = 35; pixels[i * 4 + 2] = 41; pixels[i * 4 + 3] = 255;
+  }
+  const [sx, sy, sz] = data.size;
   const unit = Math.max(3, Math.min(12, Math.floor(700 / (sx + sz + sy * 0.7))));
   const half = unit / 2;
-  const pt = (x, y, z) => [W / 2 + (x - z) * half, 145 + (x + z) * half - y * unit];
-  const stride = Math.max(1, Math.ceil(data.blocks.length / 18000));
+  const pt = (x, y, z) => [W / 2 + (x - z) * half, 115 + (x + z) * half - y * unit];
   const faces = [];
+  const stride = Math.max(1, Math.ceil(data.blocks.length / 18000));
   for (let i = 0; i < data.blocks.length; i += stride) {
     const b = data.blocks[i], x = b.x, y = b.y, z = b.z, c = b.color;
     const a = pt(x,y+1,z), d = pt(x+1,y+1,z), e = pt(x+1,y+1,z+1), f = pt(x,y+1,z+1);
     const g = pt(x+1,y,z), h = pt(x+1,y,z+1), j = pt(x,y,z+1);
-    const poly = ps => ps.map(q => q.map(v => v.toFixed(1)).join(',')).join(' ');
-    faces.push({ k: x + z + y * 0.01, svg:
-      '<polygon points="' + poly([d,e,h,g]) + '" fill="' + shade(c,.70) + '" stroke="#222329" stroke-opacity=".2" stroke-width=".4"/>' +
-      '<polygon points="' + poly([f,e,h,j]) + '" fill="' + shade(c,.84) + '" stroke="#222329" stroke-opacity=".2" stroke-width=".4"/>' +
-      '<polygon points="' + poly([a,d,e,f]) + '" fill="' + c + '" stroke="#222329" stroke-opacity=".2" stroke-width=".4"/>' });
+    faces.push({ k: x + z + y * 0.01, polys: [
+      { pts:[d,e,h,g], color:shade(c,.70) },
+      { pts:[f,e,h,j], color:shade(c,.84) },
+      { pts:[a,d,e,f], color:c }
+    ]});
   }
   faces.sort((a,b) => a.k - b.k);
-  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '">' +
-    '<rect width="100%" height="100%" fill="#222329"/>' +
-    '<text x="42" y="54" fill="#fff" font-family="Arial" font-size="28" font-weight="bold">' + xml(data.name.slice(0,60)) + '</text>' +
-    '<text x="42" y="88" fill="#c5c6cf" font-family="Arial" font-size="18">' + sx + ' × ' + sy + ' × ' + sz + ' blocks • ' + data.total.toLocaleString('en-US') + ' non-air blocks</text>' +
-    faces.map(f => f.svg).join('') +
-    '<text x="42" y="1168" fill="#c5c6cf" font-family="Arial" font-size="15">TigerBot preview • simplified block colors, not original Minecraft textures</text></svg>';
+  function fillPolygon(points, hex) {
+    const rgb = [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+    const minY = Math.max(0, Math.floor(Math.min(...points.map(p => p[1]))));
+    const maxY = Math.min(H - 1, Math.ceil(Math.max(...points.map(p => p[1]))));
+    for (let y = minY; y <= maxY; y++) {
+      const xs = [];
+      for (let i = 0; i < points.length; i++) {
+        const a = points[i], b = points[(i + 1) % points.length];
+        if ((a[1] <= y && b[1] > y) || (b[1] <= y && a[1] > y)) xs.push(a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]));
+      }
+      xs.sort((a,b) => a-b);
+      for (let k = 0; k + 1 < xs.length; k += 2) {
+        const x0 = Math.max(0, Math.ceil(xs[k])), x1 = Math.min(W - 1, Math.floor(xs[k+1]));
+        for (let x = x0; x <= x1; x++) {
+          const at = (y * W + x) * 4;
+          pixels[at] = rgb[0]; pixels[at+1] = rgb[1]; pixels[at+2] = rgb[2]; pixels[at+3] = 255;
+        }
+      }
+    }
+  }
+  for (const face of faces) for (const poly of face.polys) fillPolygon(poly.pts, poly.color);
+  const raw = Buffer.alloc(H * (1 + W * 4));
+  for (let y = 0; y < H; y++) pixels.copy(raw, y * (1 + W * 4) + 1, y * W * 4, (y + 1) * W * 4);
+  const crcTable = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    crcTable[n] = c >>> 0;
+  }
+  const crc32 = buf => {
+    let c = 0xffffffff;
+    for (const byte of buf) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, body) => {
+    const t = Buffer.from(type), data = Buffer.concat([t, body]);
+    const out = Buffer.alloc(12 + body.length);
+    out.writeUInt32BE(body.length, 0); t.copy(out, 4); body.copy(out, 8);
+    out.writeUInt32BE(crc32(data), 8 + body.length);
+    return out;
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4); ihdr[8] = 8; ihdr[9] = 6;
+  return Buffer.concat([
+    Buffer.from([137,80,78,71,13,10,26,10]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0))
+  ]);
 }
 
 export default {
@@ -142,7 +189,7 @@ export default {
       const response = await fetch(file.url);
       if (!response.ok) throw new Error('Failed to download the uploaded file.');
       const data = analyze(Buffer.from(await response.arrayBuffer()));
-      const png = await sharp(Buffer.from(makeSvg(data))).png().toBuffer();
+      const png = makePng(data);
       const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
       const materials = data.counts.slice(0, 20).map(([name, count]) => '• ' + name.replace(/^minecraft:/, '') + ': **' + count.toLocaleString('en-US') + '**').join('\n');
       const extra = data.counts.length > 20 ? '\n…and ' + (data.counts.length - 20) + ' other block types.' : '';
