@@ -292,7 +292,6 @@ export function getPovSceneBlocks(data, pov = 1) {
   // POVs 8–10 are side cutaways. They cut the build at its midpoint from
   // three directions so the inside is exposed rather than showing the shell.
   const yaw = getPovYaw(povIndex);
-  const isUnder = isUnderPov(povIndex);
   const cosine = Math.cos(yaw);
   const sine = Math.sin(yaw);
   const rotate = (x, z) => {
@@ -349,6 +348,7 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
   const [sx, sy, sz] = data.size;
   const povIndex = Math.max(1, Math.min(10, Number.parseInt(pov, 10) || 1));
   const yaw = getPovYaw(povIndex);
+  const isUnder = isUnderPov(povIndex);
   const cosine = Math.cos(yaw);
   const sine = Math.sin(yaw);
   const rotate = (x, z) => {
