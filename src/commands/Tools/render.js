@@ -805,10 +805,11 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
 }
 
 /**
- * Prepare POV PNGs before enabling their buttons. Button clicks then use one
- * atomic interaction.update() response without waiting for image generation.
+ * Prepare POV PNGs before enabling their buttons. The callback lets the same
+ * renderer update either a slash-command reply or a message inside a ticket.
  */
-async function prepareRenderPovImages(interaction, id, data, textureMap) {
+async function prepareRenderPovImages(id, data, textureMap, updateComponents) {
+  if (typeof updateComponents !== 'function') return;
   const povs = [2, 3, 4, 5, 6, 7, 8, 9, 10];
 
   const refreshEnabledButtons = () => {
@@ -819,9 +820,7 @@ async function prepareRenderPovImages(interaction, id, data, textureMap) {
     data.renderReadyPovs = readyPovs;
     const previous = data.renderReadinessUpdateQueue || Promise.resolve();
     const next = previous.catch(() => {}).then(() =>
-      interaction.editReply({
-        components: buildRenderViewComponents(id, data.renderActivePov || 1, readyPovs)
-      })
+      updateComponents(buildRenderViewComponents(id, data.renderActivePov || 1, readyPovs))
     );
     data.renderReadinessUpdateQueue = next.catch(error => {
       logger.warn('Could not update ready POV buttons for render ' + id + ': ' + error.message);
@@ -855,13 +854,142 @@ async function prepareRenderPovImages(interaction, id, data, textureMap) {
   }
   data.renderReadyPovs = readyPovs;
   try {
-    await interaction.editReply({
-      components: buildRenderViewComponents(id, data.renderActivePov || 1, readyPovs)
-    });
+    await updateComponents(buildRenderViewComponents(id, data.renderActivePov || 1, readyPovs));
   } catch (error) {
     logger.warn('Final POV button readiness update failed for render ' + id + ': ' +
       (error instanceof Error ? error.message : String(error)));
   }
+}
+
+function renderMessagePayload(rendered) {
+  return {
+    content: '',
+    embeds: [rendered.embed],
+    files: [rendered.attachment],
+    components: rendered.components
+  };
+}
+
+/**
+ * Build a complete render bundle using exactly the same pipeline as /render.
+ * The ticket workflow and the slash command share this function, so the POV
+ * buttons and material list behave identically in both places.
+ */
+export async function createSchematicRender(file, { ticketCinematic = false } = {}) {
+  const name = String(file?.name || 'schematic.litematic');
+  if (!/\.litematic$/i.test(name)) {
+    throw new Error('Automatic cinematic rendering currently supports .litematic files only.');
+  }
+
+  const maxBytes = 8 * 1024 * 1024;
+  if (Number(file?.size) > maxBytes) {
+    throw new Error('Maximum schematic upload size is 8 MB.');
+  }
+  if (typeof file?.url !== 'string' || !file.url) {
+    throw new Error('The uploaded schematic URL is missing.');
+  }
+
+  let url;
+  try {
+    url = new URL(file.url);
+  } catch {
+    throw new Error('The uploaded schematic URL is invalid.');
+  }
+  if (url.protocol !== 'https:' ||
+      !(url.hostname === 'cdn.discordapp.com' ||
+        url.hostname === 'media.discordapp.net' ||
+        url.hostname.endsWith('.discordapp.com') ||
+        url.hostname.endsWith('.discordapp.net'))) {
+    throw new Error('The schematic must be uploaded directly to Discord.');
+  }
+
+  const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+  if (!response.ok) throw new Error('Failed to download the uploaded schematic.');
+  const sourceBuffer = Buffer.from(await response.arrayBuffer());
+  if (sourceBuffer.length > maxBytes) {
+    throw new Error('Maximum schematic upload size is 8 MB.');
+  }
+
+  // NBT decoding and render rasterization stay on worker threads so Discord
+  // interactions and ticket activity remain responsive.
+  const data = await runRenderWorker('analyze', { input: sourceBuffer });
+  if (!data) throw new Error('The schematic could not be analyzed.');
+
+  const textureMap = await loadVanillaTextureMap(data);
+  const materialId = randomUUID();
+  const png = await runRenderWorker('render', {
+    data: { size: data.size, blocks: data.blocks },
+    pov: 1,
+    textureMap
+  });
+  if (!png) throw new Error('The initial schematic preview could not be rendered.');
+
+  cacheRenderPng(materialId, 1, png);
+  data.renderTextures = textureMap;
+  data.renderReadyPovs = new Set([1]);
+  data.renderActivePov = 1;
+
+  const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
+  saveRenderMaterials(materialId, data);
+  saveRenderView(materialId, data);
+
+  const intro = ticketCinematic
+    ? '🎬 **Automatic cinematic preview for this Building Service ticket.**\n'
+    : '';
+  const embed = new EmbedBuilder()
+    .setTitle('🧱 ' + data.name.slice(0, 240))
+    .setDescription(
+      intro +
+      '**Dimensions:** ' + data.size.join(' × ') + ' blocks\n' +
+      '**Non-air blocks:** ' + data.total.toLocaleString('en-US') + '\n' +
+      '**Block types:** ' + data.counts.length.toLocaleString('en-US') + '\n\n' +
+      'POV buttons enable automatically as their previews finish preparing.\n' +
+      'Click **Materials List** below to open the complete block list in a private panel.'
+    )
+    .setImage('attachment://schematic-render.png')
+    .setFooter({ text: 'POV 1/10 · Preparing the remaining views in the background.' });
+
+  return {
+    id: materialId,
+    png,
+    attachment,
+    embed,
+    components: buildRenderViewComponents(materialId, 1, data.renderReadyPovs),
+    data,
+    textureMap
+  };
+}
+
+/**
+ * Post the render bundle to a normal channel message and prepare all of its
+ * POV previews. statusMessage can be a "Rendering..." placeholder so tickets
+ * do not need to wait before acknowledging the upload.
+ */
+export async function sendSchematicRenderToChannel(
+  channel,
+  file,
+  { statusMessage = null, ticketCinematic = true } = {}
+) {
+  const rendered = await createSchematicRender(file, { ticketCinematic });
+  const payload = renderMessagePayload(rendered);
+  const message = statusMessage
+    ? await statusMessage.edit(payload)
+    : await channel.send(payload);
+
+  void prepareRenderPovImages(
+    rendered.id,
+    rendered.data,
+    rendered.textureMap,
+    components => message.edit({ components })
+  );
+
+  return message;
+}
+
+export function prepareSchematicRenderPreviews(rendered, updateComponents) {
+  if (!rendered?.id || !rendered?.data || !rendered?.textureMap ||
+      typeof updateComponents !== 'function') return;
+  void prepareRenderPovImages(rendered.id, rendered.data, rendered.textureMap, updateComponents);
 }
 
 export default {
@@ -889,52 +1017,15 @@ export default {
 
     await interaction.deferReply();
     try {
-      const response = await fetch(file.url);
-      if (!response.ok) throw new Error('Failed to download the uploaded file.');
+      const rendered = await createSchematicRender(file);
+      const responseMessage = await interaction.editReply(renderMessagePayload(rendered));
 
-      // NBT decoding and render rasterization can be CPU-heavy. Keep both off
-      // the Discord event loop so other button clicks can be acknowledged on time.
-      const sourceBuffer = Buffer.from(await response.arrayBuffer());
-      const data = await runRenderWorker('analyze', { input: sourceBuffer });
-
-      // Fetch/cache real vanilla 16×16 block textures when online. Each fetch
-      // is bounded and failures fall back to procedural pixels automatically.
-      const textureMap = await loadVanillaTextureMap(data);
-      const materialId = randomUUID();
-      const png = await runRenderWorker('render', {
-        data: { size: data.size, blocks: data.blocks },
-        pov: 1,
-        textureMap
-      });
-      cacheRenderPng(materialId, 1, png);
-      data.renderTextures = textureMap;
-      data.renderReadyPovs = new Set([1]);
-      data.renderActivePov = 1;
-      const attachment = new AttachmentBuilder(png, { name: 'schematic-render.png' });
-      saveRenderMaterials(materialId, data);
-      saveRenderView(materialId, data);
-
-      const embed = new EmbedBuilder()
-        .setTitle('🧱 ' + data.name.slice(0, 240))
-        .setDescription(
-          '**Dimensions:** ' + data.size.join(' × ') + ' blocks\n' +
-          '**Non-air blocks:** ' + data.total.toLocaleString('en-US') + '\n' +
-          '**Block types:** ' + data.counts.length.toLocaleString('en-US') + '\n\n' +
-          'POV buttons enable automatically as their previews finish preparing.\n' +
-          'Click **Materials List** below to open the complete block list in a private panel.'
-        )
-        .setImage('attachment://schematic-render.png')
-        .setFooter({ text: 'POV 1/10 · Preparing the remaining views in the background.' });
-
-      const responseMessage = await interaction.editReply({
-        embeds: [embed],
-        files: [attachment],
-        components: buildRenderViewComponents(materialId, 1, data.renderReadyPovs)
-      });
-
-      // Start preparation only after the first preview has been delivered.
+      // Start background POV preparation only after POV 1 has been delivered.
       if (interaction.client) {
-        void prepareRenderPovImages(interaction, materialId, data, textureMap);
+        prepareSchematicRenderPreviews(
+          rendered,
+          components => interaction.editReply({ components })
+        );
       }
       return responseMessage;
     } catch (error) {
