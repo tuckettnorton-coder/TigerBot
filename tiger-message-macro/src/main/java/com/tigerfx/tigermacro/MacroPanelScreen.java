@@ -1,10 +1,12 @@
 package com.tigerfx.tigermacro;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
@@ -158,7 +160,9 @@ public final class MacroPanelScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(KeyInput input) {
+        int keyCode = input.key();
+
         if (waitingIndex >= 0 && keyCode == GLFW.GLFW_KEY_ESCAPE) {
             waitingIndex = -1;
             return true;
@@ -178,20 +182,20 @@ public final class MacroPanelScreen extends Screen {
             close();
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(input);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(Click click, boolean doubled) {
         if (waitingIndex >= 0 && waitingType.equals("mouse")) {
             MacroConfig.Action action = TigerMacroClient.config().actions.get(waitingIndex);
             action.triggerType = "mouse";
-            action.triggerCode = button;
+            action.triggerCode = click.button();
             waitingIndex = -1;
             refreshLabels();
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(click, doubled);
     }
 
     private void refreshLabels() {
