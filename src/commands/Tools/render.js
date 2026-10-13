@@ -1,6 +1,6 @@
 import { AttachmentBuilder, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { randomUUID } from 'node:crypto';
-import { getBlockTextureName, loadVanillaTextureMap } from '../../services/renderTextures.js';
+import { getBlockTextureName, loadVanillaTextureMap, mapBlockFaceUv } from '../../services/renderTextures.js';
 import { saveRenderMaterials } from '../../services/renderMaterialUi.js';
 import { buildRenderViewComponents, saveRenderView } from '../../services/renderViewUi.js';
 import { deflateSync, gunzipSync } from 'node:zlib';
@@ -628,8 +628,13 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
       color = adjust(block.color, variation * 0.55);
     }
 
-    const faceLight = face === 'top' ? 1.04 : face === 'x' ? 0.72 : 0.86;
-    return light(color, faceLight);
+    const modelFaceName = face === 'top' ? 'up'
+      : face === 'bottom' ? 'down'
+        : block.side === '+x' ? 'east'
+          : block.side === '-x' ? 'west'
+            : block.side === '+z' ? 'south'
+              : 'north';
+    return light(color, getMinecraftFaceLight(modelFaceName));
   }
 
   function sampleVanillaTexture(blockName, faceName, u, v, modelFaceName = faceName) {
@@ -637,36 +642,78 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
       .replace(/^minecraft:/, '')
       .replace(/\[.*$/, '')
       .toLowerCase();
-    const modelTextureName = textureMap.get('blockface:' + normalizedName + ':' + modelFaceName);
+    const modelFace = textureMap.get('blockface:' + normalizedName + ':' + modelFaceName);
+    const modelTextureName = typeof modelFace === 'string' ? modelFace : modelFace?.texture;
     const fallbackTextureName = getBlockTextureName(blockName, faceName);
-    const texture = (typeof modelTextureName === 'string' && textureMap.get(modelTextureName)) ||
+    const texture = (modelTextureName && textureMap.get(modelTextureName)) ||
       textureMap.get(fallbackTextureName);
     if (!texture || !texture.width || !texture.height || !texture.pixels) return null;
 
-    const tx = Math.max(0, Math.min(texture.width - 1, Math.floor(Math.max(0, Math.min(0.999999, u)) * texture.width)));
-    const ty = Math.max(0, Math.min(texture.height - 1, Math.floor(Math.max(0, Math.min(0.999999, v)) * texture.height)));
+    const [textureU, textureV] = mapBlockFaceUv(u, v, typeof modelFace === 'object' ? modelFace : null);
+    const tx = Math.max(0, Math.min(
+      texture.width - 1,
+      Math.floor(Math.max(0, Math.min(0.999999, textureU / 16)) * texture.width)
+    ));
+    const ty = Math.max(0, Math.min(
+      texture.height - 1,
+      Math.floor(Math.max(0, Math.min(0.999999, textureV / 16)) * texture.height)
+    ));
     const at = (ty * texture.width + tx) * 4;
     return [
       texture.pixels[at],
       texture.pixels[at + 1],
       texture.pixels[at + 2],
-      texture.pixels[at + 3]
+      texture.pixels[at + 3],
+      typeof modelFace === 'object' && Number.isInteger(modelFace.tintindex)
+        ? modelFace.tintindex
+        : null
     ];
+  }
+
+  function getMinecraftFaceLight(faceName) {
+    if (faceName === 'down') return 0.5;
+    if (faceName === 'north' || faceName === 'south') return 0.8;
+    if (faceName === 'east' || faceName === 'west') return 0.6;
+    return 1;
+  }
+
+  function getVanillaTintRgb(blockName, tintIndex) {
+    if (!Number.isInteger(tintIndex) || tintIndex < 0) return null;
+    const name = String(blockName || '').replace(/^minecraft:/, '').toLowerCase();
+
+    // Vanilla's default/plains biome tint colors for the common tintable groups.
+    if (/^lily_pad$/.test(name)) return [32, 128, 48];
+    if (/water|bubble_column|kelp|seagrass/.test(name)) return [63, 118, 228];
+    if (/spruce_leaves/.test(name)) return [97, 153, 97];
+    if (/birch_leaves/.test(name)) return [128, 167, 85];
+    if (/grass_block|short_grass|tall_grass|fern|large_fern|sugar_cane|sweet_berry_bush|wheat|carrots|potatoes|beetroots/.test(name)) {
+      return [124, 189, 107];
+    }
+    if (/leaves|azalea|vine|moss|hanging_roots|glow_lichen/.test(name)) return [89, 174, 48];
+    return null;
   }
 
   function fillPolygon(face) {
     const points = face.points;
     const minY = Math.max(0, Math.floor(Math.min(...points.map(point => point[1]))));
     const maxY = Math.min(H - 1, Math.ceil(Math.max(...points.map(point => point[1]))));
-    const start = face.face === 'top'
-      ? pt(face.x, face.y + 1, face.z)
-      : face.face === 'bottom'
-        ? pt(face.x, face.y, face.z)
-        : face.side === '+x'
-        ? pt(face.x + 1, face.y + 1, face.z)
-        : face.side === '-x' || face.side === '-z'
-          ? pt(face.x, face.y + 1, face.z)
-          : pt(face.x, face.y + 1, face.z + 1);
+
+    // Use the actual projected face corners to recover face-local coordinates.
+    // A camera-space formula made textures rotate or stretch when changing POV.
+    const p0 = points[0], p1 = points[1], p3 = points[3];
+    const ux = p1[0] - p0[0], uy = p1[1] - p0[1];
+    const vx = p3[0] - p0[0], vy = p3[1] - p0[1];
+    const determinant = ux * vy - uy * vx;
+    if (Math.abs(determinant) < 0.000001) return;
+
+    const textureFace = face.face === 'top' ? 'top' : face.face === 'bottom' ? 'bottom' : 'side';
+    const modelFaceName = face.face === 'top' ? 'up'
+      : face.face === 'bottom' ? 'down'
+        : face.side === '+x' ? 'east'
+          : face.side === '-x' ? 'west'
+            : face.side === '+z' ? 'south'
+              : 'north';
+    const faceLight = getMinecraftFaceLight(modelFaceName);
 
     for (let y = minY; y <= maxY; y++) {
       const scanY = y + 0.5;
@@ -684,41 +731,22 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
         const x1 = Math.min(W - 1, Math.floor(xs[k + 1] - 0.5));
         for (let x = x0; x <= x1; x++) {
           const px = x + 0.5, py = y + 0.5;
-          let u, v;
-
-          if (face.face === 'top' || face.face === 'bottom') {
-            const dx = px - start[0];
-            const dy = py - start[1];
-            u = (dx + dy) / unit;
-            v = (dy - dx) / unit;
-          } else if (face.face === 'x') {
-            const localZ = (start[0] - px) / half;
-            u = localZ;
-            v = (py - start[1] - localZ * half) / unit;
-          } else {
-            const localX = (px - start[0]) / half;
-            u = localX;
-            v = (py - start[1] - localX * half) / unit;
-          }
-
+          const dx = px - p0[0], dy = py - p0[1];
+          const u = (dx * vy - dy * vx) / determinant;
+          const v = (ux * dy - uy * dx) / determinant;
           const at = (y * W + x) * 4;
-          const textureFace = face.face === 'top' ? 'top' : face.face === 'bottom' ? 'bottom' : 'side';
-          const modelFaceName = face.face === 'top' ? 'up'
-            : face.face === 'bottom' ? 'down'
-              : face.side === '+x' ? 'east'
-                : face.side === '-x' ? 'west'
-                  : face.side === '+z' ? 'south'
-                    : 'north';
           const sample = sampleVanillaTexture(face.name, textureFace, u, v, modelFaceName);
 
           if (sample) {
-            // Apply directional face lighting to actual vanilla texture pixels.
-            // Alpha is composited, rather than made opaque, for glass/ice-like blocks.
-            const faceLight = face.face === 'top' ? 1.04 : face.face === 'bottom' ? 0.62 : face.face === 'x' ? 0.72 : 0.86;
+            const tint = getVanillaTintRgb(face.name, sample[4]);
+            const tintR = tint ? tint[0] / 255 : 1;
+            const tintG = tint ? tint[1] / 255 : 1;
+            const tintB = tint ? tint[2] / 255 : 1;
             const alpha = sample[3] / 255;
-            pixels[at] = Math.round(pixels[at] * (1 - alpha) + Math.min(255, sample[0] * faceLight) * alpha);
-            pixels[at + 1] = Math.round(pixels[at + 1] * (1 - alpha) + Math.min(255, sample[1] * faceLight) * alpha);
-            pixels[at + 2] = Math.round(pixels[at + 2] * (1 - alpha) + Math.min(255, sample[2] * faceLight) * alpha);
+
+            pixels[at] = Math.round(pixels[at] * (1 - alpha) + Math.min(255, sample[0] * tintR * faceLight) * alpha);
+            pixels[at + 1] = Math.round(pixels[at + 1] * (1 - alpha) + Math.min(255, sample[1] * tintG * faceLight) * alpha);
+            pixels[at + 2] = Math.round(pixels[at + 2] * (1 - alpha) + Math.min(255, sample[2] * tintB * faceLight) * alpha);
             pixels[at + 3] = 255;
           } else {
             const color = textureColor(face.face, face, u, v);
@@ -732,7 +760,6 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
       }
     }
   }
-
   // Avoid thick outlines around every block face. Removing the dark grid
   // reduces the LEGO look; face lighting and pixel textures still define shape.
   for (const face of faces) fillPolygon(face);

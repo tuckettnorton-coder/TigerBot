@@ -7,7 +7,8 @@ import { cacheRenderPng, getCachedRenderPng, getOrCreateRenderPng } from '../src
 import {
   decodePngTexture,
   getBlockTextureName,
-  loadVanillaTextureMap
+  loadVanillaTextureMap,
+  mapBlockFaceUv
 } from '../src/services/renderTextures.js';
 import renderMaterialsButton from '../src/interactions/buttons/renderMaterials.js';
 import renderMaterialDismiss from '../src/interactions/buttons/renderMaterialDismiss.js';
@@ -259,6 +260,26 @@ test('vanilla texture resolver selects correct top and side texture variants', (
   assert.equal(getBlockTextureName('minecraft:waxed_copper_block', 'top'), 'copper_block');
 });
 
+test('Minecraft face UV mapping honors explicit UV rectangles and quarter-turn rotation', () => {
+  assert.deepEqual(mapBlockFaceUv(0.25, 0.75), [4, 12]);
+  assert.deepEqual(mapBlockFaceUv(0.25, 0.75, {
+    uv: [2, 4, 10, 12],
+    rotation: 0
+  }), [4, 10]);
+  assert.deepEqual(mapBlockFaceUv(0.25, 0.75, {
+    uv: [0, 0, 16, 16],
+    rotation: 90
+  }), [12, 12]);
+  assert.deepEqual(mapBlockFaceUv(0.25, 0.75, {
+    uv: [0, 0, 16, 16],
+    rotation: 180
+  }), [12, 4]);
+  assert.deepEqual(mapBlockFaceUv(0.25, 0.75, {
+    uv: [0, 0, 16, 16],
+    rotation: 270
+  }), [4, 4]);
+});
+
 test('vanilla texture PNG decoder preserves RGBA pixels', () => {
   const expected = Buffer.from([240, 30, 60, 255, 20, 180, 90, 128]);
   const decoded = decodePngTexture(textureTestPng(expected, 2, 1));
@@ -316,7 +337,7 @@ test('vanilla texture loader resolves official blockstate/model face textures an
         text: async () => JSON.stringify({
           elements: [{
             faces: {
-              up: { texture: '#up' },
+              up: { texture: '#up', uv: [1, 2, 15, 14], rotation: 90, tintindex: 0 },
               down: { texture: '#down' },
               north: { texture: '#north' },
               south: { texture: '#south' },
@@ -341,9 +362,11 @@ test('vanilla texture loader resolves official blockstate/model face textures an
     assert.ok(requested.some(url => url.endsWith('/models/block/stone.json')));
     assert.ok(requested.some(url => url.endsWith('/models/block/cube_all.json')));
     assert.ok(requested.some(url => /^https:\/\/assets\.mcasset\.cloud\/1\.21\.11\/assets\/minecraft\/textures\/block\/stone\.png$/.test(url)));
-    assert.equal(textureMap.get('blockface:stone:up'), 'stone');
-    assert.equal(textureMap.get('blockface:stone:down'), 'stone');
-    assert.equal(textureMap.get('blockface:stone:north'), 'stone');
+    assert.deepEqual(textureMap.get('blockface:stone:up'), {
+      texture: 'stone', uv: [1, 2, 15, 14], rotation: 90, tintindex: 0
+    });
+    assert.equal(textureMap.get('blockface:stone:down').texture, 'stone');
+    assert.equal(textureMap.get('blockface:stone:north').texture, 'stone');
     assert.deepEqual(textureMap.get('stone').pixels, expected);
   } finally {
     globalThis.fetch = previousFetch;
@@ -502,9 +525,9 @@ test('Minecraft model mapping preserves distinct textures for different block fa
     const textureMap = await loadVanillaTextureMap({
       counts: [['minecraft:furnace', 3]]
     });
-    assert.equal(textureMap.get('blockface:furnace:up'), 'furnace_top');
-    assert.equal(textureMap.get('blockface:furnace:north'), 'furnace_front');
-    assert.equal(textureMap.get('blockface:furnace:south'), 'furnace_side');
+    assert.equal(textureMap.get('blockface:furnace:up').texture, 'furnace_top');
+    assert.equal(textureMap.get('blockface:furnace:north').texture, 'furnace_front');
+    assert.equal(textureMap.get('blockface:furnace:south').texture, 'furnace_side');
     assert.ok(requested.some(url => url.endsWith('/textures/block/furnace_front.png')));
   } finally {
     globalThis.fetch = originalFetch;
