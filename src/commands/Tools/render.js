@@ -750,13 +750,13 @@ export default {
           '**Dimensions:** ' + data.size.join(' × ') + ' blocks\n' +
           '**Non-air blocks:** ' + data.total.toLocaleString('en-US') + '\n' +
           '**Block types:** ' + data.counts.length.toLocaleString('en-US') + '\n\n' +
-          'Click **View Materials** below to privately browse the exact block counts.'
+          'Click **Materials List** below to open the complete block list in a private panel.'
         )
         .setImage('attachment://schematic-render.png')
         .setFooter({ text: 'Minecraft-style pixel textures and visible-face shading; counts come directly from the schematic.' });
 
       embed.setFooter({
-        text: 'POV 1/5 · Minecraft-style pixel textures and visible-face shading; counts come directly from the schematic.'
+        text: 'POV 1/10 · High-resolution Minecraft-style textures and face lighting; counts come directly from the schematic.'
       });
 
       return interaction.editReply({
