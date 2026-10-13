@@ -61,7 +61,8 @@ test('Materials List opens a private ephemeral panel with a dismiss button', asy
   assert.equal(replyPayload.ephemeral, true);
   assert.equal(replyPayload.embeds.length, 1);
   assert.equal(replyPayload.components.length, 1);
-  assert.equal(replyPayload.components[0].toJSON().components[0].type, 3);
+  assert.equal(replyPayload.components[0].toJSON().components[0].type, 2);
+  assert.equal(replyPayload.components[0].toJSON().components[0].label, 'Dismiss');
 });
 
 
@@ -111,17 +112,6 @@ test('material panel lists names and counts directly without dropdowns or inspec
   assert.equal(controls.length, 1);
   assert.equal(controls[0].label, 'Dismiss');
   assert.doesNotMatch(embed.description, /dropdown|select a material/i);
-});
-
-
-  const entry = getRenderMaterials(id);
-  const select = buildMaterialComponents(id, entry, 0)[0].toJSON().components[0];
-  const embed = buildMaterialsEmbed(entry, 0).toJSON();
-
-  assert.match(select.placeholder, /material type/i);
-  assert.deepEqual(select.options.map(option => option.label), ['stone', 'oak planks']);
-  assert.deepEqual(select.options.map(option => option.description), ['Count: 18', 'Count: 12']);
-  assert.doesNotMatch(embed.description, /Selected material|Exact count/i);
 });
 
 
