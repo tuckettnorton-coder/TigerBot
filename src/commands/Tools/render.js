@@ -258,12 +258,35 @@ export function analyze(buffer) {
   };
 }
 
-export function getPovSceneBlocks(data, pov = 1) {
-  const povIndex = Math.max(1, Math.min(5, Number.parseInt(pov, 10) || 1));
-  if (povIndex < 4) return data.blocks;
+function getPovYaw(povIndex) {
+  if (povIndex === 1) return 0;
+  if (povIndex === 2) return (Math.PI * 2) / 3;
+  if (povIndex === 3) return (Math.PI * 4) / 3;
+  if (povIndex >= 4 && povIndex <= 7) return Math.PI / 4;
+  if (povIndex === 8) return 0;
+  if (povIndex === 9) return Math.PI / 2;
+  if (povIndex === 10) return Math.PI;
+  return 0;
+}
 
-  const [sx, , sz] = data.size;
-  const yaw = ((povIndex - 1) * Math.PI * 2) / 5;
+export function getPovSceneBlocks(data, pov = 1) {
+  const povIndex = Math.max(1, Math.min(10, Number.parseInt(pov, 10) || 1));
+  if (povIndex <= 3) return data.blocks;
+
+  const [sx, sy, sz] = data.size;
+
+  // POVs 4–7 use the same angled camera and progressively remove the top
+  // 1, 2, 3, and 4 block layers. Keep at least one layer for short builds.
+  if (povIndex <= 7) {
+    const maxRemovableLayers = Math.max(0, sy - 1);
+    const layersToRemove = Math.min(povIndex - 3, maxRemovableLayers);
+    const visibleHeight = Math.max(1, sy - layersToRemove);
+    return data.blocks.filter(block => block.y < visibleHeight);
+  }
+
+  // POVs 8–10 are side cutaways. They cut the build at its midpoint from
+  // three directions so the inside is exposed rather than showing the shell.
+  const yaw = getPovYaw(povIndex);
   const cosine = Math.cos(yaw);
   const sine = Math.sin(yaw);
   const rotate = (x, z) => {
@@ -274,7 +297,6 @@ export function getPovSceneBlocks(data, pov = 1) {
       dx * sine + dz * cosine + sz / 2
     ];
   };
-
   const corners = [
     rotate(0, 0),
     rotate(sx, 0),
@@ -288,34 +310,18 @@ export function getPovSceneBlocks(data, pov = 1) {
   );
   const minDepth = Math.min(...depthValues);
   const maxDepth = Math.max(...depthValues);
-  const depthSpan = Math.max(1, maxDepth - minDepth);
-
-  // POV 4 removes the near-facing section so the viewer can see the build's
-  // inner structure instead of another exterior angle.
-  const cutDepth = povIndex === 4
-    ? minDepth + depthSpan * 0.62
-    : minDepth + depthSpan * 0.53;
-
-  return data.blocks.filter(block => {
+  const cutDepth = minDepth + Math.max(1, maxDepth - minDepth) * 0.5;
+  const cutaway = data.blocks.filter(block => {
     const [viewX, viewZ] = rotate(block.x + 0.5, block.z + 0.5);
-    const depth = (viewX - minViewX) + (viewZ - minViewZ);
-    if (depth > cutDepth) return false;
-
-    // POV 5 is a deeper center cutaway: remove some of the upper near-side
-    // shell as well, exposing more of the inside from above.
-    if (
-      povIndex === 5 &&
-      block.y >= data.size[1] * 0.78 &&
-      depth >= minDepth + depthSpan * 0.18
-    ) {
-      return false;
-    }
-    return true;
+    return (viewX - minViewX) + (viewZ - minViewZ) <= cutDepth;
   });
+
+  // A very small or unusually sparse schematic should never produce a blank POV.
+  return cutaway.length ? cutaway : data.blocks;
 }
 
 export function makePng(data, pov = 1) {
-  const W = 1600, H = 1200;
+  const W = 2400, H = 1800;
   const pixels = Buffer.alloc(W * H * 4);
 
   // A soft sky-to-slate backdrop makes the structure stand out without the
@@ -335,12 +341,10 @@ export function makePng(data, pov = 1) {
   }
 
   const [sx, sy, sz] = data.size;
-  const povIndex = Math.max(1, Math.min(5, Number.parseInt(pov, 10) || 1));
-  const yaw = ((povIndex - 1) * Math.PI * 2) / 5;
+  const povIndex = Math.max(1, Math.min(10, Number.parseInt(pov, 10) || 1));
+  const yaw = getPovYaw(povIndex);
   const cosine = Math.cos(yaw);
   const sine = Math.sin(yaw);
-
-  // Rotate the build around its horizontal center for each of the five POVs.
   const rotate = (x, z) => {
     const dx = x - sx / 2;
     const dz = z - sz / 2;
@@ -350,11 +354,29 @@ export function makePng(data, pov = 1) {
     ];
   };
 
+  const sceneBlocks = getPovSceneBlocks(data, povIndex);
+  let sceneMinX = Infinity, sceneMinZ = Infinity;
+  let sceneMaxX = -Infinity, sceneMaxZ = -Infinity;
+  let sceneHeight = 1;
+  for (const block of sceneBlocks) {
+    sceneMinX = Math.min(sceneMinX, block.x);
+    sceneMinZ = Math.min(sceneMinZ, block.z);
+    sceneMaxX = Math.max(sceneMaxX, block.x + 1);
+    sceneMaxZ = Math.max(sceneMaxZ, block.z + 1);
+    sceneHeight = Math.max(sceneHeight, block.y + 1);
+  }
+  if (!Number.isFinite(sceneMinX)) {
+    sceneMinX = 0; sceneMinZ = 0;
+    sceneMaxX = sx; sceneMaxZ = sz;
+  }
+
+  // Frame the remaining cutaway blocks tightly. This zooms into the newly
+  // exposed interior instead of leaving empty space where layers were removed.
   const corners = [
-    rotate(0, 0),
-    rotate(sx, 0),
-    rotate(0, sz),
-    rotate(sx, sz)
+    rotate(sceneMinX, sceneMinZ),
+    rotate(sceneMaxX, sceneMinZ),
+    rotate(sceneMinX, sceneMaxZ),
+    rotate(sceneMaxX, sceneMaxZ)
   ];
   const minViewX = Math.min(...corners.map(point => point[0]));
   const maxViewX = Math.max(...corners.map(point => point[0]));
@@ -364,17 +386,17 @@ export function makePng(data, pov = 1) {
   const viewDepth = Math.max(1, maxViewZ - minViewZ);
   const horizontalSpan = viewWidth + viewDepth;
   const halfMax = Math.max(1, horizontalSpan);
-  const heightMax = Math.max(1, sy + horizontalSpan / 2);
+  const heightMax = Math.max(1, sceneHeight + horizontalSpan / 2);
   const unit = Math.max(0.00001, Math.min(
-    18,
+    27,
     (W - 180) * 2 / halfMax,
     (H - 180) / heightMax
   ));
   const half = unit / 2;
   const projectedWidth = horizontalSpan * half;
-  const projectedHeight = sy * unit + horizontalSpan * half;
+  const projectedHeight = sceneHeight * unit + horizontalSpan * half;
   const xOffset = (W - projectedWidth) / 2 + viewDepth * half;
-  const yOffset = (H - projectedHeight) / 2 + sy * unit;
+  const yOffset = (H - projectedHeight) / 2 + sceneHeight * unit;
   const pt = (x, y, z) => {
     const [viewX, viewZ] = rotate(x, z);
     const localX = viewX - minViewX;
@@ -416,7 +438,6 @@ export function makePng(data, pov = 1) {
     }
   }
 
-  const sceneBlocks = getPovSceneBlocks(data, povIndex);
   const key = (x, y, z) => x + ',' + y + ',' + z;
   const occupied = new Set(sceneBlocks.map(block => key(block.x, block.y, block.z)));
   const faces = [];
@@ -645,38 +666,9 @@ export function makePng(data, pov = 1) {
     }
   }
 
-  function drawLine(start, end, hex) {
-    let x0 = Math.round(start[0]), y0 = Math.round(start[1]);
-    const x1 = Math.round(end[0]), y1 = Math.round(end[1]);
-    const dx = Math.abs(x1 - x0), sxStep = x0 < x1 ? 1 : -1;
-    const dy = -Math.abs(y1 - y0), syStep = y0 < y1 ? 1 : -1;
-    let error = dx + dy;
-    const rgb = hexRgb(hex);
-
-    while (true) {
-      if (x0 >= 0 && x0 < W && y0 >= 0 && y0 < H) {
-        const at = (y0 * W + x0) * 4;
-        pixels[at] = rgb[0];
-        pixels[at + 1] = rgb[1];
-        pixels[at + 2] = rgb[2];
-        pixels[at + 3] = 255;
-      }
-      if (x0 === x1 && y0 === y1) break;
-      const twice = 2 * error;
-      if (twice >= dy) { error += dy; x0 += sxStep; }
-      if (twice <= dx) { error += dx; y0 += syStep; }
-    }
-  }
-
-  // Stroke each face immediately after filling it. Foreground faces can then
-  // cover edges behind them, matching normal isometric depth ordering.
-  for (const face of faces) {
-    fillPolygon(face);
-    const edgeColor = light(face.color, face.face === 'top' ? 0.57 : 0.48);
-    for (let i = 0; i < face.points.length; i++) {
-      drawLine(face.points[i], face.points[(i + 1) % face.points.length], edgeColor);
-    }
-  }
+  // Avoid thick outlines around every block face. Removing the dark grid
+  // reduces the LEGO look; face lighting and pixel textures still define shape.
+  for (const face of faces) fillPolygon(face);
 
   const raw = Buffer.alloc(H * (1 + W * 4));
   for (let y = 0; y < H; y++) {
