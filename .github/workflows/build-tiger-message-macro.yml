@@ -1,0 +1,55 @@
+name: Build Tiger Message Macro JAR
+
+on:
+  push:
+    branches:
+      - "build/tigermacro-direct-jar-20261009"
+    paths:
+      - "tiger-message-macro/**"
+      - ".github/workflows/build-tiger-message-macro.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.7.1"
+      - name: Build Fabric mod
+        id: gradle_build
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon clean build 2>&1 | tee build.log
+        working-directory: tiger-message-macro
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiger-message-macro-build-log
+          path: tiger-message-macro/build.log
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload installable JAR
+        if: steps.gradle_build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiger-message-macro-1.21.11-jar
+          path: tiger-message-macro/build/libs/tiger-message-macro-1.0.0.jar
+          if-no-files-found: error
+          retention-days: 7
+      - name: Fail if build failed
+        if: steps.gradle_build.outcome == 'failure'
+        run: exit 1
