@@ -95,7 +95,7 @@ function analyze(buffer) {
       if (/^(minecraft:)?(air|cave_air|void_air)$/.test(name)) continue;
       total++;
       counts.set(name, (counts.get(name) || 0) + 1);
-      if (blocks.length < 100000) blocks.push({ x: i % sx, y: Math.floor(i / sx) % sy, z: Math.floor(i / (sx * sy)), color: blockColor(name) });
+      if (blocks.length < 100000) blocks.push({ x: i % sx, y: Math.floor(i / (sx * sz)), z: Math.floor(i / sx) % sz, color: blockColor(name) });
     }
   }
   return { name: root.Metadata?.Name || 'Minecraft Schematic', size: [maxX, maxY, maxZ], total, counts: [...counts].sort((a, b) => b[1] - a[1]), blocks };
