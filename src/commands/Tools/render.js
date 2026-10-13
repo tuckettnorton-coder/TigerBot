@@ -312,9 +312,9 @@ export function getPovSceneBlocks(data, pov = 1) {
   const cutDepth = minDepth + Math.max(1, maxDepth - minDepth) * 0.5;
   const cutaway = data.blocks.filter(block => {
     const [, viewDepth] = rotate(block.x + 0.5, block.z + 0.5);
-    return povIndex === 10
-      ? viewDepth >= cutDepth
-      : viewDepth <= cutDepth;
+    // Keep the near half from each selected camera direction. Since
+    // POV 10 rotates the camera 180°, this naturally keeps the opposite world side.
+    return viewDepth <= cutDepth;
   });
 
   // A very small or unusually sparse schematic should never produce a blank POV.
