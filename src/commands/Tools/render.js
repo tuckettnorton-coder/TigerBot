@@ -402,8 +402,10 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
   const projectedWidth = horizontalSpan * half;
   const projectedHeight = sceneHeight * unit + horizontalSpan * half;
   const xOffset = (W - projectedWidth) / 2 + viewDepth * half;
+  // From underneath, invert the horizontal-depth projection while keeping
+  // vertical world height moving toward the top of the image.
   const yOffset = isUnder
-    ? (H - projectedHeight) / 2
+    ? (H + projectedHeight) / 2
     : (H - projectedHeight) / 2 + sceneHeight * unit;
   const pt = (x, y, z) => {
     const [viewX, viewZ] = rotate(x, z);
@@ -411,7 +413,9 @@ export function makePng(data, pov = 1, textureMap = new Map()) {
     const localZ = viewZ - minViewZ;
     return [
       xOffset + (localX - localZ) * half,
-      yOffset + (localX + localZ) * half + (isUnder ? y * unit : -y * unit)
+      isUnder
+        ? yOffset - (localX + localZ) * half - y * unit
+        : yOffset + (localX + localZ) * half - y * unit
     ];
   };
   const sideVisible = (normalX, normalZ) => {
