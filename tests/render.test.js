@@ -166,8 +166,8 @@ test('public render panel hides the material list behind a View Materials button
   assert.equal(responsePayload.components.length, 3);
   assert.equal(responsePayload.components[0].components.length, 5);
   assert.equal(responsePayload.components[1].components.length, 5);
-  assert.deepEqual(responsePayload.components[0].components.map(button => button.data.label), ['1', '2', '3', '4', '5']);
-  assert.deepEqual(responsePayload.components[1].components.map(button => button.data.label), ['6', '7', '8', '9', '10']);
+  assert.deepEqual(responsePayload.components[0].components.map(button => button.data.label), ['Front', 'Opposite', 'Under', 'Top −1', 'Top −2']);
+  assert.deepEqual(responsePayload.components[1].components.map(button => button.data.label), ['Top −3', 'Top −4', 'Half · Front', 'Half · Back', 'Half · Side']);
   assert.equal(responsePayload.components[2].components[0].data.custom_id.startsWith('render_materials:'), true);
   assert.equal(responsePayload.components[2].components[0].data.label, 'Materials List');
   const description = responsePayload.embeds[0].data.description;
@@ -318,8 +318,8 @@ test('POVs 4–7 progressively remove top layers and POVs 8–10 cut the sides',
   const thirdTopCut = getPovSceneBlocks(data, 6);
   const fourthTopCut = getPovSceneBlocks(data, 7);
   const sideCutX = getPovSceneBlocks(data, 8);
-  const sideCutZ = getPovSceneBlocks(data, 9);
-  const oppositeSideCut = getPovSceneBlocks(data, 10);
+  const sideCutBack = getPovSceneBlocks(data, 9);
+  const sideCutSide = getPovSceneBlocks(data, 10);
 
   assert.equal(exterior.length, 1000, 'exterior POV retains the complete schematic');
   assert.ok(interior.length > 0 && interior.length < exterior.length,
@@ -330,14 +330,14 @@ test('POVs 4–7 progressively remove top layers and POVs 8–10 cut the sides',
   assert.ok(thirdTopCut.length < deeperInterior.length, 'POV 6 removes a third top layer');
   assert.ok(fourthTopCut.length < thirdTopCut.length, 'POV 7 removes a fourth top layer');
   assert.ok(sideCutX.length > 0 && sideCutX.length < exterior.length, 'POV 8 cuts one side');
-  assert.ok(sideCutZ.length > 0 && sideCutZ.length < exterior.length, 'POV 9 cuts a perpendicular side');
-  assert.ok(oppositeSideCut.length > 0 && oppositeSideCut.length < exterior.length, 'POV 10 cuts from the opposite side');
+  assert.ok(sideCutBack.length > 0 && sideCutBack.length < exterior.length, 'POV 9 cuts the opposite half');
+  assert.ok(sideCutSide.length > 0 && sideCutSide.length < exterior.length, 'POV 10 cuts the perpendicular side');
   assert.ok(sideCutX.every(block => block.z < 5),
     'POV 8 keeps the half-depth nearest its viewing direction');
-  assert.ok(sideCutZ.every(block => block.x < 5),
-    'POV 9 keeps the half-depth on the perpendicular axis');
-  assert.ok(oppositeSideCut.every(block => block.z >= 5),
-    'POV 10 keeps the opposite half-depth');
+  assert.ok(sideCutBack.every(block => block.z >= 5),
+    'POV 9 keeps the half-depth opposite to POV 8');
+  assert.ok(sideCutSide.every(block => block.x < 5),
+    'POV 10 keeps the near half-depth along the side axis');
 
   assert.ok(interior.some(block => block.x === 5 && block.y === 5 && block.z === 5),
     'POV 4 keeps central blocks visible');
