@@ -9,30 +9,32 @@ on:
       - feat/render-five-pov-material-dropdown-20261013
     paths:
       - 'src/commands/Tools/render.js'
-      - 'src/services/renderViewUi.js'
-      - 'src/interactions/buttons/renderPov.js'
       - 'src/services/renderMaterialUi.js'
+      - 'src/services/renderViewUi.js'
       - 'src/interactions/buttons/renderMaterials.js'
       - 'src/interactions/buttons/renderMaterialPage.js'
+      - 'src/interactions/buttons/renderPov.js'
       - 'src/interactions/selectMenus/renderMaterialPicker.js'
       - 'src/handlers/loaders/commandLoader.js'
       - 'src/app.js'
       - 'tests/render.test.js'
       - 'tests/render-ui.test.js'
-      - 'tests/render-ui.test.js'
-      - 'src/services/renderMaterialUi.js'
-      - 'src/interactions/buttons/renderMaterials.js'
-      - 'src/interactions/buttons/renderMaterialPage.js'
-      - 'src/interactions/selectMenus/renderMaterialPicker.js'
       - '.github/workflows/test-render-command.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'src/commands/Tools/render.js'
+      - 'src/services/renderMaterialUi.js'
+      - 'src/services/renderViewUi.js'
+      - 'src/interactions/buttons/renderMaterials.js'
+      - 'src/interactions/buttons/renderMaterialPage.js'
+      - 'src/interactions/buttons/renderPov.js'
+      - 'src/interactions/selectMenus/renderMaterialPicker.js'
       - 'src/handlers/loaders/commandLoader.js'
       - 'src/app.js'
       - 'tests/render.test.js'
+      - 'tests/render-ui.test.js'
       - '.github/workflows/test-render-command.yml'
 
 permissions:
