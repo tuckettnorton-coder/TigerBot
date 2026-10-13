@@ -8,6 +8,7 @@ on:
     paths:
       - 'src/commands/Tools/render.js'
       - 'src/handlers/loaders/commandLoader.js'
+      - 'src/app.js'
       - 'tests/render.test.js'
       - '.github/workflows/test-render-command.yml'
   pull_request:
@@ -16,6 +17,7 @@ on:
     paths:
       - 'src/commands/Tools/render.js'
       - 'src/handlers/loaders/commandLoader.js'
+      - 'src/app.js'
       - 'tests/render.test.js'
       - '.github/workflows/test-render-command.yml'
 
@@ -35,5 +37,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Check command registration syntax
+        run: node --check src/app.js && node --check src/handlers/loaders/commandLoader.js && node --check src/commands/Tools/render.js
       - name: Run render tests
         run: node --test tests/render.test.js
