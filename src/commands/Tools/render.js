@@ -259,10 +259,14 @@ export function analyze(buffer) {
   };
 }
 
+function isUnderPov(povIndex) {
+  return povIndex === 3;
+}
+
 function getPovYaw(povIndex) {
   if (povIndex === 1) return 0;
-  if (povIndex === 2) return (Math.PI * 2) / 3;
-  if (povIndex === 3) return (Math.PI * 4) / 3;
+  if (povIndex === 2) return Math.PI;
+  if (povIndex === 3) return Math.PI / 4;
   if (povIndex >= 4 && povIndex <= 7) return Math.PI / 4;
   if (povIndex === 8) return 0;
   if (povIndex === 9) return Math.PI / 2;
