@@ -304,17 +304,17 @@ export function getPovSceneBlocks(data, pov = 1) {
     rotate(0, sz),
     rotate(sx, sz)
   ];
-  const minViewX = Math.min(...corners.map(point => point[0]));
-  const minViewZ = Math.min(...corners.map(point => point[1]));
-  const depthValues = corners.map(point =>
-    (point[0] - minViewX) + (point[1] - minViewZ)
-  );
-  const minDepth = Math.min(...depthValues);
-  const maxDepth = Math.max(...depthValues);
+  // Cut along a plane perpendicular to the current viewing direction.
+  // This keeps exactly one half of the depth span instead of making a diagonal
+  // x+z cut through the structure. POV 10 looks from the opposite side.
+  const minDepth = Math.min(...corners.map(point => point[1]));
+  const maxDepth = Math.max(...corners.map(point => point[1]));
   const cutDepth = minDepth + Math.max(1, maxDepth - minDepth) * 0.5;
   const cutaway = data.blocks.filter(block => {
-    const [viewX, viewZ] = rotate(block.x + 0.5, block.z + 0.5);
-    return (viewX - minViewX) + (viewZ - minViewZ) <= cutDepth;
+    const [, viewDepth] = rotate(block.x + 0.5, block.z + 0.5);
+    return povIndex === 10
+      ? viewDepth >= cutDepth
+      : viewDepth <= cutDepth;
   });
 
   // A very small or unusually sparse schematic should never produce a blank POV.
