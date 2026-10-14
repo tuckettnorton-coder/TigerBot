@@ -61,13 +61,18 @@ class TitanBot extends Client {
       // Check database status and report
       const dbStatus = this.db.getStatus();
       if (dbStatus.isDegraded) {
+        const intentionallyInMemory = dbStatus.degradedReason === 'IN_MEMORY_MODE_ENABLED';
         logger.warn('');
         logger.warn('╔═══════════════════════════════════════════════════════╗');
         logger.warn('║ ⚠️  DATABASE RUNNING IN DEGRADED MODE                 ║');
         logger.warn('║                                                       ║');
-        logger.warn('║ Connection: In-Memory Storage (PostgreSQL unavailable)║');
+        logger.warn(intentionallyInMemory
+          ? '║ Connection: In-Memory Storage (intentionally enabled) ║'
+          : '║ Connection: In-Memory Storage (PostgreSQL unavailable)║');
         logger.warn('║ Data Persistence: DISABLED - data lost on restart    ║');
-        logger.warn('║ Action Required: Fix PostgreSQL and restart bot      ║');
+        logger.warn(intentionallyInMemory
+          ? '║ Action Required: None for temporary in-memory mode   ║'
+          : '║ Action Required: Fix PostgreSQL and restart bot      ║');
         logger.warn('╚═══════════════════════════════════════════════════════╝');
         logger.warn('');
       } else {
