@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
-import { withUpdatePostLock } from '../../utils/updatePostLock.js';
+import { upsertUpdateMessage } from '../../utils/updateMessage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,58 +98,29 @@ export function persistGiveawayRules(data) {
   saveGiveawayRules(data);
 }
 
-async function deletePreviousRulesMessage(channel, client) {
-  const state = await getUpdateState(client, channel.guild.id);
-  const previousMessageId = state.giveawayRulesMessageId || loadMessageId();
-
-  if (previousMessageId) {
-    try {
-      const previousMessage = await channel.messages.fetch(previousMessageId);
-      if (previousMessage) await previousMessage.delete();
-      return;
-    } catch {
-      // Fall through to the migration search below.
-    }
-  }
-
-  // Migration fallback for older versions that did not persist the message ID.
-  try {
-    const messages = await channel.messages.fetch({ limit: 50 });
-    const oldMessage = messages.find((message) =>
-      message.author?.id === client.user?.id &&
-      typeof message.content === 'string' &&
-      message.content.startsWith('# 🎉 Giveaway Information')
-    );
-
-    if (oldMessage) await oldMessage.delete();
-  } catch {
-    // Continue so the new message can still be posted.
-  }
-}
-
 export async function postGiveawayRules(client, data) {
-  return withUpdatePostLock(GIVEAWAY_RULES_CHANNEL_ID, async () => {
-    const channel = await client.channels.fetch(GIVEAWAY_RULES_CHANNEL_ID).catch(() => null);
-      if (!channel || typeof channel.send !== 'function') {
-        throw new Error(`Giveaway rules channel ${GIVEAWAY_RULES_CHANNEL_ID} is not a sendable channel.`);
-      }
-    
-      await deletePreviousRulesMessage(channel, client);
-    
-      try {
-        const messageContent = formatGiveawayRulesMessage(data);
-        const newMessage = await channel.send({ content: messageContent });
-        saveMessageId(newMessage.id);
-        await setUpdateState(client, channel.guild.id, {
-          giveawayRulesMessageId: newMessage.id,
-          giveawayRulesChannelId: channel.id,
-          giveawayRules: data,
-          giveawayRulesMessage: messageContent,
-        });
-      } catch (error) {
-        const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
-        throw new Error(`Could not post the giveaway rules: ${apiMessage}`);
-      }
+  const channel = await client.channels.fetch(GIVEAWAY_RULES_CHANNEL_ID).catch(() => null);
+  if (!channel || typeof channel.send !== 'function') {
+    throw new Error(`Giveaway rules channel ${GIVEAWAY_RULES_CHANNEL_ID} is not a sendable channel.`);
+  }
+
+  const state = await getUpdateState(client, channel.guild.id);
+  const messageContent = formatGiveawayRulesMessage(data);
+  await upsertUpdateMessage({
+    client,
+    channel,
+    content: messageContent,
+    matches: (message) => (message.content || '').startsWith('# 🎉 Giveaway Information'),
+    previousMessageIds: [state.giveawayRulesMessageId, loadMessageId()],
+    label: 'giveaway rules',
+    onSaved: async (message) => {
+      saveMessageId(message.id);
+      await setUpdateState(client, channel.guild.id, {
+        giveawayRulesMessageId: message.id,
+        giveawayRulesChannelId: channel.id,
+        giveawayRules: data,
+        giveawayRulesMessage: messageContent,
+      });
+    },
   });
 }
-
