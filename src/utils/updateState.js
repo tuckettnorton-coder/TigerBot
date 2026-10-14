@@ -37,6 +37,26 @@ export async function getLatestUpdateData(client, guildId, key, fallback = null)
   return state[key] !== undefined ? state[key] : fallback;
 }
 
+/**
+ * Modal-opening interactions must be acknowledged within Discord's short
+ * response window. Prefer persisted database values, but use the supplied local
+ * fallback if the database read is slow so opening the modal does not time out.
+ */
+export async function getLatestUpdateDataFast(client, guildId, key, fallback = null, timeoutMs = 1200) {
+  let timer;
+
+  try {
+    return await Promise.race([
+      getLatestUpdateData(client, guildId, key, fallback),
+      new Promise(resolve => {
+        timer = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function getUpdateStateKey(guildId) {
   return stateKey(guildId);
 }
