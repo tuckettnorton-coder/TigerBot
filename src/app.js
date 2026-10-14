@@ -18,6 +18,7 @@ import { initializeMusic } from './services/music/riffySetup.js';
 import { shutdownMusic } from './services/music/playerHandler.js';
 import pkg from '../package.json' with { type: 'json' };
 import { EXPECTED_SCHEMA_VERSION, EXPECTED_SCHEMA_LABEL } from './config/database/schemaVersion.js';
+import { acquireBotInstanceLock, releaseBotInstanceLock } from './utils/instanceLock.js';
 
 class TitanBot extends Client {
   constructor() {
@@ -60,6 +61,22 @@ class TitanBot extends Client {
 
       // Check database status and report
       const dbStatus = this.db.getStatus();
+
+      // Prevent two hosting providers/replicas using the same PostgreSQL database
+      // from both logging in and sending every message twice.
+      if (!dbStatus.isDegraded) {
+        const acquired = await acquireBotInstanceLock();
+        if (!acquired) {
+          throw new Error(
+            'Another TigerBot instance already holds the shared PostgreSQL lock. Stop the other host/replica before starting this one; running two copies can duplicate messages and scheduled giveaways.'
+          );
+        }
+        startupLog('✅ Single-instance PostgreSQL lock acquired');
+      } else {
+        logger.warn(
+          '⚠️ PostgreSQL is degraded, so the cross-host single-instance lock is unavailable. Keep exactly one hosting process running to avoid duplicate messages.'
+        );
+      }
       if (dbStatus.isDegraded) {
         const intentionallyInMemory = dbStatus.degradedReason === 'IN_MEMORY_MODE_ENABLED';
         logger.warn('');
@@ -424,6 +441,10 @@ class TitanBot extends Client {
         await new Promise((resolve) => this.webServer.close(resolve));
         logger.info('✅ Web server closed');
       }
+
+      // Release the shared lock before returning its connection and closing the pool.
+      logger.info('Releasing single-instance PostgreSQL lock...');
+      await releaseBotInstanceLock();
 
       // Close database connection
       // Close database connection
