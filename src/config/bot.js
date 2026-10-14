@@ -468,7 +468,12 @@ export function validateConfig(config) {
     errors.push("Client ID is required (CLIENT_ID environment variable)");
   }
 
-  if (process.env.NODE_ENV === 'production') {
+  // PostgreSQL can be intentionally disabled on hosts where only one deployment
+  // slot is available. In that mode DatabaseWrapper uses in-memory storage and
+  // must not require database credentials during production configuration.
+  const allowInMemoryDatabase = process.env.ALLOW_IN_MEMORY_DB === 'true';
+
+  if (process.env.NODE_ENV === 'production' && !allowInMemoryDatabase) {
     // A full connection URL (DATABASE_URL / POSTGRES_URL) satisfies all Postgres
     // requirements, matching how src/config/database/postgres.js resolves the pool config.
     const hasConnectionUrl = Boolean(process.env.POSTGRES_URL || process.env.DATABASE_URL);

@@ -18,6 +18,20 @@ class DatabaseWrapper {
             return;
         }
 
+        // Explicit no-database mode for hosting plans without a PostgreSQL deployment.
+        // This skips all PostgreSQL connection attempts, including any stale Railway
+        // hostname left in the environment. Storage is in-memory and resets on restart.
+        if (process.env.ALLOW_IN_MEMORY_DB === 'true') {
+            this.db = new MemoryStorage();
+            this.useFallback = true;
+            this.connectionType = 'memory';
+            this.degradedReason = 'IN_MEMORY_MODE_ENABLED';
+            this.initialized = true;
+            this.degradedModeWarningShown = true;
+            logger.warn('⚠️ ALLOW_IN_MEMORY_DB=true: skipping PostgreSQL connection; data will be lost on restart.');
+            return;
+        }
+
         try {
             logger.info('Attempting to connect to PostgreSQL...');
             const pgConnected = await pgDb.connect();
