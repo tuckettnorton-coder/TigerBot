@@ -1,7 +1,7 @@
 import { MessageFlags } from 'discord.js';
 import { loadPaidAdPrices, savePaidAdPrices, buildPaidAdPriceMessage, parsePaidAdPrice } from '../../utils/paidAdPricing.js';
-import { setUpdateState } from '../../utils/updateState.js';
-import { withUpdatePostLock } from '../../utils/updatePostLock.js';
+import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
+import { upsertUpdateMessage } from '../../utils/updateMessage.js';
 import { PAID_AD_UPDATE_CHANNEL_ID } from '../../commands/Utility/paid-ad-update.js';
 
 export default {
@@ -23,17 +23,19 @@ export default {
         throw new Error(`Paid advertisement update channel ${PAID_AD_UPDATE_CHANNEL_ID} is not sendable.`);
       }
 
-      await withUpdatePostLock(channel.id, async () => {
-        // Read the message ID only after acquiring the lock; another update may
-        // have posted a replacement while this modal submission was waiting.
-        const latest = loadPaidAdPrices();
-        if (latest.messageId) {
-          await channel.messages.fetch(latest.messageId).then((message) => message.delete()).catch(() => {});
-        }
-
-        const sent = await channel.send({ content: buildPaidAdPriceMessage(prices) });
-        savePaidAdPrices({ ...prices, messageId: sent.id });
-        await setUpdateState(client, interaction.guildId, { paidAdPrices: { ...prices, messageId: sent.id } });
+      const state = await getUpdateState(client, interaction.guildId);
+      await upsertUpdateMessage({
+        client,
+        channel,
+        content: buildPaidAdPriceMessage(prices),
+        matches: (message) => (message.content || '').includes('# 💰 **Tiger Market Advertisement Prices**'),
+        previousMessageIds: [current.messageId, state.paidAdPrices?.messageId],
+        label: 'paid advertisement prices',
+        onSaved: async (message) => {
+          const savedPrices = { ...prices, messageId: message.id };
+          savePaidAdPrices(savedPrices);
+          await setUpdateState(client, interaction.guildId, { paidAdPrices: savedPrices });
+        },
       });
 
       await interaction.reply({
