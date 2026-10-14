@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
+import { withUpdatePostLock } from '../../utils/updatePostLock.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -127,25 +128,28 @@ async function deletePreviousRulesMessage(channel, client) {
 }
 
 export async function postGiveawayRules(client, data) {
-  const channel = await client.channels.fetch(GIVEAWAY_RULES_CHANNEL_ID).catch(() => null);
-  if (!channel || typeof channel.send !== 'function') {
-    throw new Error(`Giveaway rules channel ${GIVEAWAY_RULES_CHANNEL_ID} is not a sendable channel.`);
-  }
-
-  await deletePreviousRulesMessage(channel, client);
-
-  try {
-    const messageContent = formatGiveawayRulesMessage(data);
-    const newMessage = await channel.send({ content: messageContent });
-    saveMessageId(newMessage.id);
-    await setUpdateState(client, channel.guild.id, {
-      giveawayRulesMessageId: newMessage.id,
-      giveawayRulesChannelId: channel.id,
-      giveawayRules: data,
-      giveawayRulesMessage: messageContent,
-    });
-  } catch (error) {
-    const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
-    throw new Error(`Could not post the giveaway rules: ${apiMessage}`);
-  }
+  return withUpdatePostLock(GIVEAWAY_RULES_CHANNEL_ID, async () => {
+    const channel = await client.channels.fetch(GIVEAWAY_RULES_CHANNEL_ID).catch(() => null);
+      if (!channel || typeof channel.send !== 'function') {
+        throw new Error(`Giveaway rules channel ${GIVEAWAY_RULES_CHANNEL_ID} is not a sendable channel.`);
+      }
+    
+      await deletePreviousRulesMessage(channel, client);
+    
+      try {
+        const messageContent = formatGiveawayRulesMessage(data);
+        const newMessage = await channel.send({ content: messageContent });
+        saveMessageId(newMessage.id);
+        await setUpdateState(client, channel.guild.id, {
+          giveawayRulesMessageId: newMessage.id,
+          giveawayRulesChannelId: channel.id,
+          giveawayRules: data,
+          giveawayRulesMessage: messageContent,
+        });
+      } catch (error) {
+        const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
+        throw new Error(`Could not post the giveaway rules: ${apiMessage}`);
+      }
+  });
 }
+
