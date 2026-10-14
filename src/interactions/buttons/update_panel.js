@@ -13,7 +13,8 @@ export default {
   name: 'update_panel',
 
   async execute(interaction, client, args = []) {
-    const memberPermissions = interaction.memberPermissions || interaction.member?.permissions;\n    if (!memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    const memberPermissions = interaction.memberPermissions || interaction.member?.permissions;
+    if (!memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
       await interaction.reply({
         content: '❌ You need **Manage Server** permission to use the update panel.',
         flags: MessageFlags.Ephemeral,
