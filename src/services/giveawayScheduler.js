@@ -71,12 +71,21 @@ async function startAutoGiveaway(client, auto, scheduledAt) {
   }
 
   const runKey = `${auto.id}:${new Date(scheduledMs).toISOString()}`;
+  const giveawayId = `gw-${auto.id}-${scheduledMs}`;
+
+  // If this giveaway was already saved, do not reconstruct it during recovery:
+  // participants may have entered since it was posted.
+  const priorGiveaways = await getGuildGiveaways(client, auto.guildId);
+  if (priorGiveaways.some(existing => existing.id === giveawayId && existing.messageId)) {
+    return true;
+  }
+
   const marker = makeInvisibleRunMarker(runKey);
   let message = await findRunMessage(channel, client, marker);
 
   const startedAtMs = message?.createdTimestamp || Date.now();
   const giveaway = {
-    id: `gw-${auto.id}-${scheduledMs}`,
+    id: giveawayId,
     guildId: auto.guildId,
     channelId: auto.channelId,
     messageId: message?.id || null,
