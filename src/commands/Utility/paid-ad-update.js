@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { loadPaidAdPrices } from '../../utils/paidAdPricing.js';
-import { getLatestUpdateData } from '../../utils/updateState.js';
+import { getLatestUpdateDataFast } from '../../utils/updateState.js';
 
 export const PAID_AD_UPDATE_CHANNEL_ID = '1525901034747330693';
 
@@ -11,7 +11,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction, guildConfig, client) {
   const { buildPaidAdUpdateModal } = await import('../../interactions/modals/paid_ad_update_modal.js');
-  const saved = await getLatestUpdateData(client, interaction.guildId, 'paidAdPrices', null);
+  const saved = await getLatestUpdateDataFast(client, interaction.guildId, 'paidAdPrices', null);
   await interaction.showModal(buildPaidAdUpdateModal(saved || loadPaidAdPrices(), 1));
 }
 
