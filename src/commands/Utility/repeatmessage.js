@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { withUpdatePostLock } from '../../utils/updatePostLock.js';
+import { logger } from '../../utils/logger.js';
 
 const KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
 const STICKY_MARKER = '\u2063\u200B\u2063';
