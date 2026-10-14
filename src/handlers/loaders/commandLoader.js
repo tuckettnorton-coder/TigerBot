@@ -100,6 +100,13 @@ export async function loadCommands(client) {
     
     for (const filePath of commandFiles) {
         try {
+            // This file exports reusable editor helpers, not a slash command.
+            // It remains importable by the spawner editor button handlers.
+            if (path.basename(filePath) === 'spawnerEditor.js') {
+                logger.debug('Skipping helper-only module in command loader: ' + filePath);
+                continue;
+            }
+
             const normalizedPath = filePath.replace(/\\/g, '/');
             const commandDir = path.dirname(filePath);
             const category = path.basename(commandDir);
