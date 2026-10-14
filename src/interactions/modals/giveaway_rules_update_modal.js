@@ -144,5 +144,6 @@ export default {
       } catch (responseError) {
         logger.warn('Could not send modal error response:', responseError?.message || responseError);
       }
+    }
   },
 };
