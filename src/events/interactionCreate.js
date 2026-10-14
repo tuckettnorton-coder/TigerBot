@@ -20,6 +20,20 @@ import { isCollectorManagedComponent } from '../utils/collectorComponents.js';
 import { ResponseCoordinator } from '../utils/responseCoordinator.js';
 import { enforceDefaultCommandPermissions } from '../utils/permissionGuard.js';
 
+// Ignore duplicate deliveries of the same interaction within this process.
+const handledInteractionIds = new Set();
+const MAX_REMEMBERED_INTERACTION_IDS = 10000;
+
+function claimInteractionOnce(interactionId) {
+  if (!interactionId || handledInteractionIds.has(interactionId)) return false;
+  handledInteractionIds.add(interactionId);
+  if (handledInteractionIds.size > MAX_REMEMBERED_INTERACTION_IDS) {
+    const oldest = handledInteractionIds.values().next().value;
+    handledInteractionIds.delete(oldest);
+  }
+  return true;
+}
+
 const COMMAND_ERROR_SUBTYPES = {
   warn: 'warn_failed',
   kick: 'kick_failed',
@@ -45,6 +59,7 @@ function withTraceContext(context = {}, traceContext = {}) {
 export default {
   name: Events.InteractionCreate,
   async execute(interaction, client) {
+    if (!claimInteractionOnce(interaction?.id)) return;
     const interactionTraceContext = createInteractionTraceContext(interaction);
     interaction.traceContext = interactionTraceContext;
     interaction.traceId = interactionTraceContext.traceId;
