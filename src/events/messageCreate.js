@@ -329,24 +329,26 @@ async function handleRepeatMessage(message, client) {
         }
       }
 
-      let recent;
-      try {
-        recent = await message.channel.messages.fetch({ limit: 100 });
-      } catch (error) {
-        logger.error('Could not inspect channel history for duplicate stickies; skipping replacement:', error);
-        return false;
-      }
+      // A history scan helps clean up earlier duplicates, but a scan failure
+      // must not prevent the normal delete-and-repost flow for the saved sticky.
+      const recent = await message.channel.messages.fetch({ limit: 100 }).catch((error) => {
+        logger.warn('Could not inspect sticky history; using the saved sticky ID only:', error?.message || error);
+        return null;
+      });
 
-      for (const candidate of recent.values()) {
-        if (candidate.author?.id !== client.user?.id) continue;
-        if (!String(candidate.content || '').endsWith(STICKY_MARKER)) continue;
+      if (recent) {
+        for (const candidate of recent.values()) {
+          if (candidate.author?.id !== client.user?.id) continue;
+          if (!String(candidate.content || '').endsWith(STICKY_MARKER)) continue;
 
-        try {
-          await candidate.delete();
-        } catch (error) {
-          // Fail closed rather than adding a sticky while an older managed copy remains.
-          logger.error('Could not remove an older duplicate sticky; skipping replacement:', error);
-          return false;
+          if (!await candidate.delete().then(() => true).catch((error) => {
+            logger.warn('Could not remove an extra sticky copy:', error?.message || error);
+            return false;
+          })) {
+            // Avoid knowingly posting another copy if an extra managed sticky
+            // cannot be removed.
+            return false;
+          }
         }
       }
 
