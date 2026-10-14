@@ -101,6 +101,9 @@ export default {
 
   async execute(interaction, client) {
     try {
+      // Acknowledge the modal submission immediately so Discord does not time out
+      // while the bot fetches/deletes the previous rules post and sends the new one.
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const times = parseTimes(interaction.fields.getTextInputValue('times'));
       const payoutTime = interaction.fields.getTextInputValue('payout').trim();
       const fakeClaimAction = interaction.fields.getTextInputValue('fake_claim').trim();
@@ -123,9 +126,8 @@ export default {
       persistGiveawayRules(data);
       await postGiveawayRules(client, data);
 
-      await interaction.reply({
+      await interaction.editReply({
         content: '✅ **Giveaway rules have been updated and reposted.** The previous TigerBot giveaway rules message was deleted first.',
-        flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
       const response = {
