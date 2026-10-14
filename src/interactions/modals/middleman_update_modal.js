@@ -49,6 +49,7 @@ export default {
   name: 'middleman_update_page',
   async execute(interaction, client) {
     try {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const spawnerFee = parseFeeInput(
         interaction.fields.getTextInputValue('spawner_fee'),
         'Standard spawner fee',
@@ -75,15 +76,13 @@ export default {
       persistMiddlemanMessage(message);
       await postMiddlemanMessage(client, message);
 
-      await interaction.reply({
+      await interaction.editReply({
         content: `✅ **Middleman fees updated and reposted in <#1519838464374476991>.**\n\n**Standard:** ${formatResult(spawnerFee)} per spawner\n**64+:** ${formatResult(bulkSpawnerFee)} per spawner\n**Other services:** ${formatResult(otherServicePercent)}%`,
-        flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
-      await interaction.reply({
-        content: `⚠️ **Middleman update failed:** ${error?.message || 'Unknown error.'}`,
-        flags: MessageFlags.Ephemeral,
-      });
+      const response = { content: `⚠️ **Middleman update failed:** ${error?.message || 'Unknown error.'}` };
+      if (interaction.deferred || interaction.replied) await interaction.editReply(response).catch(() => {});
+      else await interaction.reply({ ...response, flags: MessageFlags.Ephemeral }).catch(() => {});
     }
   },
 };
