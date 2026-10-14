@@ -3,6 +3,12 @@ import { logger } from './logger.js';
 
 const RECONCILE_DELAY_MS = 1300;
 
+// Marker consists only of zero-width characters, so it is not visible in Discord.
+export function getUpdateMessagePartMarker(index) {
+  if (!Number.isInteger(index) || index < 0) throw new TypeError('Part index must be a non-negative integer.');
+  return `\u2063${'\u200B'.repeat(index + 1)}\u2063`;
+}
+
 function newestFirst(a, b) {
   try {
     const left = BigInt(a.id);
@@ -128,9 +134,7 @@ export async function upsertUpdateMessageParts({
   }
   if (typeof matchesPart !== 'function') throw new TypeError('A message-part matcher is required.');
 
-  const taggedContents = contents.map((part, index) =>
-    `${part}\u2063tigerbot_update_part_${index + 1}\u2063`
-  );
+  const taggedContents = contents.map((part, index) => `${part}${getUpdateMessagePartMarker(index)}`);
 
   return withUpdatePostLock(channel.id, async () => {
     const candidates = taggedContents.map(() => new Map());
