@@ -8,6 +8,7 @@ export default {
   name: 'paid_ad_update_page2',
   async execute(interaction, client) {
     try {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const current = loadPaidAdPrices();
       const prices = {
         ...current,
@@ -38,15 +39,13 @@ export default {
         },
       });
 
-      await interaction.reply({
+      await interaction.editReply({
         content: `✅ **Paid Advertisement prices updated and posted in <#${PAID_AD_UPDATE_CHANNEL_ID}>.**`,
-        flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
-      await interaction.reply({
-        content: `⚠️ **Paid ad update failed:** ${error?.message || 'Unknown error.'}`,
-        flags: MessageFlags.Ephemeral,
-      });
+      const response = { content: `⚠️ **Paid ad update failed:** ${error?.message || 'Unknown error.'}` };
+      if (interaction.deferred || interaction.replied) await interaction.editReply(response).catch(() => {});
+      else await interaction.reply({ ...response, flags: MessageFlags.Ephemeral }).catch(() => {});
     }
   },
 };
