@@ -50,7 +50,7 @@ export const data = new SlashCommandBuilder()
       .setName('message')
       .setDescription('The message to keep at the bottom')
       .setRequired(true)
-      .setMaxLength(2000),
+      .setMaxLength(1990),
   );
 
 export async function execute(interaction, guildConfig, client) {
