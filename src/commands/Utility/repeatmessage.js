@@ -24,8 +24,8 @@ async function removeManagedStickyMessages(channel, client, savedMessageId = nul
     }
   }
 
-  const recent = await channel.messages.fetch({ limit: 100 }).catch(() => null);
-  if (!recent) return;
+  // If history cannot be checked, do not post another copy blindly.
+  const recent = await channel.messages.fetch({ limit: 100 });
 
   for (const candidate of recent.values()) {
     if (candidate.author?.id !== client.user?.id) continue;
