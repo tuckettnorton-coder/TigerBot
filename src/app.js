@@ -46,6 +46,7 @@ class TitanBot extends Client {
     this.selectMenus = new Collection();
     this.modals = new Collection();
     this.cooldowns = new Collection();
+    this.cronJobsStarted = false;
     this.db = null;
     this.rest = new REST({ version: '10' }).setToken(config.bot.token);
   }
@@ -271,6 +272,12 @@ class TitanBot extends Client {
   }
 
   setupCronJobs() {
+    if (this.cronJobsStarted) {
+      logger.warn('Cron jobs were already registered for this process; skipping duplicate setup.');
+      return;
+    }
+    this.cronJobsStarted = true;
+
     cron.schedule('0 6 * * *', runSafeTask('birthday_check', () => checkBirthdays(this)));
     cron.schedule('*/15 * * * *', runSafeTask('counter_update', () => this.updateAllCounters()));
     cron.schedule('* * * * * *', runSafeTask('giveaway_scheduler', () => processGiveawaySchedules(this)));
