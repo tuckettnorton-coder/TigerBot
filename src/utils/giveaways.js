@@ -15,9 +15,21 @@ export async function getGuildGiveaways(client, guildId) {
 
 export async function saveGiveaway(client, guildId, giveaway) {
   const giveaways = await getGuildGiveaways(client, guildId);
-  const index = giveaways.findIndex(g => g.messageId === giveaway.messageId);
+
+  // Deterministic scheduled giveaway IDs make retry/recovery idempotent even
+  // before a Discord message ID has been saved.
+  let index = giveaway.id
+    ? giveaways.findIndex(existing => existing.id === giveaway.id)
+    : -1;
+
+  // Preserve the legacy message-ID upsert behavior for existing giveaways.
+  if (index === -1 && giveaway.messageId) {
+    index = giveaways.findIndex(existing => existing.messageId === giveaway.messageId);
+  }
+
   if (index === -1) giveaways.push(giveaway);
-  else giveaways[index] = giveaway;
+  else giveaways[index] = { ...giveaways[index], ...giveaway };
+
   await client.db.set(giveawayKey(guildId), giveaways);
   return giveaway;
 }
