@@ -3,8 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUpdateState, setUpdateState, getLatestUpdateData } from '../../utils/updateState.js';
-import { withUpdatePostLock } from '../../utils/updatePostLock.js';
-import { logger } from '../../utils/logger.js';
+import { upsertUpdateMessage } from '../../utils/updateMessage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,135 +93,37 @@ export default { data, execute };
 
 export function persistPrices(prices) { savePrices(prices); }
 
-function isSpawnerPriceMessage(message, client) {
-  if (message.author?.id !== client.user?.id || !message.content) return false;
-  return message.content.includes('**Skeleton Spawners**')
-    && message.content.includes('**Creeper Spawners**')
-    && message.content.includes('**Iron Golem Spawners**')
-    && message.content.includes('MINIMUM 3+');
-}
-
-function newestFirst(a, b) {
-  try {
-    const left = BigInt(a.id);
-    const right = BigInt(b.id);
-    return right > left ? 1 : right < left ? -1 : 0;
-  } catch {
-    return (b.createdTimestamp || 0) - (a.createdTimestamp || 0);
-  }
-}
-
-async function findSpawnerPriceMessages(client, channel, savedIds = []) {
-  const messages = new Map();
-
-  // Start from the IDs saved by earlier updates, even if history access is
-  // temporarily unavailable.
-  for (const messageId of savedIds) {
-    if (!messageId) continue;
-    try {
-      const message = await channel.messages.fetch(messageId);
-      if (isSpawnerPriceMessage(message, client)) messages.set(message.id, message);
-    } catch {
-      // A saved message can have been deleted or become inaccessible.
-    }
-  }
-
-  // Also find older duplicate posts left by overlapping bot instances.
-  try {
-    const recent = await channel.messages.fetch({ limit: 50 });
-    for (const message of recent.values()) {
-      if (isSpawnerPriceMessage(message, client)) messages.set(message.id, message);
-    }
-  } catch (error) {
-    logger.warn('Could not scan recent spawner-price messages:', error?.message || error);
-  }
-
-  return [...messages.values()].sort(newestFirst);
-}
-
-function parsePostedPrices(content) {
-  if (!content) return null;
-  const sections = [
-    ['skeleton', '**Skeleton Spawners**', '**Creeper Spawners**'],
-    ['creeper', '**Creeper Spawners**', '**Iron Golem Spawners**'],
-    ['irongolem', '**Iron Golem Spawners**', '### __NOTE__'],
-  ];
-  const result = {};
-
-  for (const [key, startMarker, endMarker] of sections) {
-    const start = content.indexOf(startMarker);
-    if (start < 0) return null;
-    const end = content.indexOf(endMarker, start + startMarker.length);
-    const section = content.slice(start, end < 0 ? undefined : end);
-    const buyLine = section.split('\n').find((line) => line.includes('**3+ Buy:**'));
-    const sellLine = section.split('\n').find((line) => line.includes('**3+ Sell:**'));
-    if (!buyLine || !sellLine) return null;
-
-    const buy = buyLine.split('  ');
-    const sell = sellLine.split('  ');
-    if (buy.length < 2 || sell.length < 2) return null;
-
-    result[key] = {
-      buy3: buy[0].replace('**3+ Buy:**', '').trim(),
-      buy64: buy[1].replace('**64+ Buy:**', '').trim(),
-      sell3: sell[0].replace('**3+ Sell:**', '').trim(),
-      sell64: sell[1].replace('**64+ Sell:**', '').trim(),
-    };
-  }
-
-  return result;
-}
-
-async function postPricesUnlocked(client, channel, prices) {
-  const state = await getUpdateState(client, channel.guild.id);
-  const savedIds = [
-    state.spawnerPriceMessageId,
-    loadMessageId(),
-  ].filter(Boolean);
-  const messageContent = formatPriceMessage(prices);
-
-  // Reuse and edit the newest existing TigerBot price post instead of always
-  // deleting then sending a replacement. Editing cannot create another post.
-  const existingMessages = await findSpawnerPriceMessages(client, channel, savedIds);
-  let postedMessage = existingMessages[0] || null;
-
-  if (postedMessage) {
-    await postedMessage.edit({ content: messageContent });
-  } else {
-    postedMessage = await channel.send({ content: messageContent });
-  }
-
-  // If two separate bot processes both receive the same submission, they cannot
-  // share an in-memory lock. A short delayed reconciliation ensures only the
-  // newest price post remains after concurrent sends have had time to arrive.
-  await new Promise((resolve) => setTimeout(resolve, 1200));
-  const refreshedMessages = await findSpawnerPriceMessages(client, channel, [postedMessage.id]);
-  const canonicalMessage = refreshedMessages[0] || postedMessage;
-
-  for (const duplicate of refreshedMessages.slice(1)) {
-    try {
-      await duplicate.delete();
-    } catch (error) {
-      logger.warn(`Could not remove duplicate spawner-price message ${duplicate.id}:`, error?.message || error);
-    }
-  }
-
-  const canonicalPrices = parsePostedPrices(canonicalMessage.content) || prices;
-  saveMessageId(canonicalMessage.id);
-  await setUpdateState(client, channel.guild.id, {
-    spawnerPriceMessageId: canonicalMessage.id,
-    spawnerPriceChannelId: channel.id,
-    spawnerPrices: canonicalPrices,
-    spawnerPriceMessage: canonicalMessage.content || messageContent,
-  });
+function isSpawnerPriceMessage(message) {
+  const text = message.content || '';
+  return text.includes('**Skeleton Spawners**')
+    && text.includes('**Creeper Spawners**')
+    && text.includes('**Iron Golem Spawners**')
+    && text.includes('MINIMUM 3+');
 }
 
 export async function postPrices(client, prices) {
-  return withUpdatePostLock(SPAWNER_PRICE_CHANNEL_ID, async () => {
-    const channel = await client.channels.fetch(SPAWNER_PRICE_CHANNEL_ID).catch(() => null);
-    if (!channel || typeof channel.send !== 'function') {
-      throw new Error(`Spawner price channel ${SPAWNER_PRICE_CHANNEL_ID} is not a sendable channel.`);
-    }
-    await postPricesUnlocked(client, channel, prices);
+  const channel = await client.channels.fetch(SPAWNER_PRICE_CHANNEL_ID).catch(() => null);
+  if (!channel || typeof channel.send !== 'function') {
+    throw new Error(`Spawner price channel ${SPAWNER_PRICE_CHANNEL_ID} is not a sendable channel.`);
+  }
+
+  const state = await getUpdateState(client, channel.guild.id);
+  const messageContent = formatPriceMessage(prices);
+  await upsertUpdateMessage({
+    client,
+    channel,
+    content: messageContent,
+    matches: isSpawnerPriceMessage,
+    previousMessageIds: [state.spawnerPriceMessageId, loadMessageId()],
+    label: 'spawner prices',
+    onSaved: async (message) => {
+      saveMessageId(message.id);
+      await setUpdateState(client, channel.guild.id, {
+        spawnerPriceMessageId: message.id,
+        spawnerPriceChannelId: channel.id,
+        spawnerPrices: prices,
+        spawnerPriceMessage: messageContent,
+      });
+    },
   });
 }
