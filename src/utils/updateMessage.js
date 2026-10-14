@@ -1,7 +1,7 @@
 import { withUpdatePostLock } from './updatePostLock.js';
 import { logger } from './logger.js';
 
-const RECONCILE_DELAY_MS = 1300;
+const RECONCILE_DELAY_MS = 500;
 
 // Marker consists only of zero-width characters, so it is not visible in Discord.
 export function getUpdateMessagePartMarker(index) {
@@ -23,10 +23,20 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function tryDelete(message, label) {
+  try {
+    await message.delete();
+    return true;
+  } catch (error) {
+    logger.warn(`Could not delete old ${label} message ${message.id}; will try updating it in place instead:`, error?.message || error);
+    return false;
+  }
+}
+
 /**
- * Replace one logical bot-owned update post with exactly one current message.
- * It edits the newest existing matching message, removes older duplicates,
- * and performs a delayed second reconciliation to handle overlapping instances.
+ * Replace a logical bot-owned update post with one fresh message whenever the
+ * old post can be deleted. If Discord refuses deletion, edit the existing post
+ * instead of sending another copy or failing the update.
  */
 export async function upsertUpdateMessage({
   client,
@@ -59,74 +69,78 @@ export async function upsertUpdateMessage({
       try {
         addIfManaged(await channel.messages.fetch(id), true);
       } catch {
-        // A stored message may already have been deleted.
+        // A saved message may have been deleted or may be from a previous deployment.
       }
     }
 
     const scanHistory = async () => {
-      // Fail closed on the initial scan. Sending blindly when history cannot be
-      // read is exactly how a missing saved message ID can create duplicate posts.
-      const recent = await channel.messages.fetch({ limit: 100 });
-      for (const message of recent.values()) addIfManaged(message);
+      try {
+        const recent = await channel.messages.fetch({ limit: 100 });
+        for (const message of recent.values()) addIfManaged(message);
+        return true;
+      } catch (error) {
+        // History access is best-effort: a known saved message ID is still usable.
+        logger.warn(`Could not scan recent messages for ${label} in channel ${channel.id}:`, error?.message || error);
+        return false;
+      }
     };
 
     await scanHistory();
-    let ordered = [...candidates.values()].sort(newestFirst);
-    let canonical = ordered[0] || null;
+    const ordered = [...candidates.values()].sort(newestFirst);
+    let canonical = null;
 
-    if (canonical) {
-      canonical = await canonical.edit(payload);
+    if (ordered.length) {
+      const failedDeletes = [];
+      for (const previous of ordered) {
+        if (!await tryDelete(previous, label)) failedDeletes.push(previous);
+      }
+
+      if (failedDeletes.length) {
+        // Keep and update one existing message if deletion is blocked. Do not
+        // send a new one while an old copy is known to still exist.
+        canonical = failedDeletes[0];
+        canonical = await canonical.edit(payload);
+
+        for (const leftover of ordered) {
+          if (leftover.id === canonical.id || failedDeletes.includes(leftover)) continue;
+          await tryDelete(leftover, label);
+        }
+      } else {
+        canonical = await channel.send(payload);
+      }
     } else {
       canonical = await channel.send(payload);
     }
 
-    // A second deployment may have posted at nearly the same time. Let that
-    // request finish, then pick the newest message and remove the extra copies.
     await wait(RECONCILE_DELAY_MS);
-    try {
-      await scanHistory();
-    } catch (error) {
-      // The canonical message already exists; don't create anything else if a
-      // later scan fails. Keep the initial scan result and report the condition.
-      logger.warn(`Could not complete the second duplicate scan for ${label} in channel ${channel.id}:`, error?.message || error);
-    }
-
+    candidates.clear();
     addIfManaged(canonical, true);
-    ordered = [...candidates.values()].sort(newestFirst);
-    canonical = ordered[0] || canonical;
+    await scanHistory();
 
-    // Make sure the retained message carries this update's intended contents.
+    const reconciled = [...candidates.values()].sort(newestFirst);
+    canonical = reconciled[0] || canonical;
+
+    // If another request posted concurrently, retain the newest matching post.
     try {
       canonical = await canonical.edit(payload);
     } catch (error) {
       logger.warn(`Could not refresh canonical ${label} message ${canonical.id}:`, error?.message || error);
     }
 
-    const undeletedDuplicates = [];
-    for (const duplicate of ordered) {
+    for (const duplicate of reconciled) {
       if (duplicate.id === canonical.id) continue;
-      try {
-        await duplicate.delete();
-      } catch (error) {
-        undeletedDuplicates.push(duplicate.id);
-        logger.warn(`Could not delete duplicate ${label} message ${duplicate.id}:`, error?.message || error);
-      }
+      await tryDelete(duplicate, label);
     }
 
     await onSaved(canonical);
-    if (undeletedDuplicates.length) {
-      throw new Error(
-        `Updated ${label}, but could not remove duplicate message(s): ${undeletedDuplicates.join(', ')}. Check the bot's Manage Messages permission.`
-      );
-    }
     return canonical;
   });
 }
 
 /**
- * Multi-message variant used by update posts that exceed Discord's 2,000
- * character limit. Part markers use invisible separators so each continuation
- * can be reconciled without confusing it with another bot message.
+ * Multi-message variant for posts exceeding Discord's character limit.
+ * Existing parts are deleted and freshly posted where possible; if deletion is
+ * blocked, that part is edited in place so the update still completes.
  */
 export async function upsertUpdateMessageParts({
   client,
@@ -149,61 +163,71 @@ export async function upsertUpdateMessageParts({
 
   return withUpdatePostLock(channel.id, async () => {
     const candidates = taggedContents.map(() => new Map());
+
     const addCandidate = (message, hintedIndex = null) => {
       if (!message || message.author?.id !== client.user.id) return;
-      let index = hintedIndex;
-      if (index === null) {
-        index = matchesPart(message, taggedContents);
-      }
+      const index = hintedIndex === null ? matchesPart(message, taggedContents) : hintedIndex;
       if (Number.isInteger(index) && index >= 0 && index < candidates.length) {
         candidates[index].set(message.id, message);
       }
     };
 
-    // Saved IDs keep backward compatibility with prior versions that did not
-    // have invisible part markers.
     for (let index = 0; index < previousMessageIds.length; index += 1) {
       const id = previousMessageIds[index];
       if (!id) continue;
       try {
         addCandidate(await channel.messages.fetch(id), index);
-      } catch {}
+      } catch {
+        // A saved part may already have been deleted.
+      }
     }
 
     const scanHistory = async () => {
-      const recent = await channel.messages.fetch({ limit: 100 });
-      for (const message of recent.values()) addCandidate(message);
+      try {
+        const recent = await channel.messages.fetch({ limit: 100 });
+        for (const message of recent.values()) addCandidate(message);
+        return true;
+      } catch (error) {
+        logger.warn(`Could not scan recent ${label} parts in channel ${channel.id}:`, error?.message || error);
+        return false;
+      }
     };
 
-    const sorted = (index) => [...candidates[index].values()].sort(newestFirst);
-    // Do not create replacement parts unless the existing channel history can
-    // be inspected successfully.
     await scanHistory();
-
+    const sorted = (index) => [...candidates[index].values()].sort(newestFirst);
     const active = [];
+
     for (let index = 0; index < taggedContents.length; index += 1) {
-      const existing = sorted(index)[0];
-      active[index] = existing
-        ? await existing.edit({ content: taggedContents[index] })
-        : await channel.send({ content: taggedContents[index] });
+      const existing = sorted(index);
+      const failedDeletes = [];
+
+      for (const previous of existing) {
+        if (!await tryDelete(previous, `${label} part ${index + 1}`)) failedDeletes.push(previous);
+      }
+
+      if (failedDeletes.length) {
+        active[index] = await failedDeletes[0].edit({ content: taggedContents[index] });
+        for (const leftover of existing) {
+          if (leftover.id === active[index].id || failedDeletes.includes(leftover)) continue;
+          await tryDelete(leftover, `${label} part ${index + 1}`);
+        }
+      } else {
+        active[index] = await channel.send({ content: taggedContents[index] });
+      }
     }
 
     await wait(RECONCILE_DELAY_MS);
-    try {
-      await scanHistory();
-    } catch (error) {
-      // The active parts already exist; do not send any additional copies.
-      logger.warn(`Could not complete the second duplicate scan for ${label} parts in channel ${channel.id}:`, error?.message || error);
-    }
+    for (const map of candidates) map.clear();
     for (let index = 0; index < active.length; index += 1) {
       addCandidate(active[index], index);
     }
+    await scanHistory();
 
     const canonical = [];
-    const undeletedDuplicates = [];
     for (let index = 0; index < taggedContents.length; index += 1) {
       const existing = sorted(index);
       const keep = existing[0] || active[index];
+
       try {
         canonical[index] = await keep.edit({ content: taggedContents[index] });
       } catch (error) {
@@ -211,22 +235,13 @@ export async function upsertUpdateMessageParts({
         canonical[index] = keep;
       }
 
-      for (const duplicate of existing.slice(1)) {
-        try {
-          await duplicate.delete();
-        } catch (error) {
-          undeletedDuplicates.push(duplicate.id);
-          logger.warn(`Could not delete duplicate ${label} part ${duplicate.id}:`, error?.message || error);
-        }
+      for (const duplicate of existing) {
+        if (duplicate.id === canonical[index].id) continue;
+        await tryDelete(duplicate, `${label} part ${index + 1}`);
       }
     }
 
     await onSaved(canonical);
-    if (undeletedDuplicates.length) {
-      throw new Error(
-        `Updated ${label}, but could not remove duplicate message(s): ${undeletedDuplicates.join(', ')}. Check the bot's Manage Messages permission.`
-      );
-    }
     return canonical;
   });
 }
