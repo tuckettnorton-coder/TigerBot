@@ -1,5 +1,4 @@
 import {
-import { logger } from '../../utils/logger.js';
   ModalBuilder,
   ActionRowBuilder,
   TextInputBuilder,
@@ -11,6 +10,7 @@ import {
   persistGiveawayRules,
   postGiveawayRules,
 } from '../../commands/Giveaway/giveawayrulesupdate.js';
+import { logger } from '../../utils/logger.js';
 
 export function buildGiveawayRulesModal(data = loadGiveawayRules()) {
   const modal = new ModalBuilder()
