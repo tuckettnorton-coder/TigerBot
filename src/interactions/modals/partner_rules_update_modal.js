@@ -58,21 +58,20 @@ export default {
 
   async execute(interaction, client) {
     try {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const tiers = parseTiers(interaction.fields.getTextInputValue('tiers'));
       const data = { ...tiers };
 
       persistPartnerRules(data);
       await postPartnerRules(client, data);
 
-      await interaction.reply({
-        content: '✅ **Partner requirements have been updated and reposted.** The previous TigerBot partner requirements message was deleted first.',
-        flags: MessageFlags.Ephemeral,
+      await interaction.editReply({
+        content: '✅ **Partner requirements have been updated and reposted.** The previous TigerBot partner requirements message was updated.',
       });
     } catch (error) {
-      await interaction.reply({
-        content: `⚠️ **Partner requirements update failed:** ${error?.message || 'Unknown error.'}`,
-        flags: MessageFlags.Ephemeral,
-      });
+      const response = { content: `⚠️ **Partner requirements update failed:** ${error?.message || 'Unknown error.'}` };
+      if (interaction.deferred || interaction.replied) await interaction.editReply(response).catch(() => {});
+      else await interaction.reply({ ...response, flags: MessageFlags.Ephemeral }).catch(() => {});
     }
   },
 };
