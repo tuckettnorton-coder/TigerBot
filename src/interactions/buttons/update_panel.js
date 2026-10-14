@@ -1,10 +1,19 @@
 import { PermissionFlagsBits, MessageFlags } from 'discord.js';
 
+const UPDATE_COMMANDS = new Set([
+  'spawner-update',
+  'digging-update',
+  'building-update',
+  'paid-ad-update',
+  'giveawayrulesupdate',
+  'partnerupdate',
+]);
+
 export default {
   name: 'update_panel',
 
   async execute(interaction, client, args = []) {
-    if (!interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild)) {
+    const memberPermissions = interaction.memberPermissions || interaction.member?.permissions;\n    if (!memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
       await interaction.reply({
         content: '❌ You need **Manage Server** permission to use the update panel.',
         flags: MessageFlags.Ephemeral,
@@ -15,6 +24,14 @@ export default {
     const commandName = args[0];
     if (!commandName) {
       await interaction.reply({ content: '❌ No update command was specified.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      return;
+    }
+
+    if (!UPDATE_COMMANDS.has(commandName)) {
+      await interaction.reply({
+        content: '❌ This update button is not configured.',
+        flags: MessageFlags.Ephemeral,
+      }).catch(() => {});
       return;
     }
 
