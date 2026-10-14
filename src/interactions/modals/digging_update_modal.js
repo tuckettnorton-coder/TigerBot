@@ -93,6 +93,7 @@ export default {
 
   async execute(interaction, client) {
     try {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const prices = parsePriceLines(interaction.fields.getTextInputValue('prices'));
       const notes = interaction.fields.getTextInputValue('notes').trim();
       const refundPolicy = interaction.fields.getTextInputValue('refund').trim();
@@ -106,15 +107,13 @@ export default {
       persistDiggingPrices(data);
       await postDiggingPrices(client, data);
 
-      await interaction.reply({
+      await interaction.editReply({
         content: '✅ **Digging prices and service information have been updated and posted.**',
-        flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
-      await interaction.reply({
-        content: `⚠️ **Digging price update failed:** ${error?.message || 'Unknown error.'}`,
-        flags: MessageFlags.Ephemeral,
-      });
+      const response = { content: `⚠️ **Digging price update failed:** ${error?.message || 'Unknown error.'}` };
+      if (interaction.deferred || interaction.replied) await interaction.editReply(response).catch(() => {});
+      else await interaction.reply({ ...response, flags: MessageFlags.Ephemeral }).catch(() => {});
     }
   },
 };
