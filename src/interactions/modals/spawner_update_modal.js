@@ -1,5 +1,4 @@
 import {
-import { logger } from '../../utils/logger.js';
   ModalBuilder,
   ActionRowBuilder,
   TextInputBuilder,
@@ -7,6 +6,7 @@ import { logger } from '../../utils/logger.js';
   MessageFlags,
 } from 'discord.js';
 import { loadPrices, persistPrices, postPrices } from '../../commands/Utility/spawner-update.js';
+import { logger } from '../../utils/logger.js';
 
 const CONFIG = [
   { key: 'skeleton', label: 'Skeleton Prices' },
