@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
+import { withUpdatePostLock } from '../../utils/updatePostLock.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -89,19 +90,21 @@ export async function execute(interaction, guildConfig, client) {
 
   await interaction.deferReply({ ephemeral: true });
   try {
-    await deletePreviousPanel(interaction.channel, client);
-    const message = await interaction.channel.send(buildUpdatePanel(client));
+    await withUpdatePostLock(interaction.channel.id, async () => {
+      await deletePreviousPanel(interaction.channel, client);
+      const message = await interaction.channel.send(buildUpdatePanel(client));
 
-    // Database is authoritative. The local JSON file is only a compatibility
-    // fallback and must never override a newer database value.
-    saveMessageId(message.id, interaction.channel.id);
-    const saved = await setUpdateState(client, interaction.guildId, {
-      updatePanel: { messageId: message.id, channelId: interaction.channel.id },
+      // Database is authoritative. The local JSON file is only a compatibility
+      // fallback and must never override a newer database value.
+      saveMessageId(message.id, interaction.channel.id);
+      const saved = await setUpdateState(client, interaction.guildId, {
+        updatePanel: { messageId: message.id, channelId: interaction.channel.id },
+      });
+
+      if (!saved) {
+        throw new Error('The update panel was posted, but its persistent database state could not be saved.');
+      }
     });
-
-    if (!saved) {
-      throw new Error('The update panel was posted, but its persistent database state could not be saved.');
-    }
 
     await interaction.editReply('✅ **Update panel posted.** The previous update panel in this channel was replaced and the new message ID was saved persistently.');
   } catch (error) {
