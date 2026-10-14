@@ -16,31 +16,67 @@ function addLegacyChannel(channels, existing) {
   }
 }
 
-async function removeManagedStickyMessages(channel, client, savedMessageId = null) {
+async function removeManagedStickyMessages(channel, client, savedMessageId = null, previousText = null, replacementText = '') {
+  const replacementPayload = {
+    content: replacementText + STICKY_MARKER,
+    allowedMentions: { parse: [] },
+  };
+  let fallbackMessage = null;
+
   if (savedMessageId) {
     const previous = await channel.messages.fetch(savedMessageId).catch(() => null);
     if (previous) {
-      // Never post a replacement if the previous sticky could not be removed.
-      await previous.delete();
+      try {
+        await previous.delete();
+      } catch (error) {
+        // If Discord refuses to delete the old post, update it instead of
+        // making the user delete it manually or creating a second sticky.
+        try {
+          fallbackMessage = await previous.edit(replacementPayload);
+          logger.warn('Could not delete the old sticky; updated it in place. Check Manage Messages permission if it must be reposted at the bottom:', error?.message || error);
+        } catch (editError) {
+          throw new Error(
+            'Could not delete or update the existing sticky message. Check TigerBot channel permissions, especially Manage Messages.'
+          );
+        }
+      }
     }
   }
 
-  // History cleanup is a migration safeguard, not a reason to block an otherwise
-  // valid sticky replacement. The saved message ID above is still removed first.
+  // Best-effort migration cleanup for marker-based and older unmarked stickies.
   const recent = await channel.messages.fetch({ limit: 100 }).catch((error) => {
-    logger.warn('Could not scan sticky history; continuing with the saved sticky ID:', error?.message || error);
+    logger.warn('Could not scan sticky history; continuing with saved-message handling:', error?.message || error);
     return null;
   });
 
-  if (!recent) return;
+  if (recent) {
+    for (const candidate of recent.values()) {
+      if (candidate.author?.id !== client.user?.id || candidate.id === fallbackMessage?.id) continue;
+      const candidateText = String(candidate.content || '');
+      const isMarkedSticky = candidateText.endsWith(STICKY_MARKER);
+      const isLegacySticky = Boolean(previousText) && candidateText === previousText;
+      if (!isMarkedSticky && !isLegacySticky) continue;
 
-  for (const candidate of recent.values()) {
-    if (candidate.author?.id !== client.user?.id) continue;
-    if (!String(candidate.content || '').endsWith(STICKY_MARKER)) continue;
-    await candidate.delete().catch((error) => {
-      logger.warn('Could not remove an extra sticky copy:', error?.message || error);
-    });
+      try {
+        await candidate.delete();
+      } catch (error) {
+        if (!fallbackMessage) {
+          try {
+            fallbackMessage = await candidate.edit(replacementPayload);
+            logger.warn('Could not delete a previous sticky copy; updated it in place instead:', error?.message || error);
+          } catch (editError) {
+            throw new Error(
+              'Could not delete or update an older sticky message. Check TigerBot channel permissions, especially Manage Messages.'
+            );
+          }
+        } else {
+          logger.warn('Could not remove an additional sticky copy:', error?.message || error);
+        }
+      }
+    }
   }
+
+  return fallbackMessage;
 }
 
 export const data = new SlashCommandBuilder()
@@ -84,9 +120,13 @@ export async function execute(interaction, guildConfig, client) {
       addLegacyChannel(channels, existing);
 
       const current = channels[channel.id];
-      await removeManagedStickyMessages(channel, client, current?.messageId || null);
-
-      const stickyMessage = await channel.send({
+      const stickyMessage = await removeManagedStickyMessages(
+        channel,
+        client,
+        current?.messageId || null,
+        current?.message || null,
+        message,
+      ) || await channel.send({
         content: message + STICKY_MARKER,
         allowedMentions: { parse: [] },
       });
