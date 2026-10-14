@@ -37,6 +37,36 @@ import {
 import { getGuildConfig } from '../../../services/config/guildConfig.js';
 import { setLogChannel, resolveApplicationLogChannel, resolveLogChannel } from '../../../services/loggingService.js';
 
+// Keep only the collectors belonging to the dashboard's current view. Channel-wide
+// collectors outlive a view change and can process the same click more than once.
+const dashboardCollectors = new WeakMap();
+
+function resetDashboardCollectors(interaction) {
+    const previous = dashboardCollectors.get(interaction);
+    if (previous) {
+        for (const collector of previous) {
+            try { collector.stop('dashboard-view-replaced'); } catch {}
+        }
+    }
+    const current = new Set();
+    dashboardCollectors.set(interaction, current);
+    return current;
+}
+
+function trackDashboardCollector(interaction, collector) {
+    let collectors = dashboardCollectors.get(interaction);
+    if (!collectors) {
+        collectors = new Set();
+        dashboardCollectors.set(interaction, collectors);
+    }
+    collectors.add(collector);
+    collector.once('end', () => collectors.delete(collector));
+}
+
+async function getDashboardMessage(interaction) {
+    return interaction.fetchReply().catch(() => null);
+}
+
 async function buildDashboardEmbed(settings, roles, guild, client) {
     const guildConfig = await getGuildConfig(client, guild.id);
     const applicationsChannel = resolveLogChannel(guildConfig, 'applications') || settings.logChannelId;
@@ -219,13 +249,21 @@ async function showApplicationSelector(interaction, roles, settings, guildId, cl
         components: [new ActionRowBuilder().addComponents(selectMenu)],
     });
 
-    const collector = interaction.channel.createMessageComponentCollector({
+    const collectors = resetDashboardCollectors(interaction);
+    const dashboardMessage = await getDashboardMessage(interaction);
+    if (!dashboardMessage) {
+        throw new Error('Could not find the active dashboard message. Reopen the applications dashboard and try again.');
+    }
+
+    const collector = dashboardMessage.createMessageComponentCollector({
         componentType: ComponentType.StringSelect,
         filter: i =>
             i.user.id === interaction.user.id && i.customId === `app_select_${guildId}`,
         time: 600_000,
         max: 1,
     });
+    collectors.add(collector);
+    trackDashboardCollector(interaction, collector);
 
     collector.on('collect', async selectInteraction => {
         const deferred = await safeDeferInteraction(selectInteraction);
@@ -260,7 +298,7 @@ async function showGlobalDashboard(interaction, settings, roles, guildId, client
         ],
     });
 
-    setupCollectors(interaction, settings, roles, guildId, client, null);
+    await setupCollectors(interaction, settings, roles, guildId, client, null);
 }
 
 async function showApplicationDashboard(rootInteraction, selectedRole, settings, roles, guildId, client) {
@@ -345,13 +383,19 @@ async function showApplicationDashboard(rootInteraction, selectedRole, settings,
         components: [menuRow, controlButtons],
     });
 
-    setupCollectors(rootInteraction, settings, roles, guildId, client, selectedRole.roleId);
+    await setupCollectors(rootInteraction, settings, roles, guildId, client, selectedRole.roleId);
 }
 
-function setupCollectors(interaction, settings, roles, guildId, client, selectedRoleId) {
+async function setupCollectors(interaction, settings, roles, guildId, client, selectedRoleId) {
     const customIdPrefix = selectedRoleId ? `app_cfg_${selectedRoleId}` : `app_cfg_${guildId}`;
-    
-    const collector = interaction.channel.createMessageComponentCollector({
+    const collectors = resetDashboardCollectors(interaction);
+    const dashboardMessage = await getDashboardMessage(interaction);
+    if (!dashboardMessage) {
+        logger.warn('Could not bind applications dashboard controls because the active dashboard message was not found.');
+        return;
+    }
+
+    const collector = dashboardMessage.createMessageComponentCollector({
         componentType: ComponentType.StringSelect,
         filter: i =>
             i.user.id === interaction.user.id && 
@@ -360,6 +404,7 @@ function setupCollectors(interaction, settings, roles, guildId, client, selected
                 : (i.customId === `app_cfg_${guildId}` || i.customId === `app_select_${guildId}`)),
         time: 600_000,
     });
+    trackDashboardCollector(interaction, collector);
 
     collector.on('collect', async selectInteraction => {
         const selectedOption = selectInteraction.values[0];
@@ -426,13 +471,15 @@ function setupCollectors(interaction, settings, roles, guildId, client, selected
     });
 
     if (!selectedRoleId) {
-        const globalToggleCollector = interaction.channel.createMessageComponentCollector({
+        const globalToggleCollector = dashboardMessage.createMessageComponentCollector({
             componentType: ComponentType.Button,
             filter: i =>
                 i.user.id === interaction.user.id &&
                 i.customId === `app_cfg_toggle_${guildId}`,
             time: 600_000,
         });
+
+        trackDashboardCollector(interaction, globalToggleCollector);
 
         globalToggleCollector.on('collect', async toggleInteraction => {
             const deferred = await safeDeferInteraction(toggleInteraction);
@@ -485,13 +532,15 @@ function setupCollectors(interaction, settings, roles, guildId, client, selected
     }
 
     if (selectedRoleId) {
-        const btnCollector = interaction.channel.createMessageComponentCollector({
+        const btnCollector = dashboardMessage.createMessageComponentCollector({
             componentType: ComponentType.Button,
             filter: i =>
                 i.user.id === interaction.user.id &&
                 i.customId === `app_delete_${selectedRoleId}`,
             time: 600_000,
         });
+
+        trackDashboardCollector(interaction, btnCollector);
 
         btnCollector.on('collect', async btnInteraction => {
             
@@ -576,13 +625,15 @@ function setupCollectors(interaction, settings, roles, guildId, client, selected
             }
         });
 
-        const toggleCollector = interaction.channel.createMessageComponentCollector({
+        const toggleCollector = dashboardMessage.createMessageComponentCollector({
             componentType: ComponentType.Button,
             filter: i =>
                 i.user.id === interaction.user.id &&
                 i.customId === `app_toggle_${selectedRoleId}`,
             time: 900_000,
         });
+
+        trackDashboardCollector(interaction, toggleCollector);
 
         toggleCollector.on('collect', async toggleInteraction => {
             const deferred = await safeDeferInteraction(toggleInteraction);
