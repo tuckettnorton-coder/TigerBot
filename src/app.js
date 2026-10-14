@@ -442,7 +442,18 @@ class TitanBot extends Client {
         logger.info('✅ Web server closed');
       }
 
-      // Release the shared lock before returning its connection and closing the pool.
+      // Stop receiving Gateway events before releasing the shared instance lock.
+      logger.info('Destroying Discord client...');
+      if (this.isReady()) {
+        try {
+          this.destroy();
+          logger.info('✅ Discord client destroyed');
+        } catch (error) {
+          logger.warn('Discord client destroy warning (non-critical):', error.message);
+        }
+      }
+
+      // Release the lock before closing the pool; the lock holds one checked-out connection.
       logger.info('Releasing single-instance PostgreSQL lock...');
       await releaseBotInstanceLock();
 
@@ -457,17 +468,6 @@ class TitanBot extends Client {
           }
         } catch (error) {
           logger.warn('Error closing database pool:', error.message);
-        }
-      }
-
-      logger.info('Destroying Discord client...');
-      if (this.isReady()) {
-        try {
-          this.destroy();
-          logger.info('✅ Discord client destroyed');
-        } catch (error) {
-
-          logger.warn('Discord client destroy warning (non-critical):', error.message);
         }
       }
 
