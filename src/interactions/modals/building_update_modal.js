@@ -14,12 +14,40 @@ function parsePrices(text) {
   if (lines.length !== 3) throw new Error('Building Prices must contain exactly 3 lines: Under 200M, 201M+, Farm days.');
   return { under200: lines[0].split(':').slice(1).join(':').trim(), over200: lines[1].split(':').slice(1).join(':').trim(), farmMultiplierDays: lines[2].split(':').slice(1).join(':').trim() };
 }
-export default { name: 'building_price_page', async execute(interaction, client) {
-  try {
-    const prices = parsePrices(interaction.fields.getTextInputValue('prices'));
-    const notes = interaction.fields.getTextInputValue('notes').trim(); const refundPolicy = interaction.fields.getTextInputValue('refund').trim(); const rules = interaction.fields.getTextInputValue('rules').trim(); const ticket = interaction.fields.getTextInputValue('ticket').trim();
-    if (!prices.under200 || !prices.over200 || !prices.farmMultiplierDays || !notes || !refundPolicy || !rules || !ticket) throw new Error('All building update fields are required.');
-    const data = { ...prices, notes, refundPolicy, rules, ticket }; persistBuildingPrices(data); await postBuildingPrices(client, data);
-    await interaction.reply({ content: '✅ **Building prices and service information have been updated and posted.**', flags: MessageFlags.Ephemeral });
-  } catch (error) { await interaction.reply({ content: `⚠️ **Building price update failed:** ${error?.message || 'Unknown error.'}`, flags: MessageFlags.Ephemeral }); }
-} };
+export default {
+  name: 'building_price_page',
+  async execute(interaction, client) {
+    try {
+      // Posting updates may fetch history and reconcile existing messages; acknowledge
+      // the modal before doing any database or Discord channel work.
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+      const prices = parsePrices(interaction.fields.getTextInputValue('prices'));
+      const notes = interaction.fields.getTextInputValue('notes').trim();
+      const refundPolicy = interaction.fields.getTextInputValue('refund').trim();
+      const rules = interaction.fields.getTextInputValue('rules').trim();
+      const ticket = interaction.fields.getTextInputValue('ticket').trim();
+
+      if (!prices.under200 || !prices.over200 || !prices.farmMultiplierDays || !notes || !refundPolicy || !rules || !ticket) {
+        throw new Error('All building update fields are required.');
+      }
+
+      const data = { ...prices, notes, refundPolicy, rules, ticket };
+      persistBuildingPrices(data);
+      await postBuildingPrices(client, data);
+
+      await interaction.editReply({
+        content: '✅ **Building prices and service information have been updated and posted.**',
+      });
+    } catch (error) {
+      const response = {
+        content: `⚠️ **Building price update failed:** ${error?.message || 'Unknown error.'}`,
+      };
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply(response).catch(() => {});
+      } else {
+        await interaction.reply({ ...response, flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+    }
+  },
+};
