@@ -1,10 +1,8 @@
-import calculateModalHandler from '../../../handlers/calculateModals.js';
+import calculatorModal from '../calculator.js';
 
-const execute = typeof calculateModalHandler === 'function'
-  ? calculateModalHandler
-  : calculateModalHandler.execute;
-
+// Keep the legacy calc_modal custom ID working while reusing the maintained
+// calculator handler instead of importing the deleted calculateModals.js file.
 export default {
   name: 'calc_modal',
-  execute,
+  execute: calculatorModal.execute,
 };
