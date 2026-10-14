@@ -6,6 +6,7 @@ export default {
   name: 'paid_ad_update_page1',
   async execute(interaction, client) {
     try {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const current = loadPaidAdPrices();
       const prices = {
         ...current,
@@ -17,7 +18,7 @@ export default {
       savePaidAdPrices(prices);
       await setUpdateState(client, interaction.guildId, { paidAdPrices: prices });
 
-      await interaction.reply({
+      await interaction.editReply({
         content: '✅ **Page 1 saved.** Click **Continue to Page 2** to edit the remaining prices.',
         components: [
           new ActionRowBuilder().addComponents(
@@ -28,13 +29,11 @@ export default {
               .setEmoji('➡️'),
           ),
         ],
-        flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
-      await interaction.reply({
-        content: `⚠️ **Paid ad update failed:** ${error?.message || 'Unknown error.'}`,
-        flags: MessageFlags.Ephemeral,
-      });
+      const response = { content: `⚠️ **Paid ad update failed:** ${error?.message || 'Unknown error.'}` };
+      if (interaction.deferred || interaction.replied) await interaction.editReply(response).catch(() => {});
+      else await interaction.reply({ ...response, flags: MessageFlags.Ephemeral }).catch(() => {});
     }
   },
 };
