@@ -1,6 +1,38 @@
 import { SlashCommandBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
+import { withUpdatePostLock } from '../../utils/updatePostLock.js';
 
 const KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
+const STICKY_MARKER = '\u2063\u200B\u2063';
+
+function addLegacyChannel(channels, existing) {
+  if (existing?.channelId && !channels[existing.channelId]) {
+    channels[existing.channelId] = {
+      message: existing.message,
+      messageId: existing.messageId || null,
+      updatedAt: existing.updatedAt || new Date().toISOString(),
+      enabled: existing.enabled !== false,
+    };
+  }
+}
+
+async function removeManagedStickyMessages(channel, client, savedMessageId = null) {
+  if (savedMessageId) {
+    const previous = await channel.messages.fetch(savedMessageId).catch(() => null);
+    if (previous) {
+      // Never post a replacement if the previous sticky could not be removed.
+      await previous.delete();
+    }
+  }
+
+  const recent = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+  if (!recent) return;
+
+  for (const candidate of recent.values()) {
+    if (candidate.author?.id !== client.user?.id) continue;
+    if (!String(candidate.content || '').endsWith(STICKY_MARKER)) continue;
+    await candidate.delete();
+  }
+}
 
 export const data = new SlashCommandBuilder()
   .setName('sticky')
@@ -22,58 +54,63 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction, guildConfig, client) {
-  const channel = interaction.options.getChannel('channel');
-  const message = interaction.options.getString('message');
+  const channel = interaction.options.getChannel('channel', true);
+  const message = interaction.options.getString('message', true);
 
   if (!interaction.guildId || !client?.db) {
     await interaction.reply({ content: '❌ The database is not available.', ephemeral: true });
     return;
   }
 
-  const existing = await client.db.get(KEY(interaction.guildId), null);
-  const channels = existing?.channels && typeof existing.channels === 'object' ? { ...existing.channels } : {};
+  await interaction.deferReply({ ephemeral: true });
 
-  // Automatically migrate the old single-channel sticky into the new multi-channel format.
-  if (existing?.channelId) {
-    channels[existing.channelId] = {
-      message: existing.message,
-      messageId: existing.messageId || null,
-      updatedAt: existing.updatedAt || new Date().toISOString(),
-      enabled: existing.enabled !== false,
-    };
-  }
+  try {
+    await withUpdatePostLock(channel.id, async () => {
+      const existing = await client.db.get(KEY(interaction.guildId), null);
+      const channels = existing?.channels && typeof existing.channels === 'object'
+        ? { ...existing.channels }
+        : {};
 
-  const current = channels[channel.id];
-  if (current?.messageId) {
-    const oldSticky = await channel.messages.fetch(current.messageId).catch(() => null);
-    if (oldSticky) await oldSticky.delete().catch(() => {});
-  }
+      // Migrate the old single-channel storage format without discarding its sticky.
+      addLegacyChannel(channels, existing);
 
-  const stickyMessage = await channel.send({
-    content: message,
-    allowedMentions: { parse: [] },
-  });
+      const current = channels[channel.id];
+      await removeManagedStickyMessages(channel, client, current?.messageId || null);
 
-  channels[channel.id] = {
-    message,
-    messageId: stickyMessage.id,
-    updatedAt: new Date().toISOString(),
-    enabled: true,
-  };
+      const stickyMessage = await channel.send({
+        content: message + STICKY_MARKER,
+        allowedMentions: { parse: [] },
+      });
 
-  await client.db.set(KEY(interaction.guildId), {
-    channels,
-    updatedAt: new Date().toISOString(),
-  });
+      channels[channel.id] = {
+        message,
+        messageId: stickyMessage.id,
+        updatedAt: new Date().toISOString(),
+        enabled: true,
+      };
 
-  await interaction.reply({
-    content:
+      try {
+        await client.db.set(KEY(interaction.guildId), {
+          channels,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        await stickyMessage.delete().catch(() => {});
+        throw error;
+      }
+    });
+
+    await interaction.editReply(
       '✅ **Sticky message enabled.**\n\n' +
       '**Channel:** ' + channel + '\n' +
       '**Message:** ' + message + '\n\n' +
       'This channel is now part of your sticky system. Run `/sticky` again for other channels; each channel keeps its own sticky at the bottom.',
-    ephemeral: true,
-  });
+    );
+  } catch (error) {
+    await interaction.editReply({
+      content: '❌ I could not safely replace the sticky message, so I did not post another copy. Check that TigerBot has Manage Messages and Send Messages permissions in that channel.',
+    }).catch(() => {});
+  }
 }
 
 export default { data, execute };
