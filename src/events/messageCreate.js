@@ -23,6 +23,23 @@ import { withUpdatePostLock } from '../utils/updatePostLock.js';
 const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
 const STICKY_MARKER = '\u2063\u200B\u2063';
 
+async function saveStickyMessageReference(client, guildId, config, channels, channelId, stickyMessage) {
+  const updatedAt = new Date().toISOString();
+  await client.db.set(REPEAT_MESSAGE_KEY(guildId), {
+    ...config,
+    channels: {
+      ...channels,
+      [channelId]: {
+        ...channels[channelId],
+        messageId: stickyMessage.id,
+        updatedAt,
+        enabled: true,
+      },
+    },
+    updatedAt,
+  });
+}
+
 // Protect against the same Discord message being dispatched to this handler twice.
 const handledMessageIds = new Set();
 const MAX_REMEMBERED_MESSAGE_IDS = 10000;
@@ -322,9 +339,19 @@ async function handleRepeatMessage(message, client) {
           try {
             await oldSticky.delete();
           } catch (error) {
-            // Do not send a replacement if the last sticky still exists.
-            logger.error('Could not delete previous sticky message; skipping replacement:', error);
-            return false;
+            // Preserve the single-sticky guarantee. If deletion is blocked,
+            // update the current sticky in place instead of requiring a manual delete.
+            try {
+              await oldSticky.edit({
+                content: channelConfig.message + STICKY_MARKER,
+                allowedMentions: { parse: [] },
+              });
+              logger.warn('Could not delete the previous sticky; updated it in place. Check Manage Messages permission if it must move to the bottom:', error?.message || error);
+              return true;
+            } catch (editError) {
+              logger.error('Could not delete or update the previous sticky; no duplicate was posted:', editError);
+              return false;
+            }
           }
         }
       }
@@ -339,14 +366,27 @@ async function handleRepeatMessage(message, client) {
       if (recent) {
         for (const candidate of recent.values()) {
           if (candidate.author?.id !== client.user?.id) continue;
-          if (!String(candidate.content || '').endsWith(STICKY_MARKER)) continue;
+          const candidateContent = String(candidate.content || '');
+          const isMarkedSticky = candidateContent.endsWith(STICKY_MARKER);
+          const isLegacySticky = candidateContent === channelConfig.message;
+          if (!isMarkedSticky && !isLegacySticky) continue;
 
-          if (!await candidate.delete().then(() => true).catch((error) => {
-            logger.warn('Could not remove an extra sticky copy:', error?.message || error);
-            return false;
+          if (!await candidate.delete().then(() => true).catch(async (error) => {
+            // If an old/duplicate sticky cannot be deleted, reuse it as the
+            // single active sticky and save its ID instead of posting another.
+            try {
+              await candidate.edit({
+                content: channelConfig.message + STICKY_MARKER,
+                allowedMentions: { parse: [] },
+              });
+              await saveStickyMessageReference(client, message.guild.id, config, channels, message.channelId, candidate);
+              logger.warn('Could not delete an extra sticky copy; updated and reused it instead:', error?.message || error);
+              return 'reused';
+            } catch (editError) {
+              logger.error('Could not delete or update an extra sticky copy; no duplicate was posted:', editError);
+              return false;
+            }
           })) {
-            // Avoid knowingly posting another copy if an extra managed sticky
-            // cannot be removed.
             return false;
           }
         }
