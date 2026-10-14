@@ -105,3 +105,103 @@ export async function upsertUpdateMessage({
     return canonical;
   });
 }
+
+/**
+ * Multi-message variant used by update posts that exceed Discord's 2,000
+ * character limit. Part markers use invisible separators so each continuation
+ * can be reconciled without confusing it with another bot message.
+ */
+export async function upsertUpdateMessageParts({
+  client,
+  channel,
+  contents,
+  matchesPart,
+  previousMessageIds = [],
+  onSaved = async () => {},
+  label = 'update',
+}) {
+  if (!Array.isArray(contents) || contents.length === 0) {
+    throw new Error('At least one message part is required.');
+  }
+  if (contents.some((part) => String(part).length > 1900)) {
+    throw new Error('A message part is too long to post safely.');
+  }
+  if (typeof matchesPart !== 'function') throw new TypeError('A message-part matcher is required.');
+
+  const taggedContents = contents.map((part, index) =>
+    `${part}\u2063tigerbot_update_part_${index + 1}\u2063`
+  );
+
+  return withUpdatePostLock(channel.id, async () => {
+    const candidates = taggedContents.map(() => new Map());
+    const addCandidate = (message, hintedIndex = null) => {
+      if (!message || message.author?.id !== client.user.id) return;
+      let index = hintedIndex;
+      if (index === null) {
+        index = matchesPart(message, taggedContents);
+      }
+      if (Number.isInteger(index) && index >= 0 && index < candidates.length) {
+        candidates[index].set(message.id, message);
+      }
+    };
+
+    // Saved IDs keep backward compatibility with prior versions that did not
+    // have invisible part markers.
+    for (let index = 0; index < previousMessageIds.length; index += 1) {
+      const id = previousMessageIds[index];
+      if (!id) continue;
+      try {
+        addCandidate(await channel.messages.fetch(id), index);
+      } catch {}
+    }
+
+    const scanHistory = async () => {
+      try {
+        const recent = await channel.messages.fetch({ limit: 100 });
+        for (const message of recent.values()) addCandidate(message);
+      } catch (error) {
+        logger.warn(`Could not scan recent messages for duplicate ${label} parts in channel ${channel.id}:`, error?.message || error);
+      }
+    };
+
+    const sorted = (index) => [...candidates[index].values()].sort(newestFirst);
+    await scanHistory();
+
+    const active = [];
+    for (let index = 0; index < taggedContents.length; index += 1) {
+      const existing = sorted(index)[0];
+      active[index] = existing
+        ? await existing.edit({ content: taggedContents[index] })
+        : await channel.send({ content: taggedContents[index] });
+    }
+
+    await wait(RECONCILE_DELAY_MS);
+    await scanHistory();
+    for (let index = 0; index < active.length; index += 1) {
+      addCandidate(active[index], index);
+    }
+
+    const canonical = [];
+    for (let index = 0; index < taggedContents.length; index += 1) {
+      const existing = sorted(index);
+      const keep = existing[0] || active[index];
+      try {
+        canonical[index] = await keep.edit({ content: taggedContents[index] });
+      } catch (error) {
+        logger.warn(`Could not refresh canonical ${label} part ${index + 1}:`, error?.message || error);
+        canonical[index] = keep;
+      }
+
+      for (const duplicate of existing.slice(1)) {
+        try {
+          await duplicate.delete();
+        } catch (error) {
+          logger.warn(`Could not delete duplicate ${label} part ${duplicate.id}:`, error?.message || error);
+        }
+      }
+    }
+
+    await onSaved(canonical);
+    return canonical;
+  });
+}
