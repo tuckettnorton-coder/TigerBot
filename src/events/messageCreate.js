@@ -21,6 +21,20 @@ import {
 
 const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
 
+// Protect against the same Discord message being dispatched to this handler twice.
+const handledMessageIds = new Set();
+const MAX_REMEMBERED_MESSAGE_IDS = 10000;
+
+function claimMessageOnce(messageId) {
+  if (!messageId || handledMessageIds.has(messageId)) return false;
+  handledMessageIds.add(messageId);
+  if (handledMessageIds.size > MAX_REMEMBERED_MESSAGE_IDS) {
+    const oldest = handledMessageIds.values().next().value;
+    handledMessageIds.delete(oldest);
+  }
+  return true;
+}
+
 const MARKETING_FILTER_CHANNELS = new Set([
   '1504946935197597878',
   '1526319312078372974',
@@ -250,7 +264,7 @@ export default {
   name: Events.MessageCreate,
   async execute(message, client) {
     try {
-      if (message.author.bot || !message.guild) return;
+      if (message.author.bot || !message.guild || !claimMessageOnce(message.id)) return;
 
       logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
 
