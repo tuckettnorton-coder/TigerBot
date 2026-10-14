@@ -26,14 +26,14 @@ async function disableRecentlyCreatedDuplicateSchedules(client, guildId) {
       String(config.description || '').trim(),
     ]);
 
-    const roots = groups.get(signature) || [];
-    const keeper = roots.find(root =>
-      Math.abs(createdAt - new Date(root.createdAt || 0).getTime()) < 2 * 60 * 1000
+    const records = groups.get(signature) || [];
+    const match = records.find(record =>
+      Math.abs(createdAt - record.createdAt) < 2 * 60 * 1000
     );
 
-    if (!keeper) {
-      roots.push(config);
-      groups.set(signature, roots);
+    if (!match) {
+      records.push({ createdAt, keeperId: config.id });
+      groups.set(signature, records);
       continue;
     }
 
@@ -41,10 +41,12 @@ async function disableRecentlyCreatedDuplicateSchedules(client, guildId) {
     // duplicate-create protection existed. Keep the first and disable the
     // equivalent schedule so the same giveaway isn't posted twice.
     config.enabled = false;
-    config.duplicateOf = keeper.id;
+    config.duplicateOf = match.keeperId;
     await saveAutoGiveaway(client, guildId, config);
+    records.push({ createdAt, keeperId: match.keeperId });
+    groups.set(signature, records);
     logger.warn(
-      `Disabled duplicate automatic giveaway schedule ${config.id}; kept ${keeper.id} for the same prize/channel/settings.`
+      `Disabled duplicate automatic giveaway schedule ${config.id}; kept ${match.keeperId} for the same prize/channel/settings.`
     );
   }
 }
