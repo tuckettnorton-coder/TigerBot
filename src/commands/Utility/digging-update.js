@@ -2,7 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getUpdateState, setUpdateState, getLatestUpdateData } from '../../utils/updateState.js';
+import { getUpdateState, setUpdateState, getLatestUpdateDataFast } from '../../utils/updateState.js';
 import { upsertUpdateMessage } from '../../utils/updateMessage.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -58,7 +58,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction, guildConfig, client) {
   const { buildDiggingPriceModal } = await import('../../interactions/modals/digging_update_modal.js');
-  const saved = await getLatestUpdateData(client, interaction.guildId, 'diggingPrices', null);
+  const saved = await getLatestUpdateDataFast(client, interaction.guildId, 'diggingPrices', null);
   await interaction.showModal(buildDiggingPriceModal(saved || loadDiggingPrices()));
 }
 
