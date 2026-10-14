@@ -39,9 +39,35 @@ export default {
       if (repeatMs < durationMs) return interaction.reply({content:'Repeat must be at least as long as the giveaway duration.', flags:MessageFlags.Ephemeral});
       const channel = interaction.options.getChannel('channel') || interaction.channel;
       const now = Date.now();
+      const prize = interaction.options.getString('prize').trim();
+      const description = interaction.options.getString('description') || 'Click **Enter Giveaway** below to enter!';
+
+      // A repeated create interaction can accidentally register the same
+      // schedule twice. Refuse an equivalent schedule created moments ago.
+      const recentDuplicate = configs.find(existing => {
+        const createdAt = new Date(existing.createdAt || 0).getTime();
+        return existing.enabled !== false
+          && existing.channelId === channel.id
+          && String(existing.prize || '').trim().toLowerCase() === prize.toLowerCase()
+          && Number(existing.winnerCount) === interaction.options.getInteger('winners')
+          && Number(existing.durationMs) === durationMs
+          && Number(existing.repeatMs) === repeatMs
+          && String(existing.description || '') === description
+          && Number.isFinite(createdAt)
+          && now - createdAt >= 0
+          && now - createdAt < 2 * 60 * 1000;
+      });
+
+      if (recentDuplicate) {
+        return interaction.reply({
+          content: '⚠️ An equivalent automatic giveaway schedule was created recently (ID: ' + recentDuplicate.id + '). I did not create another one. Use /auto-giveaway list to review your schedules.',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
       const auto = {
         id:'auto-' + now + '-' + Math.random().toString(36).slice(2,7), guildId, channelId:channel.id,
-        prize:interaction.options.getString('prize'), description:interaction.options.getString('description') || 'Click **Enter Giveaway** below to enter!',
+        prize, description,
         winnerCount:interaction.options.getInteger('winners'), durationMs, repeatMs,
         createdAt:new Date(now).toISOString(), scheduleEndsAt:scheduleMs ? new Date(now + scheduleMs).toISOString() : null,
         nextRunAt:new Date(now).toISOString(), enabled:true
