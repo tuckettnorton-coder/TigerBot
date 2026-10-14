@@ -35,7 +35,7 @@ export function loadGiveawayRules() {
 }
 
 function saveGiveawayRules(data) {
-  fs.writeFileSync(DATA_FILE, `${JSON.stringify(data, null, 2)}\\n`, 'utf8');
+  fs.writeFileSync(DATA_FILE, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
 }
 
 function loadMessageId() {
@@ -47,7 +47,7 @@ function loadMessageId() {
 }
 
 function saveMessageId(messageId) {
-  fs.writeFileSync(MESSAGE_FILE, `${JSON.stringify({ messageId }, null, 2)}\\n`, 'utf8');
+  fs.writeFileSync(MESSAGE_FILE, `${JSON.stringify({ messageId }, null, 2)}\n`, 'utf8');
 }
 
 export function formatGiveawayRulesMessage(data) {
