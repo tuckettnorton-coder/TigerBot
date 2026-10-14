@@ -371,7 +371,9 @@ async function handleRepeatMessage(message, client) {
           const isLegacySticky = candidateContent === channelConfig.message;
           if (!isMarkedSticky && !isLegacySticky) continue;
 
-          if (!await candidate.delete().then(() => true).catch(async (error) => {
+          try {
+            await candidate.delete();
+          } catch (error) {
             // If an old/duplicate sticky cannot be deleted, reuse it as the
             // single active sticky and save its ID instead of posting another.
             try {
@@ -381,13 +383,11 @@ async function handleRepeatMessage(message, client) {
               });
               await saveStickyMessageReference(client, message.guild.id, config, channels, message.channelId, candidate);
               logger.warn('Could not delete an extra sticky copy; updated and reused it instead:', error?.message || error);
-              return 'reused';
+              return true;
             } catch (editError) {
               logger.error('Could not delete or update an extra sticky copy; no duplicate was posted:', editError);
               return false;
             }
-          })) {
-            return false;
           }
         }
       }
