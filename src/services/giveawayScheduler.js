@@ -5,6 +5,50 @@ import { Mutex } from '../utils/mutex.js';
 
 let schedulerRunning = false;
 
+async function disableRecentlyCreatedDuplicateSchedules(client, guildId) {
+  const configs = await getAutoGiveaways(client, guildId);
+  const groups = new Map();
+
+  const active = configs
+    .filter(config => config.enabled !== false)
+    .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+
+  for (const config of active) {
+    const createdAt = new Date(config.createdAt || 0).getTime();
+    if (!Number.isFinite(createdAt) || createdAt <= 0) continue;
+
+    const signature = JSON.stringify([
+      config.channelId,
+      String(config.prize || '').trim().toLowerCase(),
+      Number(config.winnerCount),
+      Number(config.durationMs),
+      Number(config.repeatMs),
+      String(config.description || '').trim(),
+    ]);
+
+    const roots = groups.get(signature) || [];
+    const keeper = roots.find(root =>
+      Math.abs(createdAt - new Date(root.createdAt || 0).getTime()) < 2 * 60 * 1000
+    );
+
+    if (!keeper) {
+      roots.push(config);
+      groups.set(signature, roots);
+      continue;
+    }
+
+    // Older duplicate schedules can remain in persistent storage from before
+    // duplicate-create protection existed. Keep the first and disable the
+    // equivalent schedule so the same giveaway isn't posted twice.
+    config.enabled = false;
+    config.duplicateOf = keeper.id;
+    await saveAutoGiveaway(client, guildId, config);
+    logger.warn(
+      `Disabled duplicate automatic giveaway schedule ${config.id}; kept ${keeper.id} for the same prize/channel/settings.`
+    );
+  }
+}
+
 // Encode the run key using zero-width characters. This lets the scheduler find a
 // giveaway after a restart even if Discord accepted the send but the DB write
 // timed out. It prevents a retry from posting the same scheduled run again.
@@ -138,6 +182,9 @@ export async function processGiveawaySchedules(client) {
             }
           }
 
+          // Clean up equivalent schedules created within moments of each
+          // other, including duplicates saved before the newer create guard.
+          await disableRecentlyCreatedDuplicateSchedules(client, guild.id);
           const autos = await getAutoGiveaways(client, guild.id);
           for (const auto of autos) {
             const lockKey = `auto-giveaway-schedule:${guild.id}:${auto.id}`;
