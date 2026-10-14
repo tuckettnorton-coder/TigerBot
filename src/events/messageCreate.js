@@ -18,8 +18,10 @@ import {
   isValidCountingMessage,
   recordCorrectCount,
 } from '../services/countingGameService.js';
+import { withUpdatePostLock } from '../utils/updatePostLock.js';
 
 const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
+const STICKY_MARKER = '\u2063\u200B\u2063';
 
 // Protect against the same Discord message being dispatched to this handler twice.
 const handledMessageIds = new Set();
@@ -292,47 +294,95 @@ async function handleRepeatMessage(message, client) {
   try {
     if (!client?.db || !message.guild) return false;
 
-    const config = await client.db.get(REPEAT_MESSAGE_KEY(message.guild.id), null);
-    if (!config) return false;
+    // Serialize sticky refreshes per channel. The config is reloaded inside the
+    // lock so concurrent messages cannot all act on the same stale message ID.
+    return await withUpdatePostLock(message.channelId, async () => {
+      const config = await client.db.get(REPEAT_MESSAGE_KEY(message.guild.id), null);
+      if (!config) return false;
 
-    const channels = config.channels && typeof config.channels === 'object'
-      ? config.channels
-      : (config.channelId ? {
-          [config.channelId]: {
-            message: config.message,
-            messageId: config.messageId || null,
-            enabled: config.enabled !== false,
+      const channels = config.channels && typeof config.channels === 'object'
+        ? config.channels
+        : (config.channelId ? {
+            [config.channelId]: {
+              message: config.message,
+              messageId: config.messageId || null,
+              enabled: config.enabled !== false,
+            },
+          } : {});
+
+      const channelConfig = channels[message.channelId];
+      if (!channelConfig?.enabled || !channelConfig.message) return false;
+
+      if (channelConfig.messageId) {
+        const oldSticky = await message.channel.messages
+          .fetch(channelConfig.messageId)
+          .catch(() => null);
+
+        if (oldSticky) {
+          try {
+            await oldSticky.delete();
+          } catch (error) {
+            // Do not send a replacement if the last sticky still exists.
+            logger.error('Could not delete previous sticky message; skipping replacement:', error);
+            return false;
+          }
+        }
+      }
+
+      let recent;
+      try {
+        recent = await message.channel.messages.fetch({ limit: 100 });
+      } catch (error) {
+        logger.error('Could not inspect channel history for duplicate stickies; skipping replacement:', error);
+        return false;
+      }
+
+      for (const candidate of recent.values()) {
+        if (candidate.author?.id !== client.user?.id) continue;
+        if (!String(candidate.content || '').endsWith(STICKY_MARKER)) continue;
+
+        try {
+          await candidate.delete();
+        } catch (error) {
+          // Fail closed rather than adding a sticky while an older managed copy remains.
+          logger.error('Could not remove an older duplicate sticky; skipping replacement:', error);
+          return false;
+        }
+      }
+
+      let stickyMessage;
+      try {
+        stickyMessage = await message.channel.send({
+          content: channelConfig.message + STICKY_MARKER,
+          allowedMentions: { parse: [] },
+        });
+      } catch (error) {
+        logger.error('Could not send sticky message:', error);
+        return false;
+      }
+
+      try {
+        await client.db.set(REPEAT_MESSAGE_KEY(message.guild.id), {
+          ...config,
+          channels: {
+            ...channels,
+            [message.channelId]: {
+              ...channelConfig,
+              messageId: stickyMessage.id,
+              updatedAt: new Date().toISOString(),
+              enabled: true,
+            },
           },
-        } : {});
-
-    const channelConfig = channels[message.channelId];
-    if (!channelConfig?.enabled || !channelConfig.message) return false;
-
-    if (channelConfig.messageId) {
-      const oldSticky = await message.channel.messages.fetch(channelConfig.messageId).catch(() => null);
-      if (oldSticky) await oldSticky.delete().catch(() => {});
-    }
-
-    const stickyMessage = await message.channel.send({
-      content: channelConfig.message,
-      allowedMentions: { parse: [] },
-    });
-
-    await client.db.set(REPEAT_MESSAGE_KEY(message.guild.id), {
-      ...config,
-      channels: {
-        ...channels,
-        [message.channelId]: {
-          ...channelConfig,
-          messageId: stickyMessage.id,
           updatedAt: new Date().toISOString(),
-          enabled: true,
-        },
-      },
-      updatedAt: new Date().toISOString(),
-    });
+        });
+      } catch (error) {
+        await stickyMessage.delete().catch(() => {});
+        logger.error('Could not save sticky message ID; removed the new sticky to prevent duplicates:', error);
+        return false;
+      }
 
-    return true;
+      return true;
+    });
   } catch (error) {
     logger.error('Error handling sticky message:', error);
     return false;
