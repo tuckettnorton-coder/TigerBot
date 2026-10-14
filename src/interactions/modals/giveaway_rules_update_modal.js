@@ -1,4 +1,5 @@
 import {
+import { logger } from '../../utils/logger.js';
   ModalBuilder,
   ActionRowBuilder,
   TextInputBuilder,
@@ -127,10 +128,21 @@ export default {
         flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
-      await interaction.reply({
+      const response = {
         content: `⚠️ **Giveaway rules update failed:** ${error?.message || 'Unknown error.'}`,
         flags: MessageFlags.Ephemeral,
-      });
-    }
+      };
+
+      try {
+        if (interaction.deferred) {
+          await interaction.editReply(response);
+        } else if (interaction.replied) {
+          await interaction.followUp(response);
+        } else {
+          await interaction.reply(response);
+        }
+      } catch (responseError) {
+        logger.warn('Could not send modal error response:', responseError?.message || responseError);
+      }
   },
 };
