@@ -3,12 +3,28 @@ import { createGiveawayEmbed, createGiveawayButtons, selectWinners, formatGiveaw
 import { logger } from '../utils/logger.js';
 import { Mutex } from '../utils/mutex.js';
 
+let schedulerRunning = false;
+
+// Encode the run key using zero-width characters. This lets the scheduler find a
+// giveaway after a restart even if Discord accepted the send but the DB write
+// timed out. It prevents a retry from posting the same scheduled run again.
+function makeInvisibleRunMarker(runKey) {
+  const bits = [...String(runKey)]
+    .map(character => character.charCodeAt(0).toString(2).padStart(8, '0'))
+    .join('');
+  return '\u2063' + bits.replace(/0/g, '\u200B').replace(/1/g, '\u200C') + '\u2063';
+}
+
 async function endGiveaway(client, guildId, giveaway) {
   if (giveaway.ended || new Date(giveaway.endsAt).getTime() > Date.now()) return;
+
   giveaway.ended = true;
   giveaway.isEnded = true;
   giveaway.endedAt = new Date().toISOString();
   giveaway.winnerIds = selectWinners(giveaway.participants || [], giveaway.winnerCount);
+
+  // Persist the ended state before sending the result announcement. If a
+  // scheduler tick overlaps or the process retries, it cannot announce twice.
   await saveGiveaway(client, guildId, giveaway);
 
   const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
@@ -21,89 +37,151 @@ async function endGiveaway(client, guildId, giveaway) {
   if (channel) await channel.send(formatGiveawayWinnerMessage(giveaway.winnerIds, giveaway.prize)).catch(() => null);
 }
 
-async function startAutoGiveaway(client, auto) {
+async function findRunMessage(channel, client, marker) {
+  // A pending scheduled run is normally only seconds old. Scan enough history to
+  // recover one even if the host was offline for a while.
+  let before;
+  for (let page = 0; page < 5; page += 1) {
+    const options = before ? { limit: 100, before } : { limit: 100 };
+    const recent = await channel.messages.fetch(options);
+    if (!recent.size) return null;
+
+    const match = recent.find(message =>
+      message.author?.id === client.user?.id &&
+      String(message.content || '').endsWith(marker)
+    );
+    if (match) return match;
+
+    before = recent.last()?.id;
+    if (!before || recent.size < 100) return null;
+  }
+  return null;
+}
+
+async function startAutoGiveaway(client, auto, scheduledAt) {
   const channel = await client.channels.fetch(auto.channelId).catch(() => null);
-  if (!channel?.isTextBased?.()) return false;
-  const now = Date.now();
+  if (!channel?.isTextBased?.() || typeof channel.send !== 'function' || !channel.messages?.fetch) {
+    logger.warn(`Automatic giveaway ${auto.id} is waiting: channel ${auto.channelId} is not a fetchable text channel.`);
+    return false;
+  }
+
+  const scheduledMs = new Date(scheduledAt).getTime();
+  if (!Number.isFinite(scheduledMs)) {
+    throw new Error(`Automatic giveaway ${auto.id} has an invalid scheduled run time.`);
+  }
+
+  const runKey = `${auto.id}:${new Date(scheduledMs).toISOString()}`;
+  const marker = makeInvisibleRunMarker(runKey);
+  let message = await findRunMessage(channel, client, marker);
+
+  const startedAtMs = message?.createdTimestamp || Date.now();
   const giveaway = {
-    id: 'gw-' + now + '-' + Math.random().toString(36).slice(2, 7),
+    id: `gw-${auto.id}-${scheduledMs}`,
     guildId: auto.guildId,
     channelId: auto.channelId,
-    messageId: null,
+    messageId: message?.id || null,
     prize: auto.prize,
     description: auto.description,
     winnerCount: auto.winnerCount,
     participants: [],
     winnerIds: [],
-    startedAt: new Date(now).toISOString(),
-    endsAt: new Date(now + auto.durationMs).toISOString(),
+    startedAt: new Date(startedAtMs).toISOString(),
+    endsAt: new Date(startedAtMs + auto.durationMs).toISOString(),
     ended: false,
-    autoGiveawayId: auto.id
+    autoGiveawayId: auto.id,
+    scheduledRunAt: new Date(scheduledMs).toISOString(),
   };
-  const message = await channel.send({
-    content: '<@&1509955642209603614>',
-    allowedMentions: { roles: ['1509955642209603614'] },
-    embeds: [createGiveawayEmbed(giveaway)],
-    components: [createGiveawayButtons(false)]
-  });
-  giveaway.messageId = message.id;
+
+  if (!message) {
+    message = await channel.send({
+      content: `<@&1509955642209603614>\n${marker}`,
+      allowedMentions: { roles: ['1509955642209603614'] },
+      embeds: [createGiveawayEmbed(giveaway)],
+      components: [createGiveawayButtons(false)]
+    });
+    giveaway.messageId = message.id;
+    giveaway.startedAt = new Date(message.createdTimestamp || Date.now()).toISOString();
+    giveaway.endsAt = new Date(new Date(giveaway.startedAt).getTime() + auto.durationMs).toISOString();
+  }
+
+  // Upsert by deterministic giveaway ID; this also recovers a posted message
+  // when the earlier database request failed after Discord accepted the send.
   await saveGiveaway(client, auto.guildId, giveaway);
   return true;
 }
 
 export async function processGiveawaySchedules(client) {
-  const now = Date.now();
+  // node-cron fires every second; do not queue multiple ticks behind a slow
+  // Discord/DB request, because queued stale ticks can create duplicate work.
+  if (schedulerRunning) return;
+  schedulerRunning = true;
 
-  for (const guild of client.guilds.cache.values()) {
-    try {
-      const giveaways = await getGuildGiveaways(client, guild.id);
-      for (const giveaway of giveaways) {
-        if (!giveaway.ended && new Date(giveaway.endsAt).getTime() <= now) {
-          await endGiveaway(client, guild.id, giveaway);
+  try {
+    await Mutex.runExclusive('giveaway-scheduler-global', async () => {
+      const now = Date.now();
+
+      for (const guild of client.guilds.cache.values()) {
+        try {
+          const giveaways = await getGuildGiveaways(client, guild.id);
+          for (const giveaway of giveaways) {
+            if (!giveaway.ended && new Date(giveaway.endsAt).getTime() <= Date.now()) {
+              await endGiveaway(client, guild.id, giveaway);
+            }
+          }
+
+          const autos = await getAutoGiveaways(client, guild.id);
+          for (const auto of autos) {
+            const lockKey = `auto-giveaway-schedule:${guild.id}:${auto.id}`;
+
+            await Mutex.runExclusive(lockKey, async () => {
+              const currentAutos = await getAutoGiveaways(client, guild.id);
+              const current = currentAutos.find(a => a.id === auto.id);
+              if (!current || !current.enabled) return;
+
+              const currentNow = Date.now();
+
+              // Finish an already-claimed run first, including after a restart.
+              let scheduledAt = current.pendingRunAt || null;
+
+              if (!scheduledAt) {
+                if (current.scheduleEndsAt && new Date(current.scheduleEndsAt).getTime() <= currentNow) {
+                  current.enabled = false;
+                  await saveAutoGiveaway(client, guild.id, current);
+                  return;
+                }
+
+                const dueAt = new Date(current.nextRunAt).getTime();
+                if (!Number.isFinite(dueAt) || dueAt > currentNow) return;
+
+                scheduledAt = new Date(dueAt).toISOString();
+
+                // Persist a durable claim before sending anything. If this save
+                // fails, nothing is posted. If the process restarts after the
+                // send, pendingRunAt lets the next instance recover by marker.
+                current.pendingRunAt = scheduledAt;
+                await saveAutoGiveaway(client, guild.id, current);
+              }
+
+              const started = await startAutoGiveaway(client, current, scheduledAt);
+              if (!started) return; // Leave pendingRunAt set; retry safely later.
+
+              const previousRunAt = new Date(scheduledAt).getTime();
+              let nextRunAt = previousRunAt + current.repeatMs;
+              while (nextRunAt <= currentNow) {
+                nextRunAt += current.repeatMs;
+              }
+
+              current.nextRunAt = new Date(nextRunAt).toISOString();
+              delete current.pendingRunAt;
+              await saveAutoGiveaway(client, guild.id, current);
+            });
+          }
+        } catch (error) {
+          logger.error('Giveaway scheduler error for guild ' + guild.id + ':', error);
         }
       }
-
-      const autos = await getAutoGiveaways(client, guild.id);
-      for (const auto of autos) {
-        const lockKey = `auto-giveaway-schedule:${guild.id}:${auto.id}`;
-
-        await Mutex.runExclusive(lockKey, async () => {
-          // Reload inside the lock. A scheduler tick that was already running
-          // may have loaded stale data before another tick advanced nextRunAt.
-          const currentAutos = await getAutoGiveaways(client, guild.id);
-          const current = currentAutos.find(a => a.id === auto.id);
-          if (!current || !current.enabled) return;
-
-          const currentNow = Date.now();
-
-          if (current.scheduleEndsAt && new Date(current.scheduleEndsAt).getTime() <= currentNow) {
-            current.enabled = false;
-            await saveAutoGiveaway(client, guild.id, current);
-            return;
-          }
-
-          // Re-check after acquiring the lock so only one scheduler invocation
-          // can claim a due run.
-          if (new Date(current.nextRunAt).getTime() > currentNow) return;
-
-          const started = await startAutoGiveaway(client, current);
-          if (!started) return;
-
-          // Advance from the claimed run time, not from a stale copy.
-          // If the scheduler was delayed, skip missed intervals rather than
-          // creating multiple catch-up giveaways.
-          const previousRunAt = new Date(current.nextRunAt).getTime();
-          let nextRunAt = previousRunAt + current.repeatMs;
-          while (nextRunAt <= currentNow) {
-            nextRunAt += current.repeatMs;
-          }
-
-          current.nextRunAt = new Date(nextRunAt).toISOString();
-          await saveAutoGiveaway(client, guild.id, current);
-        });
-      }
-    } catch (error) {
-      logger.error('Giveaway scheduler error for guild ' + guild.id + ':', error);
-    }
+    });
+  } finally {
+    schedulerRunning = false;
   }
 }
