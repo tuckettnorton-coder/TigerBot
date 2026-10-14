@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
-import { upsertUpdateMessageParts } from '../../utils/updateMessage.js';
+import { upsertUpdateMessageParts, getUpdateMessagePartMarker } from '../../utils/updateMessage.js';
 import { buildMiddlemanServiceMessage, loadMiddlemanFees } from '../../utils/middlemanPricing.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -83,8 +83,8 @@ export async function postMiddlemanMessage(client, message) {
     contents: chunks,
     matchesPart: (candidate) => {
       const text = candidate.content || '';
-      for (let index = 1; index <= chunks.length; index += 1) {
-        if (text.includes(`tigerbot_update_part_${index}`)) return index - 1;
+      for (let index = 0; index < chunks.length; index += 1) {
+        if (text.endsWith(getUpdateMessagePartMarker(index))) return index;
       }
       // Recognize legacy first-part posts made before invisible markers existed.
       if (text.includes('# 🤝 OFFICIAL MIDDLEMAN SERVICE')) return 0;
