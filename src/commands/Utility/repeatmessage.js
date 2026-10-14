@@ -120,13 +120,14 @@ export async function execute(interaction, guildConfig, client) {
       addLegacyChannel(channels, existing);
 
       const current = channels[channel.id];
-      const stickyMessage = await removeManagedStickyMessages(
+      const reusedSticky = await removeManagedStickyMessages(
         channel,
         client,
         current?.messageId || null,
         current?.message || null,
         message,
-      ) || await channel.send({
+      );
+      const stickyMessage = reusedSticky || await channel.send({
         content: message + STICKY_MARKER,
         allowedMentions: { parse: [] },
       });
@@ -150,10 +151,12 @@ export async function execute(interaction, guildConfig, client) {
     });
 
     await interaction.editReply(
-      '✅ **Sticky message enabled.**\n\n' +
+      (reusedSticky
+        ? '⚠️ **Sticky message updated in place.** Discord did not allow me to delete the old post, so I updated it instead of creating a duplicate. Give TigerBot **Manage Messages** permission in that channel to restore automatic delete-and-repost positioning.\n\n'
+        : '✅ **Sticky message enabled.**\n\n') +
       '**Channel:** ' + channel + '\n' +
       '**Message:** ' + message + '\n\n' +
-      'This channel is now part of your sticky system. Run `/sticky` again for other channels; each channel keeps its own sticky at the bottom.',
+      'Run `/sticky` again for other channels; each channel keeps its own sticky at the bottom.',
     );
   } catch (error) {
     await interaction.editReply({
