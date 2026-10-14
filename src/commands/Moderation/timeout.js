@@ -35,7 +35,7 @@ export default {
         )
         .addStringOption((option) =>
             option.setName("reason").setDescription("Reason for the timeout"),
-        )
+        ),
     category: "moderation",
 
     async execute(interaction, config, client) {
