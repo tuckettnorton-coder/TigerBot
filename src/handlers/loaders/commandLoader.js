@@ -140,6 +140,36 @@ export async function loadCommands(client) {
     return client.commands;
 }
 
+function normalizeRequiredOptionOrder(options, commandName, context = commandName) {
+    if (!Array.isArray(options)) return false;
+
+    let changed = false;
+    const required = options.filter(option => option.required === true);
+    const optional = options.filter(option => option.required !== true);
+    const sorted = [...required, ...optional];
+
+    if (sorted.some((option, index) => option !== options[index])) {
+        options.splice(0, options.length, ...sorted);
+        changed = true;
+        logger.warn(
+            `Reordered required options before optional options for /${commandName} (${context}) to satisfy Discord command registration.`
+        );
+    }
+
+    for (const option of options) {
+        if (Array.isArray(option.options)) {
+            const childChanged = normalizeRequiredOptionOrder(
+                option.options,
+                commandName,
+                `${context} > ${option.name || 'options'}`
+            );
+            changed = changed || childChanged;
+        }
+    }
+
+    return changed;
+}
+
 function collectCommandPayloads(client) {
     const commands = [];
     let totalSubcommands = 0;
@@ -156,6 +186,9 @@ function collectCommandPayloads(client) {
 
         registeredNames.add(commandName);
         const commandJson = command.data.toJSON();
+        // Discord rejects subcommand payloads that place optional options before
+        // required ones. Normalize each option group before registering commands.
+        normalizeRequiredOptionOrder(commandJson.options, commandName);
         commands.push(commandJson);
         totalSubcommands += getSubcommandInfo(commandJson).length;
     }
