@@ -1,7 +1,7 @@
 import { withUpdatePostLock } from './updatePostLock.js';
 import { logger } from './logger.js';
 
-const RECONCILE_DELAY_MS = 500;
+const RECONCILE_DELAY_MS = 1300;
 
 // Marker consists only of zero-width characters, so it is not visible in Discord.
 export function getUpdateMessagePartMarker(index) {
