@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUpdateState, setUpdateState, getLatestUpdateData } from '../../utils/updateState.js';
+import { withUpdatePostLock } from '../../utils/updatePostLock.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -102,17 +103,19 @@ async function deletePreviousPartnerMessage(channel, client) {
 }
 
 export async function postPartnerRules(client, data) {
-  const channel = await client.channels.fetch(PARTNER_RULES_CHANNEL_ID).catch(() => null);
-  if (!channel || typeof channel.send !== 'function') throw new Error(`Partner rules channel ${PARTNER_RULES_CHANNEL_ID} is not a sendable channel.`);
-  await deletePreviousPartnerMessage(channel, client);
-  try {
-    const newMessage = await channel.send({ content: formatPartnerRulesMessage(data) });
-    saveMessageId(newMessage.id);
-    await setUpdateState(client, channel.guild.id, { partnerRulesMessageId: newMessage.id, partnerRulesChannelId: channel.id, partnerRules: data, partnerRulesMessage: formatPartnerRulesMessage(data) });
-  } catch (error) {
-    const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
-    throw new Error(`Could not post the partner rules: ${apiMessage}`);
-  }
+  return withUpdatePostLock(PARTNER_RULES_CHANNEL_ID, async () => {
+    const channel = await client.channels.fetch(PARTNER_RULES_CHANNEL_ID).catch(() => null);
+      if (!channel || typeof channel.send !== 'function') throw new Error(`Partner rules channel ${PARTNER_RULES_CHANNEL_ID} is not a sendable channel.`);
+      await deletePreviousPartnerMessage(channel, client);
+      try {
+        const newMessage = await channel.send({ content: formatPartnerRulesMessage(data) });
+        saveMessageId(newMessage.id);
+        await setUpdateState(client, channel.guild.id, { partnerRulesMessageId: newMessage.id, partnerRulesChannelId: channel.id, partnerRules: data, partnerRulesMessage: formatPartnerRulesMessage(data) });
+      } catch (error) {
+        const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
+        throw new Error(`Could not post the partner rules: ${apiMessage}`);
+      }
+  });
 }
 
 export const data = new SlashCommandBuilder()
