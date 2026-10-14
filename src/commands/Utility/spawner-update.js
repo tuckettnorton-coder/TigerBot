@@ -13,6 +13,10 @@ const SPAWNER_UPDATE_ROLE_ID = '1509955955063001218';
 const DATA_FILE = path.join(__dirname, 'spawnerPrices.json');
 const MESSAGE_FILE = path.join(__dirname, 'spawnerPriceMessage.json');
 
+// Serialize posts to this channel so concurrent modal/button handlers cannot
+// both read the same old message ID and leave duplicate price posts behind.
+const postLocks = new Map();
+
 const EMOJI_SKELETON = '<:download:1517708652981780682>';
 const EMOJI_CREEPER = '<:MinecraftCreeperHead:1517707887068315839>';
 const EMOJI_IRONGOLEM = '<:maxresdefault:1517708562489409566>';
@@ -91,27 +95,84 @@ export default { data, execute };
 
 export function persistPrices(prices) { savePrices(prices); }
 
+async function postPricesUnlocked(client, channel, prices) {
+  const state = await getUpdateState(client, channel.guild.id);
+  const messageIds = new Set([
+    state.spawnerPriceMessageId,
+    loadMessageId(),
+  ].filter(Boolean));
+
+  // First remove the last message IDs recorded by the database and file backup.
+  for (const messageId of messageIds) {
+    try {
+      const previousMessage = await channel.messages.fetch(messageId);
+      if (previousMessage && previousMessage.author?.id === client.user?.id) {
+        await previousMessage.delete();
+      }
+    } catch {
+      // Continue to the channel-history cleanup below.
+    }
+  }
+
+  // Clean up duplicate spawner-price posts left by earlier overlapping updates.
+  // Only remove messages authored by this bot with all three spawner headings.
+  try {
+    const recentMessages = await channel.messages.fetch({ limit: 50 });
+    const duplicateMessages = recentMessages.filter((message) => {
+      if (message.author?.id !== client.user?.id || !message.content) return false;
+      return message.content.includes('**Skeleton Spawners**')
+        && message.content.includes('**Creeper Spawners**')
+        && message.content.includes('**Iron Golem Spawners**')
+        && message.content.includes('MINIMUM 3+');
+    });
+
+    for (const message of duplicateMessages.values()) {
+      try {
+        await message.delete();
+      } catch {
+        // A missing Manage Messages permission should surface if send also fails;
+        // do not allow one stale message to block posting the current prices.
+      }
+    }
+  } catch {
+    // History cleanup is a best-effort fallback; known message IDs were handled above.
+  }
+
+  const messageContent = formatPriceMessage(prices);
+  try {
+    const newMessage = await channel.send({ content: messageContent });
+    saveMessageId(newMessage.id);
+    await setUpdateState(client, channel.guild.id, {
+      spawnerPriceMessageId: newMessage.id,
+      spawnerPriceChannelId: channel.id,
+      spawnerPrices: prices,
+      spawnerPriceMessage: messageContent,
+    });
+  } catch (error) {
+    const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
+    throw new Error(`Could not post the 12 spawner prices: ${apiMessage}`);
+  }
+}
+
 export async function postPrices(client, prices) {
   const channel = await client.channels.fetch(SPAWNER_PRICE_CHANNEL_ID).catch(() => null);
   if (!channel || typeof channel.send !== 'function') {
     throw new Error(`Spawner price channel ${SPAWNER_PRICE_CHANNEL_ID} is not a sendable channel.`);
   }
 
-  const state = await getUpdateState(client, channel.guild.id);
-  const previousMessageId = state.spawnerPriceMessageId || loadMessageId();
-  if (previousMessageId) {
-    try {
-      const previousMessage = await channel.messages.fetch(previousMessageId);
-      if (previousMessage) await previousMessage.delete();
-    } catch {}
-  }
+  // Chain each update after the previous one for this channel. Even if a duplicate
+  // interaction reaches the bot, the second pass sees and replaces the first post.
+  const previousPost = postLocks.get(channel.id) || Promise.resolve();
+  const currentPost = previousPost
+    .catch(() => {})
+    .then(() => postPricesUnlocked(client, channel, prices));
 
+  postLocks.set(channel.id, currentPost);
   try {
-    const newMessage = await channel.send({ content: formatPriceMessage(prices) });
-    saveMessageId(newMessage.id);
-    await setUpdateState(client, channel.guild.id, { spawnerPriceMessageId: newMessage.id, spawnerPriceChannelId: channel.id, spawnerPrices: prices, spawnerPriceMessage: formatPriceMessage(prices) });
-  } catch (error) {
-    const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
-    throw new Error(`Could not post the 12 spawner prices: ${apiMessage}`);
+    await currentPost;
+  } finally {
+    if (postLocks.get(channel.id) === currentPost) {
+      postLocks.delete(channel.id);
+    }
   }
 }
