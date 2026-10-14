@@ -110,6 +110,7 @@ export async function execute(interaction, guildConfig, client) {
   await interaction.deferReply({ ephemeral: true });
 
   try {
+    let reusedSticky = false;
     await withUpdatePostLock(channel.id, async () => {
       const existing = await client.db.get(KEY(interaction.guildId), null);
       const channels = existing?.channels && typeof existing.channels === 'object'
@@ -120,14 +121,15 @@ export async function execute(interaction, guildConfig, client) {
       addLegacyChannel(channels, existing);
 
       const current = channels[channel.id];
-      const reusedSticky = await removeManagedStickyMessages(
+      const existingSticky = await removeManagedStickyMessages(
         channel,
         client,
         current?.messageId || null,
         current?.message || null,
         message,
       );
-      const stickyMessage = reusedSticky || await channel.send({
+      reusedSticky = Boolean(existingSticky);
+      const stickyMessage = existingSticky || await channel.send({
         content: message + STICKY_MARKER,
         allowedMentions: { parse: [] },
       });
