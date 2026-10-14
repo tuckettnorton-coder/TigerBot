@@ -24,13 +24,21 @@ async function removeManagedStickyMessages(channel, client, savedMessageId = nul
     }
   }
 
-  // If history cannot be checked, do not post another copy blindly.
-  const recent = await channel.messages.fetch({ limit: 100 });
+  // History cleanup is a migration safeguard, not a reason to block an otherwise
+  // valid sticky replacement. The saved message ID above is still removed first.
+  const recent = await channel.messages.fetch({ limit: 100 }).catch((error) => {
+    logger.warn('Could not scan sticky history; continuing with the saved sticky ID:', error?.message || error);
+    return null;
+  });
+
+  if (!recent) return;
 
   for (const candidate of recent.values()) {
     if (candidate.author?.id !== client.user?.id) continue;
     if (!String(candidate.content || '').endsWith(STICKY_MARKER)) continue;
-    await candidate.delete();
+    await candidate.delete().catch((error) => {
+      logger.warn('Could not remove an extra sticky copy:', error?.message || error);
+    });
   }
 }
 
