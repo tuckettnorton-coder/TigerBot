@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
-import { withUpdatePostLock } from '../../utils/updatePostLock.js';
+import { upsertUpdateMessage } from '../../utils/updateMessage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,38 +21,6 @@ const UPDATE_BUTTONS = [
 function saveMessageId(messageId, channelId) {
   try {
     fs.writeFileSync(MESSAGE_FILE, JSON.stringify({ messageId, channelId }, null, 2) + '\n', 'utf8');
-  } catch {}
-}
-
-async function deletePreviousPanel(channel, client) {
-  const state = await getUpdateState(client, channel.guild.id);
-  let saved = state.updatePanel;
-
-  if (!saved?.messageId || saved.channelId !== channel.id) {
-    try {
-      saved = JSON.parse(fs.readFileSync(MESSAGE_FILE, 'utf8'));
-    } catch {}
-  }
-
-  if (saved?.messageId && saved.channelId === channel.id) {
-    try {
-      const message = await channel.messages.fetch(saved.messageId);
-      await message.delete();
-      return;
-    } catch {}
-  }
-
-  try {
-    const messages = await channel.messages.fetch({ limit: 50 });
-    const oldPanel = messages.find((message) =>
-      message.author?.id === client.user?.id &&
-      message.components?.some((row) =>
-        row.components?.some((component) =>
-          typeof component.customId === 'string' && component.customId.startsWith('update_panel:'),
-        ),
-      ),
-    );
-    if (oldPanel) await oldPanel.delete();
   } catch {}
 }
 
@@ -90,20 +58,33 @@ export async function execute(interaction, guildConfig, client) {
 
   await interaction.deferReply({ ephemeral: true });
   try {
-    await withUpdatePostLock(interaction.channel.id, async () => {
-      await deletePreviousPanel(interaction.channel, client);
-      const message = await interaction.channel.send(buildUpdatePanel(client));
+    const state = await getUpdateState(client, interaction.guildId);
+    let fileState = {};
+    try { fileState = JSON.parse(fs.readFileSync(MESSAGE_FILE, 'utf8')); } catch {}
+    const panel = buildUpdatePanel(client);
 
-      // Database is authoritative. The local JSON file is only a compatibility
-      // fallback and must never override a newer database value.
-      saveMessageId(message.id, interaction.channel.id);
-      const saved = await setUpdateState(client, interaction.guildId, {
-        updatePanel: { messageId: message.id, channelId: interaction.channel.id },
-      });
-
-      if (!saved) {
-        throw new Error('The update panel was posted, but its persistent database state could not be saved.');
-      }
+    await upsertUpdateMessage({
+      client,
+      channel: interaction.channel,
+      content: panel.content,
+      components: panel.components,
+      matches: (message) => (message.content || '').startsWith('# 🛠️ TigerBot Update Panel')
+        || message.components?.some((row) => row.components?.some((component) =>
+          typeof component.customId === 'string' && component.customId.startsWith('update_panel:'))),
+      previousMessageIds: [
+        state.updatePanel?.channelId === interaction.channel.id ? state.updatePanel.messageId : null,
+        fileState.channelId === interaction.channel.id ? fileState.messageId : null,
+      ],
+      label: 'update control panel',
+      onSaved: async (message) => {
+        saveMessageId(message.id, interaction.channel.id);
+        const saved = await setUpdateState(client, interaction.guildId, {
+          updatePanel: { messageId: message.id, channelId: interaction.channel.id },
+        });
+        if (!saved) {
+          throw new Error('The update panel was posted, but its persistent database state could not be saved.');
+        }
+      },
     });
 
     await interaction.editReply('✅ **Update panel posted.** The previous update panel in this channel was replaced and the new message ID was saved persistently.');
