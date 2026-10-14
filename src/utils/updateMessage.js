@@ -64,12 +64,10 @@ export async function upsertUpdateMessage({
     }
 
     const scanHistory = async () => {
-      try {
-        const recent = await channel.messages.fetch({ limit: 100 });
-        for (const message of recent.values()) addIfManaged(message);
-      } catch (error) {
-        logger.warn(`Could not scan recent messages for duplicate ${label} posts in channel ${channel.id}:`, error?.message || error);
-      }
+      // Fail closed on the initial scan. Sending blindly when history cannot be
+      // read is exactly how a missing saved message ID can create duplicate posts.
+      const recent = await channel.messages.fetch({ limit: 100 });
+      for (const message of recent.values()) addIfManaged(message);
     };
 
     await scanHistory();
@@ -85,7 +83,13 @@ export async function upsertUpdateMessage({
     // A second deployment may have posted at nearly the same time. Let that
     // request finish, then pick the newest message and remove the extra copies.
     await wait(RECONCILE_DELAY_MS);
-    await scanHistory();
+    try {
+      await scanHistory();
+    } catch (error) {
+      // The canonical message already exists; don't create anything else if a
+      // later scan fails. Keep the initial scan result and report the condition.
+      logger.warn(`Could not complete the second duplicate scan for ${label} in channel ${channel.id}:`, error?.message || error);
+    }
 
     addIfManaged(canonical, true);
     ordered = [...candidates.values()].sort(newestFirst);
@@ -98,16 +102,23 @@ export async function upsertUpdateMessage({
       logger.warn(`Could not refresh canonical ${label} message ${canonical.id}:`, error?.message || error);
     }
 
+    const undeletedDuplicates = [];
     for (const duplicate of ordered) {
       if (duplicate.id === canonical.id) continue;
       try {
         await duplicate.delete();
       } catch (error) {
+        undeletedDuplicates.push(duplicate.id);
         logger.warn(`Could not delete duplicate ${label} message ${duplicate.id}:`, error?.message || error);
       }
     }
 
     await onSaved(canonical);
+    if (undeletedDuplicates.length) {
+      throw new Error(
+        `Updated ${label}, but could not remove duplicate message(s): ${undeletedDuplicates.join(', ')}. Check the bot's Manage Messages permission.`
+      );
+    }
     return canonical;
   });
 }
@@ -160,15 +171,13 @@ export async function upsertUpdateMessageParts({
     }
 
     const scanHistory = async () => {
-      try {
-        const recent = await channel.messages.fetch({ limit: 100 });
-        for (const message of recent.values()) addCandidate(message);
-      } catch (error) {
-        logger.warn(`Could not scan recent messages for duplicate ${label} parts in channel ${channel.id}:`, error?.message || error);
-      }
+      const recent = await channel.messages.fetch({ limit: 100 });
+      for (const message of recent.values()) addCandidate(message);
     };
 
     const sorted = (index) => [...candidates[index].values()].sort(newestFirst);
+    // Do not create replacement parts unless the existing channel history can
+    // be inspected successfully.
     await scanHistory();
 
     const active = [];
@@ -180,12 +189,18 @@ export async function upsertUpdateMessageParts({
     }
 
     await wait(RECONCILE_DELAY_MS);
-    await scanHistory();
+    try {
+      await scanHistory();
+    } catch (error) {
+      // The active parts already exist; do not send any additional copies.
+      logger.warn(`Could not complete the second duplicate scan for ${label} parts in channel ${channel.id}:`, error?.message || error);
+    }
     for (let index = 0; index < active.length; index += 1) {
       addCandidate(active[index], index);
     }
 
     const canonical = [];
+    const undeletedDuplicates = [];
     for (let index = 0; index < taggedContents.length; index += 1) {
       const existing = sorted(index);
       const keep = existing[0] || active[index];
@@ -200,12 +215,18 @@ export async function upsertUpdateMessageParts({
         try {
           await duplicate.delete();
         } catch (error) {
+          undeletedDuplicates.push(duplicate.id);
           logger.warn(`Could not delete duplicate ${label} part ${duplicate.id}:`, error?.message || error);
         }
       }
     }
 
     await onSaved(canonical);
+    if (undeletedDuplicates.length) {
+      throw new Error(
+        `Updated ${label}, but could not remove duplicate message(s): ${undeletedDuplicates.join(', ')}. Check the bot's Manage Messages permission.`
+      );
+    }
     return canonical;
   });
 }
