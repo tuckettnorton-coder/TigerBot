@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUpdateState, setUpdateState } from '../../utils/updateState.js';
-import { withUpdatePostLock } from '../../utils/updatePostLock.js';
+import { upsertUpdateMessageParts } from '../../utils/updateMessage.js';
 import { buildMiddlemanServiceMessage, loadMiddlemanFees } from '../../utils/middlemanPricing.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -65,34 +65,45 @@ function splitDiscordMessage(content, maxLength = 2000) {
 }
 
 export async function postMiddlemanMessage(client, message) {
-  return withUpdatePostLock(MIDDLEMAN_UPDATE_CHANNEL_ID, async () => {
-    const channel = await client.channels.fetch(MIDDLEMAN_UPDATE_CHANNEL_ID).catch(() => null);
-      if (!channel || typeof channel.send !== 'function') {
-        throw new Error(`Middleman update channel ${MIDDLEMAN_UPDATE_CHANNEL_ID} is not a sendable channel.`);
+  const channel = await client.channels.fetch(MIDDLEMAN_UPDATE_CHANNEL_ID).catch(() => null);
+  if (!channel || typeof channel.send !== 'function') {
+    throw new Error(`Middleman update channel ${MIDDLEMAN_UPDATE_CHANNEL_ID} is not a sendable channel.`);
+  }
+
+  const state = await getUpdateState(client, channel.guild.id);
+  const previousMessageIds = [
+    ...(Array.isArray(state.middlemanPriceMessageIds) ? state.middlemanPriceMessageIds : []),
+    ...loadMessageIds(),
+  ].filter(Boolean);
+  const chunks = splitDiscordMessage(message, 1900);
+
+  await upsertUpdateMessageParts({
+    client,
+    channel,
+    contents: chunks,
+    matchesPart: (candidate) => {
+      const text = candidate.content || '';
+      for (let index = 1; index <= chunks.length; index += 1) {
+        if (text.includes(`tigerbot_update_part_${index}`)) return index - 1;
       }
-    
-      const state = await getUpdateState(client, channel.guild.id);
-      const previousMessageIds = Array.isArray(state.middlemanPriceMessageIds) && state.middlemanPriceMessageIds.length ? state.middlemanPriceMessageIds : loadMessageIds();
-      for (const messageId of previousMessageIds) {
-        try {
-          const previousMessage = await channel.messages.fetch(messageId);
-          if (previousMessage) await previousMessage.delete();
-        } catch {
-          // Previous message may already be deleted. Continue with the replacement.
-        }
-      }
-    
-      const chunks = splitDiscordMessage(message, 2000);
-      const newMessageIds = [];
-      for (const chunk of chunks) {
-        const newMessage = await channel.send({ content: chunk });
-        newMessageIds.push(newMessage.id);
-      }
-    
-      saveMessageIds(newMessageIds);
-      await setUpdateState(client, channel.guild.id, { middlemanPriceMessageIds: newMessageIds, middlemanPriceChannelId: channel.id, middlemanFees: loadMiddlemanFees(), middlemanPriceMessage: message });
-      return newMessageIds;
+      // Recognize legacy first-part posts made before invisible markers existed.
+      if (text.includes('# 🤝 OFFICIAL MIDDLEMAN SERVICE')) return 0;
+      return -1;
+    },
+    previousMessageIds,
+    label: 'middleman fees',
+    onSaved: async (messages) => {
+      const messageIds = messages.map((savedMessage) => savedMessage.id);
+      saveMessageIds(messageIds);
+      await setUpdateState(client, channel.guild.id, {
+        middlemanPriceMessageIds: messageIds,
+        middlemanPriceChannelId: channel.id,
+        middlemanFees: loadMiddlemanFees(),
+        middlemanPriceMessage: message,
+      });
+    },
   });
+  return true;
 }
 
 export const data = new SlashCommandBuilder()
