@@ -71,10 +71,10 @@ export async function postMiddlemanMessage(client, message) {
   }
 
   const state = await getUpdateState(client, channel.guild.id);
-  const previousMessageIds = [
+  const previousMessageIds = [...new Set([
     ...(Array.isArray(state.middlemanPriceMessageIds) ? state.middlemanPriceMessageIds : []),
     ...loadMessageIds(),
-  ].filter(Boolean);
+  ].filter(Boolean))];
   const chunks = splitDiscordMessage(message, 1900);
 
   await upsertUpdateMessageParts({
