@@ -40,6 +40,13 @@ export default async (client) => {
           const relativePath = filePath.slice(interactionsPath.length + 1).replace(/\\/g, '/');
           const fileName = relativePath.split('/').pop();
 
+          // This module only exports modal builders used by the real handlers;
+          // it is not itself a submit handler and should not be registered.
+          if (relativePath === 'modals/paid_ad_update_modal.js') {
+            logger.debug('Skipping modal-builder helper during interaction loading.');
+            continue;
+          }
+
           try {
             const module = await import(pathToFileURL(filePath).href);
             const moduleExport = module.default;
