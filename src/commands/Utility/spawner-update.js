@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUpdateState, setUpdateState, getLatestUpdateData } from '../../utils/updateState.js';
+import { withUpdatePostLock } from '../../utils/updatePostLock.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,9 +14,6 @@ const SPAWNER_UPDATE_ROLE_ID = '1509955955063001218';
 const DATA_FILE = path.join(__dirname, 'spawnerPrices.json');
 const MESSAGE_FILE = path.join(__dirname, 'spawnerPriceMessage.json');
 
-// Serialize posts to this channel so concurrent modal/button handlers cannot
-// both read the same old message ID and leave duplicate price posts behind.
-const postLocks = new Map();
 
 const EMOJI_SKELETON = '<:download:1517708652981780682>';
 const EMOJI_CREEPER = '<:MinecraftCreeperHead:1517707887068315839>';
@@ -155,24 +153,11 @@ async function postPricesUnlocked(client, channel, prices) {
 }
 
 export async function postPrices(client, prices) {
-  const channel = await client.channels.fetch(SPAWNER_PRICE_CHANNEL_ID).catch(() => null);
-  if (!channel || typeof channel.send !== 'function') {
-    throw new Error(`Spawner price channel ${SPAWNER_PRICE_CHANNEL_ID} is not a sendable channel.`);
-  }
-
-  // Chain each update after the previous one for this channel. Even if a duplicate
-  // interaction reaches the bot, the second pass sees and replaces the first post.
-  const previousPost = postLocks.get(channel.id) || Promise.resolve();
-  const currentPost = previousPost
-    .catch(() => {})
-    .then(() => postPricesUnlocked(client, channel, prices));
-
-  postLocks.set(channel.id, currentPost);
-  try {
-    await currentPost;
-  } finally {
-    if (postLocks.get(channel.id) === currentPost) {
-      postLocks.delete(channel.id);
+  return withUpdatePostLock(SPAWNER_PRICE_CHANNEL_ID, async () => {
+    const channel = await client.channels.fetch(SPAWNER_PRICE_CHANNEL_ID).catch(() => null);
+    if (!channel || typeof channel.send !== 'function') {
+      throw new Error(`Spawner price channel ${SPAWNER_PRICE_CHANNEL_ID} is not a sendable channel.`);
     }
-  }
+    await postPricesUnlocked(client, channel, prices);
+  });
 }
