@@ -16,6 +16,19 @@ const CONFIG = [
 
 const ORDER = ['buy3', 'buy64', 'sell3', 'sell64'];
 
+// Discord interactions should only be processed once, even if the event is
+// accidentally routed through more than one listener in the same process.
+const processedSubmissions = new Map();
+function claimSubmission(interactionId) {
+  const now = Date.now();
+  for (const [id, expiresAt] of processedSubmissions) {
+    if (expiresAt <= now) processedSubmissions.delete(id);
+  }
+  if (processedSubmissions.has(interactionId)) return false;
+  processedSubmissions.set(interactionId, now + 5 * 60 * 1000);
+  return true;
+}
+
 export function buildSpawnerPriceModal(prices = loadPrices()) {
   const modal = new ModalBuilder()
     .setCustomId('spawner_price_page')
@@ -71,7 +84,16 @@ export default {
   name: 'spawner_price_page',
 
   async execute(interaction, client) {
+    if (!claimSubmission(interaction.id)) {
+      logger.warn(`Ignored duplicate spawner price modal delivery for interaction ${interaction.id}.`);
+      return;
+    }
+
     try {
+      // Acknowledge before channel cleanup / message edits so Discord does not
+      // time out the modal while duplicate posts are reconciled.
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
       const prices = loadPrices();
       for (const { key, label } of CONFIG) {
         const input = interaction.fields.getTextInputValue(key);
@@ -81,23 +103,19 @@ export default {
       persistPrices(prices);
       await postPrices(client, prices);
 
-      await interaction.reply({
-        content: '✅ **All 12 spawner prices have been updated and posted.**',
-        flags: MessageFlags.Ephemeral,
+      await interaction.editReply({
+        content: '✅ **All 12 spawner prices have been updated.**',
       });
     } catch (error) {
       const response = {
         content: `⚠️ **Spawner price update failed:** ${error?.message || 'Unknown error.'}`,
-        flags: MessageFlags.Ephemeral,
       };
 
       try {
-        if (interaction.deferred) {
+        if (interaction.deferred || interaction.replied) {
           await interaction.editReply(response);
-        } else if (interaction.replied) {
-          await interaction.followUp(response);
         } else {
-          await interaction.reply(response);
+          await interaction.reply({ ...response, flags: MessageFlags.Ephemeral });
         }
       } catch (responseError) {
         logger.warn('Could not send modal error response:', responseError?.message || responseError);
