@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUpdateState, setUpdateState, getLatestUpdateData } from '../../utils/updateState.js';
-import { withUpdatePostLock } from '../../utils/updatePostLock.js';
+import { upsertUpdateMessage } from '../../utils/updateMessage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,26 +67,29 @@ export default { data, execute };
 export function persistDiggingPrices(data) { saveDiggingPrices(data); }
 
 export async function postDiggingPrices(client, data) {
-  return withUpdatePostLock(DIGGING_PRICE_CHANNEL_ID, async () => {
   const channel = await client.channels.fetch(DIGGING_PRICE_CHANNEL_ID).catch(() => null);
-    if (!channel || typeof channel.send !== 'function') throw new Error(`Digging price channel ${DIGGING_PRICE_CHANNEL_ID} is not a sendable channel.`);
-  
-    const state = await getUpdateState(client, channel.guild.id);
-    const previousMessageId = state.diggingPriceMessageId || loadMessageId();
-    if (previousMessageId) {
-      try {
-        const previousMessage = await channel.messages.fetch(previousMessageId);
-        if (previousMessage) await previousMessage.delete();
-      } catch {}
-    }
-  
-    try {
-      const newMessage = await channel.send({ content: formatDiggingPriceMessage(data) });
-      saveMessageId(newMessage.id);
-      await setUpdateState(client, channel.guild.id, { diggingPriceMessageId: newMessage.id, diggingPriceChannelId: channel.id, diggingPrices: data, diggingPriceMessage: formatDiggingPriceMessage(data) });
-    } catch (error) {
-      const apiMessage = error?.rawError?.message || error?.message || 'Unknown Discord API error.';
-      throw new Error(`Could not post the digging prices: ${apiMessage}`);
-    }
+  if (!channel || typeof channel.send !== 'function') {
+    throw new Error(`Digging price channel ${DIGGING_PRICE_CHANNEL_ID} is not a sendable channel.`);
+  }
+
+  const state = await getUpdateState(client, channel.guild.id);
+  const messageContent = formatDiggingPriceMessage(data);
+  await upsertUpdateMessage({
+    client,
+    channel,
+    content: messageContent,
+    matches: (message) => (message.content || '').startsWith('# Digging Prices')
+      && (message.content || '').includes('# 💰 Refund Policy'),
+    previousMessageIds: [state.diggingPriceMessageId, loadMessageId()],
+    label: 'digging prices',
+    onSaved: async (message) => {
+      saveMessageId(message.id);
+      await setUpdateState(client, channel.guild.id, {
+        diggingPriceMessageId: message.id,
+        diggingPriceChannelId: channel.id,
+        diggingPrices: data,
+        diggingPriceMessage: messageContent,
+      });
+    },
   });
 }
