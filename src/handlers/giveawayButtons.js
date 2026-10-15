@@ -2,10 +2,11 @@ import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { successEmbed } from '../utils/embeds.js';
 import { logger } from '../utils/logger.js';
 import { TitanBotError, ErrorTypes, handleInteractionError, replyUserError } from '../utils/errorHandler.js';
-import { 
-    getGuildGiveaways, 
-    saveGiveaway, 
-    isGiveawayEnded 
+import {
+    getGuildGiveaways,
+    getAutoGiveaways,
+    saveGiveaway,
+    isGiveawayEnded
 } from '../utils/giveaways.js';
 import { Mutex } from '../utils/mutex.js';
 import { 
@@ -16,6 +17,69 @@ import {
     createGiveawayButtons
 } from '../services/giveawayService.js';
 import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
+
+function decodeInvisibleRunKey(content = '') {
+    const match = String(content).match(/\u2063([\u200B\u200C]+)\u2063/);
+    if (!match || match[1].length % 8 !== 0) return null;
+
+    const bits = match[1]
+        .replace(/\u200B/g, '0')
+        .replace(/\u200C/g, '1');
+
+    let value = '';
+    for (let index = 0; index < bits.length; index += 8) {
+        const charCode = Number.parseInt(bits.slice(index, index + 8), 2);
+        if (!Number.isFinite(charCode) || charCode < 32 || charCode > 126) return null;
+        value += String.fromCharCode(charCode);
+    }
+    return value;
+}
+
+// Repair older auto-giveaway messages that were posted but lost from the
+// giveaway table during the old delete-and-rewrite persistence path.
+async function recoverMissingAutoGiveaway(client, guildId, message) {
+    const runKey = decodeInvisibleRunKey(message.content || '');
+    if (!runKey) return null;
+
+    const separator = runKey.indexOf(':');
+    if (separator <= 0) return null;
+
+    const autoId = runKey.slice(0, separator);
+    const scheduledAt = runKey.slice(separator + 1);
+    const scheduledMs = Date.parse(scheduledAt);
+    if (!Number.isFinite(scheduledMs)) return null;
+
+    const schedules = await getAutoGiveaways(client, guildId);
+    const auto = schedules.find(config => config.id === autoId && config.enabled !== false);
+    if (!auto) return null;
+
+    const startedAtMs = Number(message.createdTimestamp) || Date.now();
+    const durationMs = Number(auto.durationMs);
+    const endsAtMs = startedAtMs + durationMs;
+    if (!Number.isFinite(durationMs) || durationMs <= 0 || endsAtMs <= Date.now()) return null;
+
+    const recovered = {
+        id: `gw-${auto.id}-${scheduledMs}`,
+        guildId,
+        channelId: message.channelId,
+        messageId: message.id,
+        prize: auto.prize,
+        description: auto.description,
+        winnerCount: auto.winnerCount,
+        participants: [],
+        winnerIds: [],
+        startedAt: new Date(startedAtMs).toISOString(),
+        endsAt: new Date(endsAtMs).toISOString(),
+        ended: false,
+        autoGiveawayId: auto.id,
+        scheduledRunAt: new Date(scheduledMs).toISOString(),
+        recoveredFromMessageMarker: true,
+    };
+
+    await saveGiveaway(client, guildId, recovered);
+    logger.warn(`Recovered missing automatic giveaway record for message ${message.id} from its scheduled-run marker.`);
+    return recovered;
+}
 
 export const giveawayJoinHandler = {
     customId: 'giveaway_join',
@@ -34,7 +98,14 @@ export const giveawayJoinHandler = {
             const lockKey = `giveaway:${interaction.message.id}`;
             await Mutex.runExclusive(lockKey, async () => {
                 const guildGiveaways = await getGuildGiveaways(client, interaction.guildId);
-                const giveaway = guildGiveaways.find(g => g.messageId === interaction.message.id);
+                let giveaway = guildGiveaways.find(g => String(g.messageId) === String(interaction.message.id));
+
+                // Messages created before atomic row-level persistence may have
+                // lost their database row. Recover only recognizable, still-live
+                // auto giveaways whose schedule remains enabled.
+                if (!giveaway) {
+                    giveaway = await recoverMissingAutoGiveaway(client, interaction.guildId, interaction.message);
+                }
 
                 if (!giveaway) {
                     throw new TitanBotError(
