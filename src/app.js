@@ -63,35 +63,31 @@ class TitanBot extends Client {
       // Check database status and report
       const dbStatus = this.db.getStatus();
 
-      // Prevent two hosting providers/replicas using the same PostgreSQL database
-      // from both logging in and sending every message twice.
-      if (!dbStatus.isDegraded) {
-        const acquired = await acquireBotInstanceLock();
-        if (!acquired) {
-          throw new Error(
-            'Another TigerBot instance already holds the shared PostgreSQL lock. Stop the other host/replica before starting this one; running two copies can duplicate messages and scheduled giveaways.'
-          );
-        }
-        startupLog('✅ Single-instance PostgreSQL lock acquired');
-      } else {
-        logger.warn(
-          '⚠️ PostgreSQL is degraded, so the cross-host single-instance lock is unavailable. Keep exactly one hosting process running to avoid duplicate messages.'
+      // PostgreSQL gets a cross-process advisory lock. When using the
+      // current local-file fallback, use a heartbeat lock file instead so two
+      // processes on the same host cannot each run an independent scheduler.
+      const acquired = await acquireBotInstanceLock();
+      if (!acquired) {
+        throw new Error(
+          'Another TigerBot instance already holds the single-instance lock. Stop the other process before starting this one; two copies can duplicate giveaway posts.'
         );
       }
+      startupLog(dbStatus.isDegraded
+        ? '✅ Local single-instance lock acquired (file-backed storage)'
+        : '✅ Single-instance PostgreSQL lock acquired');
+
       if (dbStatus.isDegraded) {
         const intentionallyInMemory = dbStatus.degradedReason === 'IN_MEMORY_MODE_ENABLED';
         logger.warn('');
-        logger.warn('╔═══════════════════════════════════════════════════════╗');
-        logger.warn('║ ⚠️  DATABASE RUNNING IN DEGRADED MODE                 ║');
-        logger.warn('║                                                       ║');
+        logger.warn('╔══════════════════════════════════════════════════════════════╗');
+        logger.warn('║ ⚠️  POSTGRESQL UNAVAILABLE — USING LOCAL FILE STORAGE        ║');
+        logger.warn('║ Giveaway schedules and entries can work without PostgreSQL. ║');
+        logger.warn('║ Local data survives process restarts while this file remains.║');
+        logger.warn('║ It is NOT shared between separate hosts/containers.           ║');
         logger.warn(intentionallyInMemory
-          ? '║ Connection: In-Memory Storage (intentionally enabled) ║'
-          : '║ Connection: In-Memory Storage (PostgreSQL unavailable)║');
-        logger.warn('║ Data Persistence: DISABLED - data lost on restart    ║');
-        logger.warn(intentionallyInMemory
-          ? '║ Action Required: None for temporary in-memory mode   ║'
-          : '║ Action Required: Fix PostgreSQL and restart bot      ║');
-        logger.warn('╚═══════════════════════════════════════════════════════╝');
+          ? '║ PostgreSQL was intentionally skipped by environment setting. ║'
+          : '║ Check PostgreSQL later if you want shared cross-host storage. ║');
+        logger.warn('╚══════════════════════════════════════════════════════════════╝');
         logger.warn('');
       } else {
         startupLog(`✅ Database Status: ${dbStatus.connectionType} (fully operational)`);
@@ -119,8 +115,8 @@ class TitanBot extends Client {
       startupLog('Slash commands registration complete');
       
       const databaseMode = dbStatus.isDegraded
-        ? 'Optional in-memory mode (data resets after restart)'
-        : 'Connected (persistent data enabled)';
+        ? 'Local file-backed fallback (host filesystem)'
+        : 'Connected (persistent database)';
       const handlerSummary = `${this.buttons.size} buttons, ${this.selectMenus.size} menus, ${this.modals.size} modals`;
       startupLog(
         `ONLINE ✅ | ${this.commands.size} commands loaded | ${handlerSummary} | Database: ${databaseMode}`
