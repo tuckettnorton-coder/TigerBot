@@ -5,25 +5,29 @@ import { Mutex } from '../utils/mutex.js';
 
 let schedulerRunning = false;
 
-async function disableRecentlyCreatedDuplicateSchedules(client, guildId) {
+async function disableDuplicateSchedules(client, guildId) {
   const configs = await getAutoGiveaways(client, guildId);
   const groups = new Map();
 
   const active = configs
     .filter(config => config.enabled !== false)
-    .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+    .sort((a, b) => {
+      const aCreatedAt = Date.parse(a.createdAt || '');
+      const bCreatedAt = Date.parse(b.createdAt || '');
+      const aRank = Number.isFinite(aCreatedAt) ? aCreatedAt : Number.MAX_SAFE_INTEGER;
+      const bRank = Number.isFinite(bCreatedAt) ? bCreatedAt : Number.MAX_SAFE_INTEGER;
+      return aRank - bRank;
+    });
 
   for (const config of active) {
-    const createdAt = new Date(config.createdAt || 0).getTime();
-    if (!Number.isFinite(createdAt) || createdAt <= 0) continue;
+    const createdAt = Date.parse(config.createdAt || '');
 
+    // Treat multiple enabled schedules for the same prize in the same channel
+    // as duplicates even if their optional duration/repeat/description settings
+    // differ. Those differences were allowing two posts for one giveaway prize.
     const signature = JSON.stringify([
-      config.channelId,
+      String(config.channelId || ''),
       String(config.prize || '').trim().toLowerCase(),
-      Number(config.winnerCount),
-      Number(config.durationMs),
-      Number(config.repeatMs),
-      String(config.description || '').trim(),
     ]);
 
     const records = groups.get(signature) || [];
@@ -184,9 +188,9 @@ export async function processGiveawaySchedules(client) {
             }
           }
 
-          // Clean up equivalent schedules created within moments of each
-          // other, including duplicates saved before the newer create guard.
-          await disableRecentlyCreatedDuplicateSchedules(client, guild.id);
+          // Keep one active repeating schedule per prize and channel so
+          // near-identical schedules cannot generate a second giveaway post.
+          await disableDuplicateSchedules(client, guild.id);
           const autos = await getAutoGiveaways(client, guild.id);
           for (const auto of autos) {
             const lockKey = `auto-giveaway-schedule:${guild.id}:${auto.id}`;
