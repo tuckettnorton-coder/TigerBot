@@ -1,4 +1,5 @@
 import { logger } from './logger.js';
+import { Mutex } from './mutex.js';
 
 const giveawayKey = guildId => 'guild:' + guildId + ':giveaways';
 const autoKey = guildId => 'guild:' + guildId + ':auto_giveaways';
@@ -43,22 +44,27 @@ export async function saveGiveaway(client, guildId, giveaway) {
       return giveaway;
     }
 
-    const giveaways = await getGuildGiveaways(client, guildId);
-    let index = giveaway.id
-      ? giveaways.findIndex(existing => existing.id === giveaway.id)
-      : -1;
+    // A fallback store uses a single value per guild. Serialize all
+    // read-modify-write operations so two button clicks or scheduler updates
+    // cannot overwrite each other's giveaway records.
+    return await Mutex.runExclusive(`giveaway-store:${guildId}`, async () => {
+      const giveaways = await getGuildGiveaways(client, guildId);
+      let index = giveaway.id
+        ? giveaways.findIndex(existing => existing.id === giveaway.id)
+        : -1;
 
-    // Upsert by message ID as a fallback for older giveaway records.
-    if (index === -1) {
-      index = giveaways.findIndex(existing => existing.messageId === giveaway.messageId);
-    }
+      // Upsert by Discord message ID for older giveaway records.
+      if (index === -1) {
+        index = giveaways.findIndex(existing => String(existing.messageId) === String(giveaway.messageId));
+      }
 
-    if (index === -1) giveaways.push(giveaway);
-    else giveaways[index] = { ...giveaways[index], ...giveaway };
+      if (index === -1) giveaways.push(giveaway);
+      else giveaways[index] = { ...giveaways[index], ...giveaway };
 
-    const saved = await client.db.set(giveawayKey(guildId), giveaways);
-    if (saved === false) throw new Error('Database did not confirm the giveaway save.');
-    return giveaway;
+      const saved = await client.db.set(giveawayKey(guildId), giveaways);
+      if (saved === false) throw new Error('Database did not confirm the giveaway save.');
+      return giveaway;
+    });
   } catch (error) {
     logger.error('Failed to save giveaway ' + (giveaway?.messageId || '(without message ID)') + ':', error);
     throw error;
@@ -72,11 +78,13 @@ export async function removeGiveaway(client, guildId, messageId) {
     return true;
   }
 
-  const giveaways = await getGuildGiveaways(client, guildId);
-  const filtered = giveaways.filter(giveaway => String(giveaway.messageId) !== String(messageId));
-  const saved = await client.db.set(giveawayKey(guildId), filtered);
-  if (saved === false) throw new Error('Database did not confirm the giveaway removal.');
-  return true;
+  return await Mutex.runExclusive(`giveaway-store:${guildId}`, async () => {
+    const giveaways = await getGuildGiveaways(client, guildId);
+    const filtered = giveaways.filter(giveaway => String(giveaway.messageId) !== String(messageId));
+    const saved = await client.db.set(giveawayKey(guildId), filtered);
+    if (saved === false) throw new Error('Database did not confirm the giveaway removal.');
+    return true;
+  });
 }
 
 export function isGiveawayEnded(giveaway) {
