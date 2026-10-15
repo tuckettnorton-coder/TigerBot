@@ -80,7 +80,7 @@ class DatabaseWrapper {
 
     async set(key, value, ttl = null) {
         if (this.useFallback) {
-            logger.debug(`[DEGRADED] Writing to memory: ${key}`);
+            logger.debug(`[LOCAL FALLBACK] Writing to file-backed storage: ${key}`);
         }
 
         if (typeof key === 'string' && /^guild:[^:]+:config$/.test(key)) {
@@ -119,7 +119,7 @@ class DatabaseWrapper {
 
     async increment(key, amount = 1) {
         if (this.useFallback) {
-            logger.debug(`[DEGRADED] Incrementing in memory: ${key}`);
+            logger.debug(`[LOCAL FALLBACK] Incrementing file-backed storage: ${key}`);
         }
         if (this.db.increment) {
             return this.db.increment(key, amount);
@@ -132,7 +132,7 @@ class DatabaseWrapper {
 
     async decrement(key, amount = 1) {
         if (this.useFallback) {
-            logger.debug(`[DEGRADED] Decrementing in memory: ${key}`);
+            logger.debug(`[LOCAL FALLBACK] Decrementing file-backed storage: ${key}`);
         }
         if (this.db.decrement) {
             return this.db.decrement(key, amount);
