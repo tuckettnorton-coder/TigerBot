@@ -30,6 +30,22 @@ export default {
   async execute(interaction, config, client) {
     const sub = interaction.options.getSubcommand();
     const guildId = interaction.guildId;
+    // PostgreSQL is optional when the configured local JSON file store is active.
+    // Only refuse schedules if this instance is using truly temporary memory;
+    // a file-backed fallback is supported and survives ordinary process restarts.
+    if (sub === 'create') {
+      const degraded = Boolean(client?.db?.isDegraded?.());
+      const storageStatus = client?.db?.getStatus?.();
+      const localFileBacked = storageStatus?.isPersistent === true
+        && storageStatus?.localFileBacked === true;
+
+      if (degraded && !localFileBacked) {
+        return interaction.reply({
+          content: 'Automatic giveaways need persistent storage. PostgreSQL is unavailable and local file-backed storage is not active, so this instance cannot safely create repeating giveaways. Enable the local file-backed storage configuration or restore PostgreSQL, then restart TigerBot.',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    }
     if (sub === 'create') {
       const durationMs = parseDuration(interaction.options.getString('duration'));
       const repeatMs = parseDuration(interaction.options.getString('repeat'));
