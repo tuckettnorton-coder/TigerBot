@@ -682,12 +682,26 @@ class PostgreSQLDatabase {
         if (!this.isAvailable()) {
             throw new Error('PostgreSQL is not available for giveaway deletion.');
         }
-        await this.pool.query(
-            `DELETE FROM ${pgConfig.tables.giveaways}
-             WHERE guild_id = $1 AND message_id = $2`,
-            [guildId, String(messageId)],
-        );
-        return true;
+        const connection = await this.pool.connect();
+        try {
+            await connection.query('BEGIN');
+            await connection.query(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0::bigint))',
+                [`TigerBot:giveaways:${guildId}`],
+            );
+            await connection.query(
+                `DELETE FROM ${pgConfig.tables.giveaways}
+                 WHERE guild_id = $1 AND message_id = $2`,
+                [guildId, String(messageId)],
+            );
+            await connection.query('COMMIT');
+            return true;
+        } catch (error) {
+            await connection.query('ROLLBACK').catch(() => null);
+            throw error;
+        } finally {
+            connection.release();
+        }
     }
 
     async getStructuredData(parsedKey, defaultValue) {
