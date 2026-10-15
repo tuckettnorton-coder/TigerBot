@@ -46,7 +46,9 @@ async function acquireLocalFileLock() {
           heartbeatAt: Date.now(),
         };
         await handle.truncate(0);
-        await handle.writeFile(JSON.stringify(record), 'utf8');
+        // FileHandle.writeFile would continue at the old file offset after a
+        // truncate; write at byte zero so every heartbeat remains valid JSON.
+        await handle.write(JSON.stringify(record), 0, 'utf8');
         await handle.sync();
       };
 
