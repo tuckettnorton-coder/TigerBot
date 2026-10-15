@@ -4,7 +4,6 @@ import { logger } from '../utils/logger.js';
 import { Mutex } from '../utils/mutex.js';
 
 let schedulerRunning = false;
-let warnedDegradedAutoGiveaways = false;
 
 async function disableDuplicateSchedules(client, guildId) {
   return Mutex.runExclusive(`auto-giveaway-configs:${guildId}`, async () => {
@@ -268,18 +267,9 @@ export async function processGiveawaySchedules(client) {
             }
           }
 
-          // Automatic repeats cannot be coordinated safely when PostgreSQL
-          // is down: each process would have its own memory-only schedule list.
-          // Fail closed instead of allowing duplicate posts or lost entries.
-          if (client?.db?.isDegraded?.()) {
-            if (!warnedDegradedAutoGiveaways) {
-              logger.error('Automatic giveaway scheduler paused: PostgreSQL is unavailable and storage is process-local. Restore PostgreSQL and restart TigerBot to resume repeating giveaways safely.');
-              warnedDegradedAutoGiveaways = true;
-            }
-            continue;
-          }
-          warnedDegradedAutoGiveaways = false;
-
+          // The current file-backed fallback supports schedules without a
+          // PostgreSQL add-on. Keep schedule state serialized by the shared
+          // local mutex; instance locking is handled at bot startup.
           // Keep one active repeating schedule per prize and channel. Any
           // already-posted run from a duplicate schedule is also canceled.
           await disableDuplicateSchedules(client, guild.id);
