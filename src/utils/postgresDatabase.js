@@ -612,6 +612,78 @@ class PostgreSQLDatabase {
         }
     }
 
+    // Giveaway rows are stored individually. Never emulate an update by
+    // deleting and rewriting every giveaway for a guild: simultaneous entry
+    // clicks and scheduler updates can otherwise erase each other's rows.
+    async getGiveawaysByGuild(guildId) {
+        if (!this.isAvailable()) {
+            throw new Error('PostgreSQL is not available for giveaway reads.');
+        }
+
+        const result = await this.pool.query(
+            `SELECT data FROM ${pgConfig.tables.giveaways}
+             WHERE guild_id = $1
+             ORDER BY created_at ASC, id ASC`,
+            [guildId],
+        );
+        return result.rows.map(row => row.data);
+    }
+
+    async upsertGiveaway(guildId, giveaway) {
+        if (!this.isAvailable()) {
+            throw new Error('PostgreSQL is not available for giveaway writes.');
+        }
+        if (!guildId || !giveaway?.messageId) {
+            throw new Error('A guild ID and Discord message ID are required to save a giveaway.');
+        }
+
+        const connection = await this.pool.connect();
+        try {
+            await connection.query('BEGIN');
+            await connection.query(
+                `INSERT INTO ${pgConfig.tables.guilds} (id, created_at)
+                 VALUES ($1, CURRENT_TIMESTAMP)
+                 ON CONFLICT (id) DO NOTHING`,
+                [guildId],
+            );
+            await connection.query(
+                `INSERT INTO ${pgConfig.tables.giveaways}
+                    (guild_id, message_id, data, ends_at)
+                 VALUES ($1, $2, $3::jsonb, $4)
+                 ON CONFLICT (guild_id, message_id)
+                 DO UPDATE SET
+                    data = EXCLUDED.data,
+                    ends_at = EXCLUDED.ends_at,
+                    updated_at = CURRENT_TIMESTAMP`,
+                [
+                    guildId,
+                    String(giveaway.messageId),
+                    JSON.stringify(giveaway),
+                    giveaway.endsAt ? new Date(giveaway.endsAt) : null,
+                ],
+            );
+            await connection.query('COMMIT');
+            return true;
+        } catch (error) {
+            await connection.query('ROLLBACK').catch(() => null);
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+
+    async deleteGiveawayByMessageId(guildId, messageId) {
+        if (!this.isAvailable()) {
+            throw new Error('PostgreSQL is not available for giveaway deletion.');
+        }
+        await this.pool.query(
+            `DELETE FROM ${pgConfig.tables.giveaways}
+             WHERE guild_id = $1 AND message_id = $2`,
+            [guildId, String(messageId)],
+        );
+        return true;
+    }
+
     async getStructuredData(parsedKey, defaultValue) {
         try {
             switch (parsedKey.type) {
