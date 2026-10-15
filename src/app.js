@@ -193,7 +193,8 @@ class TitanBot extends Client {
 
     app.get('/ready', (req, res) => {
       const dbStatus = this.db?.getStatus?.() || { isDegraded: true, connectionType: 'none' };
-      const isReady = this.isReady() && !dbStatus.isDegraded;
+      const storageReady = !dbStatus.isDegraded || dbStatus.isPersistent === true;
+      const isReady = this.isReady() && storageReady;
 
       const metrics = {
         guildCount: this.guilds?.cache?.size ?? 0,
@@ -201,6 +202,8 @@ class TitanBot extends Client {
         database: {
           mode: dbStatus.connectionType,
           degraded: dbStatus.isDegraded,
+          persistent: dbStatus.isPersistent ?? false,
+          localFileBacked: dbStatus.localFileBacked ?? false,
           degradedReason: dbStatus.degradedReason ?? null,
         },
         schemaVersion: EXPECTED_SCHEMA_VERSION,
@@ -217,7 +220,7 @@ class TitanBot extends Client {
 
       res.status(503).json({
         ready: false,
-        reason: !this.isReady() ? 'Bot not Ready' : 'Database degraded',
+        reason: !this.isReady() ? 'Bot not Ready' : 'Storage unavailable',
         metrics,
       });
     });
