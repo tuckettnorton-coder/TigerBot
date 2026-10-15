@@ -144,3 +144,10 @@ dist
 # Database backup artifacts
 backups/
 *.dump
+
+# Local fallback storage and single-instance lock
+/data/
+tigerbot-memory.json
+tigerbot-instance.lock
+*.corrupt-*
+*.tmp
