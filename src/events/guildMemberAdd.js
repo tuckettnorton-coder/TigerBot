@@ -8,6 +8,31 @@ import { getServerCounters, updateCounter } from '../services/serverstatsService
 import { setBirthday as dbSetBirthday } from '../utils/database.js';
 import { logger } from '../utils/logger.js';
 
+// Prevent duplicate welcome sends if the same member-join event is dispatched
+// more than once in this process. A genuine rejoin has a new joinedTimestamp.
+const recentWelcomeEvents = new Map();
+const WELCOME_DEDUPE_WINDOW_MS = 60_000;
+
+function getWelcomeEventKey(member) {
+  const joinedAt = Number(member.joinedTimestamp);
+  const joinIdentity = Number.isFinite(joinedAt) && joinedAt > 0 ? joinedAt : 'unknown';
+  return `${member.guild.id}:${member.id}:${joinIdentity}`;
+}
+
+function claimWelcomeEvent(key) {
+  const now = Date.now();
+
+  for (const [eventKey, expiresAt] of recentWelcomeEvents) {
+    if (expiresAt <= now) recentWelcomeEvents.delete(eventKey);
+  }
+
+  const expiresAt = recentWelcomeEvents.get(key);
+  if (expiresAt && expiresAt > now) return false;
+
+  recentWelcomeEvents.set(key, now + WELCOME_DEDUPE_WINDOW_MS);
+  return true;
+}
+
 export default {
   name: Events.GuildMemberAdd,
   once: false,
@@ -28,7 +53,8 @@ export default {
             const permissions = channel?.isTextBased?.() && me ? channel.permissionsFor(me) : null;
             // Skip only the welcome message if permissions are missing; the rest of the
             // join pipeline (auto-role, verification, logging, counters) must still run.
-            if (permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages])) {
+            const welcomeEventKey = getWelcomeEventKey(member);
+            if (permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]) && claimWelcomeEvent(welcomeEventKey)) {
                 const formatData = { user, guild, member };
                 const welcomeMessage = formatWelcomeMessage(
                     welcomeConfig.welcomeMessage || welcomeConfig.welcomeEmbed?.description || botConfig.welcome?.defaultWelcomeMessage || 'Welcome {user} to {server}!',
