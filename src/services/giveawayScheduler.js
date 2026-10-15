@@ -46,6 +46,7 @@ async function disableDuplicateSchedules(client, guildId) {
     config.enabled = false;
     config.duplicateOf = match.keeperId;
     await saveAutoGiveaway(client, guildId, config);
+    await cancelDuplicateScheduleMessages(client, config);
 
     const duplicateRuns = (await getGuildGiveaways(client, guildId)).filter(
       giveaway => giveaway.autoGiveawayId === config.id && !giveaway.ended && !giveaway.isEnded
@@ -81,6 +82,56 @@ async function disableDuplicateSchedules(client, guildId) {
     );
   }
   });
+}
+
+function decodeInvisibleRunKey(content = '') {
+  const match = String(content).match(/\u2063([\u200B\u200C]+)\u2063/);
+  if (!match || match[1].length % 8 !== 0) return null;
+
+  const bits = match[1].replace(/\u200B/g, '0').replace(/\u200C/g, '1');
+  let value = '';
+  for (let index = 0; index < bits.length; index += 8) {
+    const charCode = Number.parseInt(bits.slice(index, index + 8), 2);
+    if (!Number.isFinite(charCode) || charCode < 32 || charCode > 126) return null;
+    value += String.fromCharCode(charCode);
+  }
+  return value;
+}
+
+// Disable visible messages from a duplicate schedule even if an earlier
+// persistence failure left no database row for one of those messages.
+async function cancelDuplicateScheduleMessages(client, config) {
+  const channel = await client.channels.fetch(config.channelId).catch(() => null);
+  if (!channel?.messages?.fetch) return;
+
+  let before;
+  for (let page = 0; page < 5; page += 1) {
+    const recent = await channel.messages.fetch(before ? { limit: 100, before } : { limit: 100 })
+      .catch(error => {
+        logger.warn(`Could not scan messages while cleaning duplicate auto giveaway ${config.id}:`, error);
+        return null;
+      });
+    if (!recent?.size) return;
+
+    for (const message of recent.values()) {
+      if (message.author?.id !== client.user?.id) continue;
+      if (String(message.content || '').includes('Duplicate automatic giveaway canceled.')) continue;
+
+      const runKey = decodeInvisibleRunKey(message.content || '');
+      if (!runKey?.startsWith(`${config.id}:`)) continue;
+
+      await message.edit({
+        content: '🚫 **Duplicate automatic giveaway canceled.**',
+        embeds: [],
+        components: [],
+      }).catch(error => {
+        logger.warn(`Could not cancel orphaned duplicate giveaway message ${message.id}:`, error);
+      });
+    }
+
+    before = recent.last()?.id;
+    if (!before || recent.size < 100) return;
+  }
 }
 
 // Encode the run key using zero-width characters. This lets the scheduler find a
