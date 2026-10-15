@@ -91,15 +91,17 @@ async function acquireLocalFileLock() {
         }
       }
 
-      if (processAlive || recentHeartbeat) {
+      const differentHostLockIsFresh = record.hostname !== hostname && recentHeartbeat;
+      if (processAlive || differentHostLockIsFresh) {
         logger.error(
           `A different TigerBot process already holds the local instance lock (${record.hostname || 'unknown host'} / PID ${record.pid || 'unknown'}). Stop the other process before starting another copy.`
         );
         return false;
       }
 
-      // Only remove a lock whose owning process is gone or whose heartbeat is
-      // stale. The heartbeat prevents a second process from stealing a live lock.
+      // On this host, a lock is stale as soon as its owning PID is gone—even if
+      // it crashed moments ago. Across host/PID namespaces, require a stale
+      // heartbeat before reclaiming it.
       await unlink(lockPath).catch(unlinkError => {
         if (unlinkError?.code !== 'ENOENT') throw unlinkError;
       });
