@@ -1,6 +1,7 @@
 import { pgDb } from '../postgresDatabase.js';
 import { MemoryStorage } from '../memoryStorage.js';
 import { logger } from '../logger.js';
+import path from 'node:path';
 import { validateGuildConfigOrThrow } from '../schemas.js';
 
 class DatabaseWrapper {
@@ -18,17 +19,30 @@ class DatabaseWrapper {
             return;
         }
 
-        // Explicit no-database mode for hosting plans without a PostgreSQL deployment.
-        // This skips all PostgreSQL connection attempts, including any stale Railway
-        // hostname left in the environment. Storage is in-memory and resets on restart.
-        if (process.env.ALLOW_IN_MEMORY_DB === 'true') {
-            this.db = new MemoryStorage();
+        // Hosts without a PostgreSQL add-on can use local file-backed storage.
+        // Set TIGERBOT_STORAGE_FILE for an explicit file path, or TIGERBOT_DATA_DIR
+        // / DATA_DIR for a persistent host volume. The file is not shared across
+        // separate machines or independent containers.
+        const localStoragePath = process.env.TIGERBOT_STORAGE_FILE
+            || path.join(
+                process.env.TIGERBOT_DATA_DIR || process.env.DATA_DIR || path.join(process.cwd(), 'data'),
+                'tigerbot-memory.json',
+            );
+        const initializeLocalStorage = async (reason) => {
+            this.db = new MemoryStorage({ filePath: localStoragePath });
+            await this.db.initialize();
             this.useFallback = true;
             this.connectionType = 'memory';
-            this.degradedReason = 'IN_MEMORY_MODE_ENABLED';
+            this.degradedReason = reason;
             this.initialized = true;
             this.degradedModeWarningShown = true;
-            logger.warn('⚠️ ALLOW_IN_MEMORY_DB=true: skipping PostgreSQL connection; data will be lost on restart.');
+            logger.warn(`⚠️ Using local file-backed fallback storage at ${localStoragePath}. This does not require PostgreSQL, but is not shared across separate hosts.`);
+        };
+
+        // Explicit no-PostgreSQL mode for hosts without a database add-on.
+        if (process.env.ALLOW_IN_MEMORY_DB === 'true') {
+            logger.info('ALLOW_IN_MEMORY_DB=true: skipping PostgreSQL connection and using local file storage.');
+            await initializeLocalStorage('IN_MEMORY_MODE_ENABLED');
             return;
         }
 
@@ -60,14 +74,8 @@ class DatabaseWrapper {
             }
         }
 
-        this.db = new MemoryStorage();
-        this.useFallback = true;
-        this.connectionType = 'memory';
-        this.degradedReason = 'POSTGRES_UNAVAILABLE';
-        logger.warn('⚠️ DATABASE DEGRADED MODE ENABLED - Using in-memory storage (data will be lost on restart)');
-        logger.warn('⚠️ Please check PostgreSQL connection and restart the bot when fixed');
-        this.initialized = true;
-        this.degradedModeWarningShown = true;
+        await initializeLocalStorage('POSTGRES_UNAVAILABLE');
+        logger.warn('PostgreSQL is unavailable; TigerBot will use local file-backed storage instead.');
     }
 
     async set(key, value, ttl = null) {
