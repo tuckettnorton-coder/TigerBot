@@ -640,6 +640,12 @@ class PostgreSQLDatabase {
         const connection = await this.pool.connect();
         try {
             await connection.query('BEGIN');
+            // Serialize all writes to this guild's giveaway collection across
+            // concurrent bot tasks and any second process sharing PostgreSQL.
+            await connection.query(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0::bigint))',
+                [`TigerBot:giveaways:${guildId}`],
+            );
             await connection.query(
                 `INSERT INTO ${pgConfig.tables.guilds} (id, created_at)
                  VALUES ($1, CURRENT_TIMESTAMP)
@@ -832,31 +838,62 @@ class PostgreSQLDatabase {
                     }
                     return true;
                 
-                case 'guild_giveaways':
-                    await this.pool.query(
-                        `INSERT INTO ${pgConfig.tables.guilds} (id, created_at) 
-                         VALUES ($1, CURRENT_TIMESTAMP) 
-                         ON CONFLICT (id) DO NOTHING`,
-                        [parsedKey.guildId]
-                    );
-                    
-                    await this.pool.query(`DELETE FROM ${pgConfig.tables.giveaways} WHERE guild_id = $1`, [parsedKey.guildId]);
-
-                    const giveaways = Array.isArray(value)
-                        ? value
-                        : (value && typeof value === 'object' ? Object.values(value) : []);
-
-                    for (const giveaway of giveaways) {
-                        if (!giveaway?.messageId) {
-                            continue;
-                        }
-                        await this.pool.query(
-                            `INSERT INTO ${pgConfig.tables.giveaways} (guild_id, message_id, data, ends_at) 
-                             VALUES ($1, $2, $3, $4)`,
-                            [parsedKey.guildId, giveaway.messageId, giveaway, giveaway.endsAt ? new Date(giveaway.endsAt) : null]
+                case 'guild_giveaways': {
+                    // Compatibility path for any remaining callers that replace
+                    // a whole guild collection. Keep it transactional and share
+                    // the same lock as row-level giveaway updates so a partial
+                    // write can never leave a live message without its record.
+                    const connection = await this.pool.connect();
+                    try {
+                        await connection.query('BEGIN');
+                        await connection.query(
+                            'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0::bigint))',
+                            [`TigerBot:giveaways:${parsedKey.guildId}`],
                         );
+                        await connection.query(
+                            `INSERT INTO ${pgConfig.tables.guilds} (id, created_at)
+                             VALUES ($1, CURRENT_TIMESTAMP)
+                             ON CONFLICT (id) DO NOTHING`,
+                            [parsedKey.guildId],
+                        );
+                        await connection.query(
+                            `DELETE FROM ${pgConfig.tables.giveaways} WHERE guild_id = $1`,
+                            [parsedKey.guildId],
+                        );
+
+                        const giveaways = Array.isArray(value)
+                            ? value
+                            : (value && typeof value === 'object' ? Object.values(value) : []);
+
+                        for (const giveaway of giveaways) {
+                            if (!giveaway?.messageId) continue;
+                            await connection.query(
+                                `INSERT INTO ${pgConfig.tables.giveaways}
+                                    (guild_id, message_id, data, ends_at)
+                                 VALUES ($1, $2, $3::jsonb, $4)
+                                 ON CONFLICT (guild_id, message_id)
+                                 DO UPDATE SET
+                                    data = EXCLUDED.data,
+                                    ends_at = EXCLUDED.ends_at,
+                                    updated_at = CURRENT_TIMESTAMP`,
+                                [
+                                    parsedKey.guildId,
+                                    String(giveaway.messageId),
+                                    JSON.stringify(giveaway),
+                                    giveaway.endsAt ? new Date(giveaway.endsAt) : null,
+                                ],
+                            );
+                        }
+
+                        await connection.query('COMMIT');
+                        return true;
+                    } catch (error) {
+                        await connection.query('ROLLBACK').catch(() => null);
+                        throw error;
+                    } finally {
+                        connection.release();
                     }
-                    return true;
+                }
                 
                 case 'welcome_config':
                     await this.pool.query(
