@@ -219,6 +219,10 @@ export async function processGiveawaySchedules(client) {
           // Keep one active repeating schedule per prize and channel. Any
           // already-posted run from a duplicate schedule is also canceled.
           await disableDuplicateSchedules(client, guild.id);
+          // Serialize the scheduler's schedule-array reads/writes with command
+          // creation and duplicate cleanup. Otherwise an old nextRunAt write
+          // can overwrite a just-created schedule, or let two schedules post.
+          await Mutex.runExclusive(`auto-giveaway-configs:${guild.id}`, async () => {
           const autos = await getAutoGiveaways(client, guild.id);
           for (const auto of autos) {
             const lockKey = `auto-giveaway-schedule:${guild.id}:${auto.id}`;
@@ -266,6 +270,7 @@ export async function processGiveawaySchedules(client) {
               await saveAutoGiveaway(client, guild.id, current);
             });
           }
+          });
         } catch (error) {
           logger.error('Giveaway scheduler error for guild ' + guild.id + ':', error);
         }
