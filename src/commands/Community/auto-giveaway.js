@@ -106,7 +106,7 @@ export default {
       collector.on('collect', async i => {
         const selected = active.find(c => c.id === i.values[0]);
         if (!selected) return i.update({content:'Automatic giveaway not found.', components:[]});
-        await removeAutoGiveaway(client, guildId, selected.id);
+        await Mutex.runExclusive(`auto-giveaway-configs:${guildId}`, () => removeAutoGiveaway(client, guildId, selected.id));
         const giveawayList = await getGuildGiveaways(client, guildId);
         const related = giveawayList.filter(g => g.autoGiveawayId === selected.id);
         for (const g of related) {
@@ -132,7 +132,7 @@ export default {
     }
     const id = interaction.options.getString('id');
     if (!configs.some(c => c.id === id)) return interaction.reply({content:'Automatic giveaway not found.', flags:MessageFlags.Ephemeral});
-    await removeAutoGiveaway(client, guildId, id);
+    await Mutex.runExclusive(`auto-giveaway-configs:${guildId}`, () => removeAutoGiveaway(client, guildId, id));
     return interaction.reply({content:'Automatic giveaway stopped.', flags:MessageFlags.Ephemeral});
   }
 };
