@@ -27,9 +27,10 @@ async function disableRecentlyCreatedDuplicateSchedules(client, guildId) {
     ]);
 
     const records = groups.get(signature) || [];
-    const match = records.find(record =>
-      Math.abs(createdAt - record.createdAt) < 2 * 60 * 1000
-    );
+    // Keep only one active schedule for an identical channel/prize/settings
+    // combination. The previous time-window check allowed older duplicate
+    // schedules to remain active and post two giveaways on every repeat.
+    const match = records[0] || null;
 
     if (!match) {
       records.push({ createdAt, keeperId: config.id });
@@ -37,9 +38,8 @@ async function disableRecentlyCreatedDuplicateSchedules(client, guildId) {
       continue;
     }
 
-    // Older duplicate schedules can remain in persistent storage from before
-    // duplicate-create protection existed. Keep the first and disable the
-    // equivalent schedule so the same giveaway isn't posted twice.
+    // Disable duplicate active schedules regardless of when they were
+    // created, so only one identical repeating schedule can post giveaways.
     config.enabled = false;
     config.duplicateOf = match.keeperId;
     await saveAutoGiveaway(client, guildId, config);
@@ -94,7 +94,7 @@ async function findRunMessage(channel, client, marker) {
 
     const match = recent.find(message =>
       message.author?.id === client.user?.id &&
-      String(message.content || '').endsWith(marker)
+      String(message.content || '').includes(marker)
     );
     if (match) return match;
 
