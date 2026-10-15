@@ -21,7 +21,10 @@ export const giveawayJoinHandler = {
     customId: 'giveaway_join',
     async execute(interaction, client) {
         try {
-            
+            // Acknowledge immediately so database latency cannot make Discord
+            // expire the button interaction before the entry confirmation.
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
             if (isUserRateLimited(interaction.user.id, interaction.message.id)) {
                 return replyUserError(interaction, { type: ErrorTypes.RATE_LIMIT, message: 'Please wait a moment before interacting with this giveaway again.' });
             }
@@ -69,14 +72,13 @@ export const giveawayJoinHandler = {
                 // Confirm the saved entry before updating the public giveaway message.
                 // If Discord rejects the public message edit, the user must not see a
                 // false failure after their entry has already been persisted.
-                await interaction.reply({
+                await interaction.editReply({
                     embeds: [
                         successEmbed(
                             'Success! You have entered the giveaway! 🎉',
                             `Good luck! There are now ${participants.length} entry/entries.`
                         )
-                    ],
-                    flags: MessageFlags.Ephemeral
+                    ]
                 });
 
                 await interaction.message.edit({
