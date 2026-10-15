@@ -30,12 +30,6 @@ export default {
   async execute(interaction, config, client) {
     const sub = interaction.options.getSubcommand();
     const guildId = interaction.guildId;
-    if (sub === 'create' && client?.db?.isDegraded?.()) {
-      return interaction.reply({
-        content: 'Automatic giveaways are paused because PostgreSQL is unavailable and the bot is using temporary in-memory storage. Fix the database connection and restart TigerBot before creating a repeating giveaway; otherwise, multiple host instances can post duplicates and entries may not persist.',
-        flags: MessageFlags.Ephemeral,
-      });
-    }
     if (sub === 'create') {
       const durationMs = parseDuration(interaction.options.getString('duration'));
       const repeatMs = parseDuration(interaction.options.getString('repeat'));
