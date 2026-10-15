@@ -100,7 +100,7 @@ class DatabaseWrapper {
 
     async delete(key) {
         if (this.useFallback) {
-            logger.debug(`[DEGRADED] Deleting from memory: ${key}`);
+            logger.debug(`[LOCAL FALLBACK] Deleting from file-backed storage: ${key}`);
         }
         return this.db.delete(key);
     }
@@ -182,11 +182,9 @@ export async function initializeDatabase() {
     } catch (error) {
         logger.error('❌ Database Initialization Error:', error);
 
-        if (error.code === 'SCHEMA_VERSION_MISMATCH') {
-            throw error;
-        }
-
-        return { db };
+        // Do not continue with an uninitialized wrapper if neither PostgreSQL
+        // nor the local file-backed fallback could be opened.
+        throw error;
     }
 }
 
