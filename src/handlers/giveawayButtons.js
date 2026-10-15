@@ -188,6 +188,7 @@ export const giveawayEndHandler = {
                 return replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need the \'Manage Server\' permission to end a giveaway.' });
             }
 
+            await Mutex.runExclusive(`giveaway:${interaction.message.id}`, async () => {
             const guildGiveaways = await getGuildGiveaways(client, interaction.guildId);
             const giveaway = guildGiveaways.find(g => g.messageId === interaction.message.id);
 
@@ -273,6 +274,7 @@ export const giveawayEndHandler = {
                     )
                 ],
                 flags: MessageFlags.Ephemeral
+            });
             });
 
         } catch (error) {
