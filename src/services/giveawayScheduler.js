@@ -144,26 +144,37 @@ function makeInvisibleRunMarker(runKey) {
   return '\u2063' + bits.replace(/0/g, '\u200B').replace(/1/g, '\u200C') + '\u2063';
 }
 
-async function endGiveaway(client, guildId, giveaway) {
-  if (giveaway.ended || new Date(giveaway.endsAt).getTime() > Date.now()) return;
+async function endGiveaway(client, guildId, giveawaySnapshot) {
+  const messageId = String(giveawaySnapshot?.messageId || '');
+  if (!messageId) return;
 
-  giveaway.ended = true;
-  giveaway.isEnded = true;
-  giveaway.endedAt = new Date().toISOString();
-  giveaway.winnerIds = selectWinners(giveaway.participants || [], giveaway.winnerCount);
+  // Entry clicks and ending must use the same message lock. Re-read the latest
+  // saved record inside the lock so an entry arriving at the deadline is not
+  // overwritten by a stale scheduler snapshot.
+  return Mutex.runExclusive(`giveaway:${messageId}`, async () => {
+    const latest = await getGuildGiveaways(client, guildId);
+    const giveaway = latest.find(item => String(item.messageId) === messageId);
+    if (!giveaway || giveaway.ended || giveaway.isEnded || new Date(giveaway.endsAt).getTime() > Date.now()) {
+      return;
+    }
 
-  // Persist the ended state before sending the result announcement. If a
-  // scheduler tick overlaps or the process retries, it cannot announce twice.
-  await saveGiveaway(client, guildId, giveaway);
+    giveaway.ended = true;
+    giveaway.isEnded = true;
+    giveaway.endedAt = new Date().toISOString();
+    giveaway.winnerIds = selectWinners(giveaway.participants || [], giveaway.winnerCount);
 
-  const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
-  const message = channel ? await channel.messages.fetch(giveaway.messageId).catch(() => null) : null;
-  if (message) await message.edit({
-    content: 'GIVEAWAY ENDED',
-    embeds: [createGiveawayEmbed(giveaway, 'ended', giveaway.winnerIds)],
-    components: [createGiveawayButtons(true)]
-  }).catch(() => null);
-  if (channel) await channel.send(formatGiveawayWinnerMessage(giveaway.winnerIds, giveaway.prize)).catch(() => null);
+    // Persist the ended state before sending the result announcement.
+    await saveGiveaway(client, guildId, giveaway);
+
+    const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
+    const message = channel ? await channel.messages.fetch(messageId).catch(() => null) : null;
+    if (message) await message.edit({
+      content: 'GIVEAWAY ENDED',
+      embeds: [createGiveawayEmbed(giveaway, 'ended', giveaway.winnerIds)],
+      components: [createGiveawayButtons(true)]
+    }).catch(() => null);
+    if (channel) await channel.send(formatGiveawayWinnerMessage(giveaway.winnerIds, giveaway.prize)).catch(() => null);
+  });
 }
 
 async function findRunMessage(channel, client, marker) {
