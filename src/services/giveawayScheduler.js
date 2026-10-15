@@ -6,6 +6,7 @@ import { Mutex } from '../utils/mutex.js';
 let schedulerRunning = false;
 
 async function disableDuplicateSchedules(client, guildId) {
+  return Mutex.runExclusive(`auto-giveaway-configs:${guildId}`, async () => {
   const configs = await getAutoGiveaways(client, guildId);
   const groups = new Map();
 
@@ -79,6 +80,7 @@ async function disableDuplicateSchedules(client, guildId) {
       `Disabled duplicate automatic giveaway schedule ${config.id}; kept ${match.keeperId} for prize/channel ${config.channelId} / ${config.prize}.`
     );
   }
+  });
 }
 
 // Encode the run key using zero-width characters. This lets the scheduler find a
