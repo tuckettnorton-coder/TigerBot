@@ -66,11 +66,9 @@ export const giveawayJoinHandler = {
                 const updatedEmbed = createGiveawayEmbed(giveaway, 'active');
                 const updatedRow = createGiveawayButtons(false);
 
-                await interaction.message.edit({
-                    embeds: [updatedEmbed],
-                    components: [updatedRow]
-                });
-
+                // Confirm the saved entry before updating the public giveaway message.
+                // If Discord rejects the public message edit, the user must not see a
+                // false failure after their entry has already been persisted.
                 await interaction.reply({
                     embeds: [
                         successEmbed(
@@ -79,6 +77,13 @@ export const giveawayJoinHandler = {
                         )
                     ],
                     flags: MessageFlags.Ephemeral
+                });
+
+                await interaction.message.edit({
+                    embeds: [updatedEmbed],
+                    components: [updatedRow]
+                }).catch(error => {
+                    logger.warn('Giveaway entry saved, but the public entry-count message could not be updated:', error);
                 });
             });
         } catch (error) {
