@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
-import { getAutoGiveaways, saveAutoGiveaway, removeAutoGiveaway } from '../../utils/giveaways.js';
+import { getAutoGiveaways, getGuildGiveaways, saveAutoGiveaway, removeAutoGiveaway, removeGiveaway } from '../../utils/giveaways.js';
+import { Mutex } from '../../utils/mutex.js';
 
 function parseDuration(input) {
   const match = String(input || '').trim().toLowerCase().match(/^(\d+)\s*(s|m|h|d|w)$/);
@@ -29,7 +30,6 @@ export default {
   async execute(interaction, config, client) {
     const sub = interaction.options.getSubcommand();
     const guildId = interaction.guildId;
-    const configs = await getAutoGiveaways(client, guildId);
     if (sub === 'create') {
       const durationMs = parseDuration(interaction.options.getString('duration'));
       const repeatMs = parseDuration(interaction.options.getString('repeat'));
@@ -38,43 +38,52 @@ export default {
       if (!durationMs || !repeatMs || (!scheduleMs && endsText !== 'never')) return interaction.reply({content:'Invalid duration, repeat, or ends. Use 30s, 10m, 2h, 1d, 1w, or never.', flags:MessageFlags.Ephemeral});
       if (repeatMs < durationMs) return interaction.reply({content:'Repeat must be at least as long as the giveaway duration.', flags:MessageFlags.Ephemeral});
       const channel = interaction.options.getChannel('channel') || interaction.channel;
-      const now = Date.now();
       const prize = interaction.options.getString('prize').trim();
       const description = interaction.options.getString('description') || 'Click **Enter Giveaway** below to enter!';
+      const winnerCount = interaction.options.getInteger('winners');
 
-      // A repeated create interaction can accidentally register the same
-      // schedule twice. Refuse an equivalent schedule created moments ago.
-      const recentDuplicate = configs.find(existing => {
-        const createdAt = new Date(existing.createdAt || 0).getTime();
-        return existing.enabled !== false
-          && existing.channelId === channel.id
+      // Serialize schedule creation per server and re-read storage while holding
+      // the lock. Checking a stale snapshot allowed two near-simultaneous
+      // interactions to create two schedules and therefore two first posts.
+      return Mutex.runExclusive(`auto-giveaway-configs:${guildId}`, async () => {
+        const configs = await getAutoGiveaways(client, guildId);
+        const duplicate = configs.find(existing =>
+          existing.enabled !== false
+          && String(existing.channelId) === String(channel.id)
           && String(existing.prize || '').trim().toLowerCase() === prize.toLowerCase()
-          && Number(existing.winnerCount) === interaction.options.getInteger('winners')
-          && Number(existing.durationMs) === durationMs
-          && Number(existing.repeatMs) === repeatMs
-          && String(existing.description || '') === description
-          && Number.isFinite(createdAt)
-          && now - createdAt >= 0
-          && now - createdAt < 2 * 60 * 1000;
-      });
+        );
 
-      if (recentDuplicate) {
+        if (duplicate) {
+          return interaction.reply({
+            content: '⚠️ An active automatic giveaway for this prize already exists in that channel (ID: ' + duplicate.id + '). I did not create another one. Use /auto-giveaway list to review your schedules.',
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        const now = Date.now();
+        const auto = {
+          id: 'auto-' + now + '-' + Math.random().toString(36).slice(2, 7),
+          guildId,
+          channelId: channel.id,
+          prize,
+          description,
+          winnerCount,
+          durationMs,
+          repeatMs,
+          createdAt: new Date(now).toISOString(),
+          scheduleEndsAt: scheduleMs ? new Date(now + scheduleMs).toISOString() : null,
+          nextRunAt: new Date(now).toISOString(),
+          enabled: true,
+        };
+
+        await saveAutoGiveaway(client, guildId, auto);
         return interaction.reply({
-          content: '⚠️ An equivalent automatic giveaway schedule was created recently (ID: ' + recentDuplicate.id + '). I did not create another one. Use /auto-giveaway list to review your schedules.',
+          content: 'Automatic giveaway created. ID: ' + auto.id + '\\nEach giveaway lasts ' + interaction.options.getString('duration') + ' and repeats every ' + interaction.options.getString('repeat') + '. Schedule ends: ' + endsText + '.',
           flags: MessageFlags.Ephemeral,
         });
-      }
-
-      const auto = {
-        id:'auto-' + now + '-' + Math.random().toString(36).slice(2,7), guildId, channelId:channel.id,
-        prize, description,
-        winnerCount:interaction.options.getInteger('winners'), durationMs, repeatMs,
-        createdAt:new Date(now).toISOString(), scheduleEndsAt:scheduleMs ? new Date(now + scheduleMs).toISOString() : null,
-        nextRunAt:new Date(now).toISOString(), enabled:true
-      };
-      await saveAutoGiveaway(client, guildId, auto);
-      return interaction.reply({content:'Automatic giveaway created. ID: ' + auto.id + '\\nEach giveaway lasts ' + interaction.options.getString('duration') + ' and repeats every ' + interaction.options.getString('repeat') + '. Schedule ends: ' + endsText + '.', flags:MessageFlags.Ephemeral});
+      });
     }
+    const configs = await getAutoGiveaways(client, guildId);
     if (sub === 'delete') {
       const active = configs.filter(c => c.enabled);
       if (!active.length) return interaction.reply({content:'There are no active automatic giveaways.', flags:MessageFlags.Ephemeral});
@@ -97,16 +106,17 @@ export default {
       collector.on('collect', async i => {
         const selected = active.find(c => c.id === i.values[0]);
         if (!selected) return i.update({content:'Automatic giveaway not found.', components:[]});
-        const current = await getAutoGiveaways(client, guildId);
         await removeAutoGiveaway(client, guildId, selected.id);
-        const giveawayList = await (await import('../../utils/giveaways.js')).getGuildGiveaways(client, guildId);
+        const giveawayList = await getGuildGiveaways(client, guildId);
         const related = giveawayList.filter(g => g.autoGiveawayId === selected.id);
         for (const g of related) {
           const channel = await client.channels.fetch(g.channelId).catch(() => null);
-          const message = channel ? await channel.messages.fetch(g.messageId).catch(() => null) : null;
+          const message = channel && g.messageId
+            ? await channel.messages.fetch(g.messageId).catch(() => null)
+            : null;
           if (message) await message.delete().catch(() => null);
+          if (g.messageId) await removeGiveaway(client, guildId, g.messageId);
         }
-        await client.db.set('guild:' + guildId + ':giveaways', giveawayList.filter(g => g.autoGiveawayId !== selected.id));
         await i.update({content:'Automatic giveaway deleted completely and stopped.', components:[]});
         collector.stop();
       });
