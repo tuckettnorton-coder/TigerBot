@@ -31,9 +31,7 @@ async function disableDuplicateSchedules(client, guildId) {
     ]);
 
     const records = groups.get(signature) || [];
-    // Keep only one active schedule for an identical channel/prize/settings
-    // combination. The previous time-window check allowed older duplicate
-    // schedules to remain active and post two giveaways on every repeat.
+    // Keep only one active schedule for a channel/prize combination.
     const match = records[0] || null;
 
     if (!match) {
@@ -42,15 +40,43 @@ async function disableDuplicateSchedules(client, guildId) {
       continue;
     }
 
-    // Disable duplicate active schedules regardless of when they were
-    // created, so only one identical repeating schedule can post giveaways.
+    // Disable the duplicate schedule and cancel any still-active giveaway
+    // that it already posted, so existing duplicate messages do not linger.
     config.enabled = false;
     config.duplicateOf = match.keeperId;
     await saveAutoGiveaway(client, guildId, config);
+
+    const duplicateRuns = (await getGuildGiveaways(client, guildId)).filter(
+      giveaway => giveaway.autoGiveawayId === config.id && !giveaway.ended && !giveaway.isEnded
+    );
+    for (const giveaway of duplicateRuns) {
+      const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
+      const message = channel && giveaway.messageId
+        ? await channel.messages.fetch(giveaway.messageId).catch(() => null)
+        : null;
+
+      if (message) {
+        await message.edit({
+          content: '🚫 **Duplicate automatic giveaway canceled.**',
+          embeds: [],
+          components: [],
+        }).catch(error => {
+          logger.warn(`Could not update duplicate giveaway message ${giveaway.messageId}:`, error);
+        });
+      }
+
+      giveaway.ended = true;
+      giveaway.isEnded = true;
+      giveaway.endedAt = new Date().toISOString();
+      giveaway.winnerIds = [];
+      giveaway.cancelledByDuplicateSchedule = true;
+      await saveGiveaway(client, guildId, giveaway);
+    }
+
     records.push({ createdAt, keeperId: match.keeperId });
     groups.set(signature, records);
     logger.warn(
-      `Disabled duplicate automatic giveaway schedule ${config.id}; kept ${match.keeperId} for the same prize/channel/settings.`
+      `Disabled duplicate automatic giveaway schedule ${config.id}; kept ${match.keeperId} for prize/channel ${config.channelId} / ${config.prize}.`
     );
   }
 }
@@ -188,8 +214,8 @@ export async function processGiveawaySchedules(client) {
             }
           }
 
-          // Keep one active repeating schedule per prize and channel so
-          // near-identical schedules cannot generate a second giveaway post.
+          // Keep one active repeating schedule per prize and channel. Any
+          // already-posted run from a duplicate schedule is also canceled.
           await disableDuplicateSchedules(client, guild.id);
           const autos = await getAutoGiveaways(client, guild.id);
           for (const auto of autos) {
