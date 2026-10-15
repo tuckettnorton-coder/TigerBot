@@ -152,11 +152,16 @@ class DatabaseWrapper {
     }
 
     getStatus() {
+        const localFileBacked = Boolean(this.useFallback && this.db?.filePath);
         return {
             initialized: this.initialized,
             connectionType: this.connectionType,
             isDegraded: this.useFallback,
             isAvailable: this.isAvailable(),
+            // Local JSON storage is persistent on this host's filesystem, but
+            // is not shared between separate hosts or containers.
+            isPersistent: !this.useFallback || localFileBacked,
+            localFileBacked,
             degradedReason: this.degradedReason,
         };
     }
