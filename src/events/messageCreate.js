@@ -186,6 +186,9 @@ const BUMP_ONLY_WARNING = '❌ Sorry, you **can’t** send messages here! This c
 async function handleBumpOnlyChannel(message) {
   if (message.channelId !== BUMP_ONLY_CHANNEL_ID) return false;
 
+  // This role is exempt from the bump-only channel warning and deletion.
+  if (message.member?.roles?.cache?.has('1536862219407597660')) return false;
+
   // Slash commands such as /bump arrive as interactions, not MessageCreate events.
   // Therefore, every human-authored message received in this channel is disallowed.
   const deleted = await message.delete().then(() => true).catch(error => {
