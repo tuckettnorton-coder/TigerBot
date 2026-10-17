@@ -27,23 +27,41 @@ export async function processAutoMessages(client) {
         if (!config?.enabled || !config.channelId || !config.message) continue;
         if (Number(config.nextRunAt || 0) > now) continue;
 
+        const intervalMs = Math.max(1, Number(config.intervalMinutes) || 1) * 60_000;
         const channel = await client.channels.fetch(config.channelId).catch(() => null);
         if (!channel || !channel.isTextBased?.() || typeof channel.send !== 'function') {
           logger.warn('Automatic message channel is unavailable; schedule remains enabled:', config.channelId);
           continue;
         }
 
-        await channel.send({
+        // Advance the schedule first so a slow send or a failed cleanup cannot
+        // cause the same due run to fire again on the next scheduler tick.
+        await client.db.set(key, {
+          ...config,
+          nextRunAt: now + intervalMs,
+        });
+
+        // Remove the previous automatic post before reposting it.
+        if (config.lastMessageId && channel.messages?.fetch) {
+          const previousMessage = await channel.messages.fetch(config.lastMessageId).catch(() => null);
+          if (previousMessage) {
+            await previousMessage.delete().catch((error) => {
+              logger.warn('Could not delete the previous automatic message:', error?.message || error);
+            });
+          }
+        }
+
+        const newMessage = await channel.send({
           content: config.message,
           allowedMentions: { parse: [] },
         });
 
-        // Schedule from the successful send time so delayed runs do not spam catch-up posts.
         const sentAt = Date.now();
         await client.db.set(key, {
           ...config,
-          nextRunAt: sentAt + Math.max(1, Number(config.intervalMinutes) || 1) * 60_000,
+          lastMessageId: newMessage.id,
           lastSentAt: new Date(sentAt).toISOString(),
+          nextRunAt: sentAt + intervalMs,
         });
       } catch (error) {
         logger.error('Automatic message failed for schedule ' + key + ':', error);
