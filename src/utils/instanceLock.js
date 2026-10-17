@@ -94,7 +94,13 @@ async function acquireLocalFileLock() {
       }
 
       const differentHostLockIsFresh = record.hostname !== hostname && recentHeartbeat;
-      if (processAlive || differentHostLockIsFresh) {
+      // Container restarts can reuse the same PID while the data directory
+      // persists. If this process has not acquired a lock handle yet, a lock
+      // file recording our own PID is stale from the previous process and can
+      // be reclaimed safely.
+      const lockRecordsCurrentProcess = record.hostname === hostname
+        && Number(record.pid) === process.pid;
+      if ((processAlive && !lockRecordsCurrentProcess) || differentHostLockIsFresh) {
         logger.error(
           `A different TigerBot process already holds the local instance lock (${record.hostname || 'unknown host'} / PID ${record.pid || 'unknown'}). Stop the other process before starting another copy.`
         );
