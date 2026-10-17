@@ -180,6 +180,35 @@ function findBlockedLink(content) {
   return null;
 }
 
+const BUMP_ONLY_CHANNEL_ID = '1560862556778930316';
+const BUMP_ONLY_WARNING = '❌ Sorry, you **can’t** send messages here! This channel is exclusively for server bumps. Please use `/bump` to help the server grow!';
+
+async function handleBumpOnlyChannel(message) {
+  if (message.channelId !== BUMP_ONLY_CHANNEL_ID) return false;
+
+  // Slash commands such as /bump arrive as interactions, not MessageCreate events.
+  // Therefore, every human-authored message received in this channel is disallowed.
+  const deleted = await message.delete().then(() => true).catch(error => {
+    logger.error('Bump-only channel could not delete message:', error);
+    return false;
+  });
+
+  try {
+    const warningMessage = await message.channel.send({
+      content: BUMP_ONLY_WARNING,
+      allowedMentions: { parse: [] },
+    });
+    setTimeout(() => {
+      warningMessage.delete().catch(() => {});
+    }, 3000);
+  } catch (error) {
+    logger.error('Bump-only channel could not send warning:', error);
+  }
+
+  logger.info('Bump-only channel filter triggered for ' + message.author.tag + ' (' + message.author.id + ', deleted=' + deleted + ')');
+  return true;
+}
+
 async function handleMarketingFilter(message, client) {
   const matchedWord = findMarketingWord(message.content);
   const duplicateCharacter = findDuplicateCharacter(message);
@@ -286,6 +315,9 @@ export default {
       if (message.author.bot || !message.guild || !claimMessageOnce(message.id)) return;
 
       logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
+
+      const bumpOnlyFiltered = await handleBumpOnlyChannel(message);
+      if (bumpOnlyFiltered) return;
 
       const marketingFiltered = await handleMarketingFilter(message, client);
       if (marketingFiltered) return;
