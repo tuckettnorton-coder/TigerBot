@@ -40,7 +40,7 @@ export function formatBuildingPriceMessage(data){
     '## 📌 **Rules**',
     data.rules,
     '',
-    `### ${data.ticket}`
+    `### ${data.ticket}`,
     '<@&1528495941328441456>'
   ].join('\n');
 }
