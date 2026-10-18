@@ -41,6 +41,7 @@ export function formatBuildingPriceMessage(data){
     data.rules,
     '',
     `### ${data.ticket}`
+    '<@&1528495941328441456>'
   ].join('\n');
 }
 export const data=new SlashCommandBuilder().setName('building-update').setDescription('Update the building service prices and information').setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
