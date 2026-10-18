@@ -2,6 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import fs from 'fs'; import path from 'path'; import { fileURLToPath } from 'url';
 import { getUpdateState, setUpdateState, getLatestUpdateData } from '../../utils/updateState.js';
 import { upsertUpdateMessage } from '../../utils/updateMessage.js';
+import { parseAmount, formatResult } from '../../utils/calculator.js';
 const __filename=fileURLToPath(import.meta.url); const __dirname=path.dirname(__filename);
 export const BUILDING_PRICE_CHANNEL_ID='1513625388503535657'; export const BUILDING_TICKET_CHANNEL_ID='1504949441650622575'; export const BUILDING_BUILDER_ROLE_ID='1517213500655796265';
 const DATA_FILE=path.join(__dirname,'buildingPrices.json'); const MESSAGE_FILE=path.join(__dirname,'buildingPriceMessage.json');
@@ -11,6 +12,7 @@ function save(data){fs.writeFileSync(DATA_FILE,`${JSON.stringify(data,null,2)}\n
 export function formatBuildingPriceMessage(data){
   const farmDays = Number(data.farmMultiplierDays) || 3;
   const farmExampleTotal = 100_000_000 * farmDays;
+  const under200ExampleTotal = 5_000_000 + (parseAmount(data.under200) ?? 0);
   return [
     '# 🏗️ **Building Services**',
     '',
@@ -21,7 +23,7 @@ export function formatBuildingPriceMessage(data){
     '',
     '### **Builds Under 200M AH Value**',
     `> **+${data.under200}** for every **5M** of the AH price.`,
-    '> **Example:** 5M AH → **14M Total**',
+    `> **Example:** 5M AH → **${formatResult(under200ExampleTotal)} Total**`,
     '',
     '### **Builds Worth 201M+ AH Value**',
     `> **${data.over200}** for every **5M** of the AH price.`,
