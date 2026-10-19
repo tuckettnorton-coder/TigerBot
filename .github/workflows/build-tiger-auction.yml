@@ -1,0 +1,41 @@
+name: Build Tiger Auction
+
+on:
+  push:
+    branches:
+      - build/tiger-auction-jar
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out build branch
+        uses: actions/checkout@v4
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Reassemble the source archive
+        run: |
+          cat TigerAuction.part* > TigerAuction_Source.zip
+          unzip -t TigerAuction_Source.zip
+          unzip -q TigerAuction_Source.zip
+      - name: Build remapped Fabric mod
+        working-directory: TigerAuction
+        run: gradle build --no-daemon
+      - name: Upload compiled mod jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiger-auction-jar
+          path: TigerAuction/build/libs/tiger-auction-1.0.0.jar
+          if-no-files-found: error
+          retention-days: 7
