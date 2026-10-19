@@ -30,6 +30,10 @@ jobs:
           cat TigerAuction.part00.correct TigerAuction.part01 TigerAuction.part02 TigerAuction.part03 > TigerAuction_Source.zip
           unzip -t TigerAuction_Source.zip
           unzip -q TigerAuction_Source.zip
+      - name: Fix 1.21.11 keyboard event API
+        working-directory: TigerAuction
+        run: |
+          sed -i 's/InputConstants.getKey(event.key(), event.scancode())/InputConstants.getKey(event)/' src/main/java/net/tigerfx/tigerauction/AuctionControlsScreen.java
       - name: Build remapped Fabric mod
         working-directory: TigerAuction
         run: gradle build --no-daemon
