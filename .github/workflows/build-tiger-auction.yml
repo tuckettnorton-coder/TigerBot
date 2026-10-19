@@ -26,7 +26,8 @@ jobs:
           gradle-version: '8.14.3'
       - name: Reassemble the source archive
         run: |
-          cat TigerAuction.part* > TigerAuction_Source.zip
+          head -c 4300 TigerAuction.part00 > TigerAuction.part00.correct
+          cat TigerAuction.part00.correct TigerAuction.part01 TigerAuction.part02 TigerAuction.part03 > TigerAuction_Source.zip
           unzip -t TigerAuction_Source.zip
           unzip -q TigerAuction_Source.zip
       - name: Build remapped Fabric mod
