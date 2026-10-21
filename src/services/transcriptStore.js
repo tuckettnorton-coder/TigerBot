@@ -2,6 +2,7 @@ import { db } from '../utils/database.js';
 
 const transcripts = new Map();
 const messageToToken = new Map();
+const closeRequests = new Map();
 const TRANSCRIPT_PREFIX = 'transcripts:';
 const MESSAGE_PREFIX = 'transcript_messages:';
 const TICKET_OWNER_PREFIX = 'ticket_owners:';
@@ -10,6 +11,8 @@ const CLOSE_REQUEST_PREFIX = 'close_requests:';
 export async function saveCloseRequest(ticketId, expiresAt) {
   if (!ticketId || !Number.isFinite(Number(expiresAt))) return;
   const value = { ticketId: String(ticketId), expiresAt: Number(expiresAt) };
+  // Keep an in-process copy as a fallback when persistent storage is unavailable.
+  closeRequests.set(value.ticketId, value);
   try {
     if (!db.initialized) await db.initialize();
     if (db.isAvailable?.() && typeof db.set === 'function') {
@@ -22,20 +25,26 @@ export async function saveCloseRequest(ticketId, expiresAt) {
 
 export async function getCloseRequest(ticketId) {
   if (!ticketId) return null;
+  const cached = closeRequests.get(String(ticketId));
   try {
     if (!db.initialized) await db.initialize();
     if (db.isAvailable?.() && typeof db.get === 'function') {
       const saved = await db.get(`${CLOSE_REQUEST_PREFIX}${ticketId}`, null);
-      if (saved?.expiresAt) return { ticketId: String(ticketId), expiresAt: Number(saved.expiresAt) };
+      if (saved?.expiresAt) {
+        const value = { ticketId: String(ticketId), expiresAt: Number(saved.expiresAt) };
+        closeRequests.set(value.ticketId, value);
+        return value;
+      }
     }
   } catch (error) {
     console.warn(`Could not load close request ${ticketId}: ${error.message}`);
   }
-  return null;
+  return cached || null;
 }
 
 export async function clearCloseRequest(ticketId) {
   if (!ticketId) return;
+  closeRequests.delete(String(ticketId));
   try {
     if (!db.initialized) await db.initialize();
     if (db.isAvailable?.() && typeof db.delete === 'function') {
@@ -47,23 +56,24 @@ export async function clearCloseRequest(ticketId) {
 }
 
 export async function listCloseRequests() {
+  const requests = new Map(closeRequests);
   try {
     if (!db.initialized) await db.initialize();
     if (db.isAvailable?.() && typeof db.list === 'function') {
       const keys = await db.list(CLOSE_REQUEST_PREFIX);
-      const requests = [];
       for (const key of keys) {
         const saved = await db.get(key, null);
         if (saved?.ticketId && saved?.expiresAt) {
-          requests.push({ ticketId: String(saved.ticketId), expiresAt: Number(saved.expiresAt) });
+          const value = { ticketId: String(saved.ticketId), expiresAt: Number(saved.expiresAt) };
+          requests.set(value.ticketId, value);
+          closeRequests.set(value.ticketId, value);
         }
       }
-      return requests;
     }
   } catch (error) {
     console.warn(`Could not list persisted close requests: ${error.message}`);
   }
-  return [];
+  return [...requests.values()];
 }
 
 
