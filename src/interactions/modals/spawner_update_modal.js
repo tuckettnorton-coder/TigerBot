@@ -1,20 +1,57 @@
 import {
   ModalBuilder,
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   TextInputBuilder,
   TextInputStyle,
   MessageFlags,
 } from 'discord.js';
-import { loadPrices, persistPrices, postPrices } from '../../commands/Utility/spawner-update.js';
+import { loadPrices, mergePrices } from '../../commands/Utility/spawner-update.js';
+import { getLatestUpdateDataFast } from '../../utils/updateState.js';
 import { logger } from '../../utils/logger.js';
 
 const CONFIG = [
   { key: 'skeleton', label: 'Skeleton Prices' },
   { key: 'creeper', label: 'Creeper Prices' },
   { key: 'irongolem', label: 'Iron Golem Prices' },
+  { key: 'zombifiedpiglin', label: 'Zombified Piglin Prices' },
+  { key: 'blaze', label: 'Blaze Prices' },
+];
+
+export const SPAWNER_PRICE_PAGE_2_CONFIG = [
+  { key: 'cow', label: 'Cow Prices' },
+  { key: 'pig', label: 'Pig Prices' },
 ];
 
 const ORDER = ['buy3', 'buy64', 'sell3', 'sell64'];
+const pendingUpdates = new Map();
+const PENDING_UPDATE_TTL_MS = 15 * 60 * 1000;
+
+function pendingKey(interaction) {
+  return `${interaction.guildId || 'dm'}:${interaction.user.id}`;
+}
+
+export function setPendingSpawnerUpdate(interaction, prices) {
+  pendingUpdates.set(pendingKey(interaction), {
+    prices: structuredClone(prices),
+    expiresAt: Date.now() + PENDING_UPDATE_TTL_MS,
+  });
+}
+
+export function getPendingSpawnerUpdate(interaction) {
+  const key = pendingKey(interaction);
+  const pending = pendingUpdates.get(key);
+  if (!pending || pending.expiresAt <= Date.now()) {
+    pendingUpdates.delete(key);
+    return null;
+  }
+  return structuredClone(pending.prices);
+}
+
+export function clearPendingSpawnerUpdate(interaction) {
+  pendingUpdates.delete(pendingKey(interaction));
+}
 
 // Discord interactions should only be processed once, even if the event is
 // accidentally routed through more than one listener in the same process.
@@ -29,12 +66,13 @@ function claimSubmission(interactionId) {
   return true;
 }
 
-export function buildSpawnerPriceModal(prices = loadPrices()) {
+export function buildSpawnerPriceModal(prices = loadPrices(), page = 1) {
+  const pageConfig = page === 2 ? SPAWNER_PRICE_PAGE_2_CONFIG : CONFIG;
   const modal = new ModalBuilder()
-    .setCustomId('spawner_price_page')
-    .setTitle('Update Spawner Prices');
+    .setCustomId(page === 2 ? 'spawner_price_page2' : 'spawner_price_page')
+    .setTitle(page === 2 ? 'Spawner Prices • Page 2' : 'Spawner Prices • Page 1');
 
-  for (const { key, label } of CONFIG) {
+  for (const { key, label } of pageConfig) {
     const p = prices[key] || {};
     const value = [
       `3+ Buy: ${p.buy3 ?? ''}`,
@@ -57,7 +95,7 @@ export function buildSpawnerPriceModal(prices = loadPrices()) {
   return modal;
 }
 
-function parsePrices(text, spawnerName) {
+export function parsePrices(text, spawnerName) {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -90,21 +128,26 @@ export default {
     }
 
     try {
-      // Acknowledge before channel cleanup / message edits so Discord does not
-      // time out the modal while duplicate posts are reconciled.
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-      const prices = loadPrices();
+      const saved = await getLatestUpdateDataFast(client, interaction.guildId, 'spawnerPrices', null);
+      const prices = mergePrices(saved || {});
       for (const { key, label } of CONFIG) {
-        const input = interaction.fields.getTextInputValue(key);
-        prices[key] = parsePrices(input, label);
+        prices[key] = parsePrices(interaction.fields.getTextInputValue(key), label);
       }
 
-      persistPrices(prices);
-      await postPrices(client, prices);
-
+      setPendingSpawnerUpdate(interaction, prices);
       await interaction.editReply({
-        content: '✅ **All 12 spawner prices have been updated.**',
+        content: '✅ **Page 1 validated.** Click **Continue to Page 2** to review Cow and Pig prices and publish all seven spawner types.',
+        components: [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('spawner_update_continue')
+              .setLabel('Continue to Page 2')
+              .setStyle(ButtonStyle.Primary)
+              .setEmoji('➡️'),
+          ),
+        ],
       });
     } catch (error) {
       const response = {

@@ -1,6 +1,6 @@
 export const TICKET_TYPES = {
   buying_selling_spawners: {
-    label: 'Buying/Selling Spawners', emoji: '💸', description: 'Click this to buy/Sell Skeletons', categoryName: 'Buyer/Sellar', pingRoles: ['1505252058591138004', 'Buyer/Seller'],
+    label: 'Buying/Selling Spawners', emoji: '💸', description: 'Click this to buy or sell spawners', categoryName: 'Buyer/Sellar', pingRoles: ['1505252058591138004', 'Buyer/Seller'],
     form: [{ id:'ign',label:'IGN',required:true,placeholder:'IGN' },{ id:'buy_or_sell',label:'Buy or Sell',required:true,placeholder:'Selected from dropdown' },{ id:'amount',label:'Amount (Minimum 3 Spawners)',required:true,placeholder:'Selected from dropdown' },{ id:'spawner_type',label:'What type of spawner?',required:true,placeholder:'Selected from dropdown' }],
   },
   claim_giveaway: { label:'Claim Giveaway',emoji:'🎉',description:'Click this to claim Giveaway',categoryName:'Giveaway',pingRoles:['1505252058591138004','1536860897509900389'],welcomeMessage:'{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> will get to you shortly.',form:[{id:'hosted_by',label:'Who hosted the giveaway?',required:true,placeholder:'Example: Tiger'},{id:'win_amount',label:'How much did you win?',required:true,placeholder:'Enter the amount you won'},{id:'win_ss',label:'Send a SS of the win in ticket',required:true,placeholder:'Yes/Ok'},{id:'ign',label:'IGN',required:true,placeholder:'IGN'}] },

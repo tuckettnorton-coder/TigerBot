@@ -1,8 +1,8 @@
-import { loadPrices } from '../commands/Utility/spawner-update.js';
+import { mergePrices } from '../commands/Utility/spawner-update.js';
 import { parseAmount, formatResult } from './calculator.js';
 import { getLatestUpdateData } from './updateState.js';
 
-const LABELS = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem' };
+const LABELS = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem', zombifiedpiglin: 'Zombified Piglin', blaze: 'Blaze', cow: 'Cow', pig: 'Pig' };
 
 function parsePrice(value) {
   const parsed = parseAmount(value);
@@ -12,7 +12,7 @@ function parsePrice(value) {
 
 export async function getCurrentSpawnerPrices(client, guildId) {
   const saved = await getLatestUpdateData(client, guildId, 'spawnerPrices', null);
-  return saved && typeof saved === 'object' ? saved : loadPrices();
+  return mergePrices(saved && typeof saved === 'object' ? saved : {});
 }
 
 export async function calculateSpawnerPrice({ trade, spawnerType, amount, client = null, guildId = null }) {

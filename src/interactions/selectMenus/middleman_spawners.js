@@ -10,6 +10,10 @@ function spawnerTypeMenu() {
         new StringSelectMenuOptionBuilder().setLabel('Skeleton').setDescription('Skeleton spawners').setValue('skeleton'),
         new StringSelectMenuOptionBuilder().setLabel('Creeper').setDescription('Creeper spawners').setValue('creeper'),
         new StringSelectMenuOptionBuilder().setLabel('Iron Golem').setDescription('Iron Golem spawners').setValue('irongolem'),
+        new StringSelectMenuOptionBuilder().setLabel('Zombified Piglin').setDescription('Zombified Piglin spawners').setValue('zombifiedpiglin'),
+        new StringSelectMenuOptionBuilder().setLabel('Blaze').setDescription('Blaze spawners').setValue('blaze'),
+        new StringSelectMenuOptionBuilder().setLabel('Cow').setDescription('Cow spawners').setValue('cow'),
+        new StringSelectMenuOptionBuilder().setLabel('Pig').setDescription('Pig spawners').setValue('pig'),
       ),
   );
 }

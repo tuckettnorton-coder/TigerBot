@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { getMiddlemanDraft, setMiddlemanDraft } from '../../utils/middlemanDrafts.js';
 
-const LABELS = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem' };
+const LABELS = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem', zombifiedpiglin: 'Zombified Piglin', blaze: 'Blaze', cow: 'Cow', pig: 'Pig' };
 
 export default {
   name: 'middleman_spawner_trade',

@@ -19,6 +19,10 @@ const LABELS = {
   skeleton: 'Skeleton',
   creeper: 'Creeper',
   irongolem: 'Iron Golem',
+  zombifiedpiglin: 'Zombified Piglin',
+  blaze: 'Blaze',
+  cow: 'Cow',
+  pig: 'Pig',
 };
 
 function cloneDefaults() {
@@ -49,7 +53,7 @@ function parsePrice(value) {
 
 export function calculateMiddlemanSpawner({ trade, spawnerType, amount }) {
   if (!['buy', 'sell'].includes(trade)) throw new Error('Choose Buy or Sell.');
-  if (!LABELS[spawnerType]) throw new Error('Choose Skeleton, Creeper, or Iron Golem.');
+  if (!LABELS[spawnerType]) throw new Error('Choose a valid spawner type.');
 
   const quantity = Number(amount);
   if (!Number.isInteger(quantity) || quantity < 1) throw new Error('Spawner quantity must be a whole number greater than 0.');

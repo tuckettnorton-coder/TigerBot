@@ -1,6 +1,14 @@
 import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
-const SPAWNER_LABELS = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem' };
+const SPAWNER_LABELS = {
+  skeleton: 'Skeleton',
+  creeper: 'Creeper',
+  irongolem: 'Iron Golem',
+  zombifiedpiglin: 'Zombified Piglin',
+  blaze: 'Blaze',
+  cow: 'Cow',
+  pig: 'Pig',
+};
 
 export default {
   name: 'spawner_type',

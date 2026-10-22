@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { getSpawnerDraft } from '../../utils/spawnerPricing.js';
 
-const LABELS = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem' };
+const LABELS = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem', zombifiedpiglin: 'Zombified Piglin', blaze: 'Blaze', cow: 'Cow', pig: 'Pig' };
 
 function buildIgnModal(trade, spawnerType) {
   return new ModalBuilder()
@@ -28,6 +28,10 @@ export default {
             new StringSelectMenuOptionBuilder().setLabel('Skeleton Spawner').setDescription('Add Skeleton spawners').setValue('skeleton').setEmoji('<:download:1517708652981780682>'),
             new StringSelectMenuOptionBuilder().setLabel('Creeper Spawner').setDescription('Add Creeper spawners').setValue('creeper').setEmoji('<:MinecraftCreeperHead:1517707887068315839>'),
             new StringSelectMenuOptionBuilder().setLabel('Iron Golem Spawner').setDescription('Add Iron Golem spawners').setValue('irongolem').setEmoji('<:maxresdefault:1517708562489409566>'),
+            new StringSelectMenuOptionBuilder().setLabel('Zombified Piglin Spawner').setDescription('Add Zombified Piglin spawners').setValue('zombifiedpiglin').setEmoji('<:MinecraftZombiePigmanHead:1517710362282295366>'),
+            new StringSelectMenuOptionBuilder().setLabel('Blaze Spawner').setDescription('Add Blaze spawners').setValue('blaze').setEmoji('<:637788972315478693:1517707785200996523>'),
+            new StringSelectMenuOptionBuilder().setLabel('Cow Spawner').setDescription('Add Cow spawners').setValue('cow').setEmoji('<:images:1524079570758930714>'),
+            new StringSelectMenuOptionBuilder().setLabel('Pig Spawner').setDescription('Add Pig spawners').setValue('pig').setEmoji('<:images:1524079437400899736>'),
           )
         )],
       });
