@@ -15,7 +15,7 @@ export async function saveCloseRequest(ticketId, expiresAt) {
   closeRequests.set(value.ticketId, value);
   try {
     if (!db.initialized) await db.initialize();
-    if (db.isAvailable?.() && typeof db.set === 'function') {
+    if (typeof db.set === 'function') {
       await db.set(`${CLOSE_REQUEST_PREFIX}${ticketId}`, value);
     }
   } catch (error) {
@@ -28,7 +28,7 @@ export async function getCloseRequest(ticketId) {
   const cached = closeRequests.get(String(ticketId));
   try {
     if (!db.initialized) await db.initialize();
-    if (db.isAvailable?.() && typeof db.get === 'function') {
+    if (typeof db.get === 'function') {
       const saved = await db.get(`${CLOSE_REQUEST_PREFIX}${ticketId}`, null);
       if (saved?.expiresAt) {
         const value = { ticketId: String(ticketId), expiresAt: Number(saved.expiresAt) };
@@ -47,7 +47,7 @@ export async function clearCloseRequest(ticketId) {
   closeRequests.delete(String(ticketId));
   try {
     if (!db.initialized) await db.initialize();
-    if (db.isAvailable?.() && typeof db.delete === 'function') {
+    if (typeof db.delete === 'function') {
       await db.delete(`${CLOSE_REQUEST_PREFIX}${ticketId}`);
     }
   } catch (error) {
@@ -59,7 +59,7 @@ export async function listCloseRequests() {
   const requests = new Map(closeRequests);
   try {
     if (!db.initialized) await db.initialize();
-    if (db.isAvailable?.() && typeof db.list === 'function') {
+    if (typeof db.list === 'function') {
       const keys = await db.list(CLOSE_REQUEST_PREFIX);
       for (const key of keys) {
         const saved = await db.get(key, null);
