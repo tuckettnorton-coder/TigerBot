@@ -12,6 +12,7 @@ import { storeTranscript, bindTranscriptMessage, bindTicketOwner, getTicketOwner
 const LOG_CHANNEL_NAME = '📝│logs';
 const TRANSCRIPT_CHANNEL_NAME = '📝│transcripts';
 const CLOSE_REQUEST_DURATION_MS = 24 * 60 * 60 * 1000;
+const closingCloseRequests = new Set();
 
 function roleByName(guild, name) {
   const value = String(name).trim();
@@ -329,7 +330,6 @@ export async function closeTicketsForUser(guild, userId) {
 }
 
 export async function closeTicket(channel, actor) {
-  await clearCloseRequest(channel.id);
   const ticket = getTicketFromChannel(channel);
   if (!ticket) throw new Error('This channel is not a managed ticket.');
   const transcriptChannel = await findUtilityChannel(channel.guild, TRANSCRIPT_CHANNEL_NAME);
@@ -421,6 +421,8 @@ export async function closeTicket(channel, actor) {
     console.warn(`Could not DM transcript to ticket creator ${ticket.openerId}: ${dmError.message}`);
   }
   await channel.delete(`Ticket closed by ${actorName}`);
+  // Only discard the timer after a successful close; failed closes are retried.
+  await clearCloseRequest(channel.id);
 }
 
 
@@ -434,20 +436,36 @@ export async function processCloseRequestTimers(client) {
   const requests = await listCloseRequests();
   const now = Date.now();
   for (const request of requests) {
-    if (request.expiresAt > now) continue;
+    if (request.expiresAt > now || closingCloseRequests.has(request.ticketId)) continue;
+    closingCloseRequests.add(request.ticketId);
     try {
-      let channel = null;
-      for (const guild of client.guilds.cache.values()) {
-        channel = guild.channels.cache.get(request.ticketId) || null;
-        if (channel) break;
+      let channel;
+      try {
+        // A ticket channel might not be present in the cache after a restart.
+        channel = await client.channels.fetch(request.ticketId);
+      } catch (error) {
+        if (Number(error?.code) === 10003) {
+          // Discord confirms that the channel was already deleted.
+          await clearCloseRequest(request.ticketId);
+          continue;
+        }
+        // Keep the timer if Discord is temporarily unavailable.
+        throw error;
       }
-      if (!channel || channel.type !== ChannelType.GuildText) { await clearCloseRequest(request.ticketId); continue; }
-      const ticket = getTicketFromChannel(channel);
-      if (!ticket) { await clearCloseRequest(request.ticketId); continue; }
-      await clearCloseRequest(request.ticketId);
+      if (!channel || channel.type !== ChannelType.GuildText) {
+        await clearCloseRequest(request.ticketId);
+        continue;
+      }
+      if (!getTicketFromChannel(channel)) {
+        await clearCloseRequest(request.ticketId);
+        continue;
+      }
+      // closeTicket clears the timer only after the channel was deleted.
       await closeTicket(channel, client.user);
     } catch (error) {
       console.warn(`Could not auto-close ticket ${request.ticketId}: ${error.message}`);
+    } finally {
+      closingCloseRequests.delete(request.ticketId);
     }
   }
 }
