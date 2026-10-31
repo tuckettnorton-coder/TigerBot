@@ -40,7 +40,7 @@ export default {
 
     try {
       const nextExpected = getNextShulkerUpload(draft);
-      if (draft.completing || !nextExpected || nextExpected !== kind) {
+      if (!draft.amountsComplete || draft.completing || !nextExpected || nextExpected !== kind) {
         return interaction.reply({
           content: '❌ That screenshot step is no longer active. Please use the current upload step.',
           flags: MessageFlags.Ephemeral,
@@ -83,8 +83,14 @@ export default {
       }
 
       draft.completing = true;
+      if (!draft.amountsComplete
+        || (draft.includeInventory && (!Number.isSafeInteger(draft.inventoryAmount) || draft.inventoryAmount < 27))
+        || (draft.includeHotbar && (!Number.isSafeInteger(draft.hotbarAmount) || draft.hotbarAmount < 27))) {
+        throw new Error('Each selected option requires a quantity of at least 27 shulkers.');
+      }
       const answers = {
-        shulker_count: String(draft.shulkerCount),
+        inventory_amount: draft.includeInventory ? String(draft.inventoryAmount) : undefined,
+        hotbar_amount: draft.includeHotbar ? String(draft.hotbarAmount) : undefined,
         primary_type: draft.primary === 'inventory' ? 'Inventory' : 'Hotbar',
         include_inventory: draft.includeInventory ? 'Yes' : 'No',
         include_hotbar: draft.includeHotbar ? 'Yes' : 'No',
