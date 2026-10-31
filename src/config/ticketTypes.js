@@ -16,7 +16,8 @@ export const TICKET_TYPES = {
     pingRoles: ['1505252058591138004', '1536860897509900389'],
     welcomeMessage: '{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> will get to you shortly.',
     form: [
-      { id: 'shulker_count', label: 'Number of shulkers (minimum 27)', required: true },
+      { id: 'inventory_amount', label: 'Inventory shulkers (minimum 27)', required: false },
+      { id: 'hotbar_amount', label: 'Hotbar shulkers (minimum 27)', required: false },
       { id: 'primary_type', label: 'Inventory or Hotbar?', required: true },
       { id: 'include_inventory', label: 'Do you want Inventory?', required: true },
       { id: 'include_hotbar', label: 'Do you want Hotbar?', required: true },

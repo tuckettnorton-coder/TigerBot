@@ -7,11 +7,13 @@ function key(guildId, userId) {
   return `${guildId}:${userId}`;
 }
 
-export function startShulkerDraft(guildId, userId, shulkerCount) {
+export function startShulkerDraft(guildId, userId) {
   const draft = {
     sessionId: randomUUID(),
     createdAt: Date.now(),
-    shulkerCount,
+    inventoryAmount: null,
+    hotbarAmount: null,
+    amountsComplete: false,
     primary: null,
     includeInventory: false,
     includeHotbar: false,

@@ -40,18 +40,16 @@ export default { name:'ticket_select', async execute(interaction) {
     await resetMainTicketMenu(interaction);
     const existing=await findExistingTicket(interaction.guild,interaction.user.id,ticket.categoryName); if(existing)return interaction.reply({content:`You already have an open ${ticket.label} ticket: ${existing}`,ephemeral:true});
     if(typeId==='shulker_service'){
-      const modal = new ModalBuilder()
-        .setCustomId('ticket_form:shulker_service:start')
-        .setTitle('Shulker Service')
-        .addComponents(new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId('shulker_count')
-            .setLabel('How many shulkers? (minimum 27)')
-            .setStyle(TextInputStyle.Short)
-            .setPlaceholder('27 or more')
-            .setRequired(true)
-        ));
-      return interaction.showModal(modal);
+      const { startShulkerDraft } = await import('../../utils/shulkerDrafts.js');
+      const { primaryShulkerRow } = await import('./shulker_service.js');
+      const draft = startShulkerDraft(interaction.guildId,interaction.user.id);
+      await interaction.reply({
+        content:'### 📦 Shulker Service\n**Choose one: Inventory or Hotbar?**',
+        components:[primaryShulkerRow(draft.sessionId),ticketCancelRow()],
+        ephemeral:true,
+      });
+      registerTicketEphemeral(interaction.user.id,interaction);
+      return;
     }
     if(typeId==='advertisement'){setPaidAdDraft(interaction.user.id,{});await interaction.reply({content:'### 💰 Paid Advertisement\n**What paid advertisement would you like?**\n\nChoose one of the current plans below.',components:[buildPaidAdPlanMenu(), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}
     if(typeId==='buying_selling_spawners'){await interaction.reply({content:'### 💸 Buying/Selling Spawners\nFirst, select whether you want to **Buy** or **Sell**.',components:[buildSpawnerTradeMenu(), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}
