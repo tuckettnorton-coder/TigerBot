@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { formatShulkerServiceMessage } from '../src/commands/Utility/shulker-update.js';
 import { TICKET_TYPES } from '../src/config/ticketTypes.js';
+import { buildShulkerUploadModal, primaryShulkerRow } from '../src/interactions/selectMenus/shulker_service.js';
 
 test('Shulker Service example updates automatically for every service fee', () => {
   for (const [fee, total] of [[10, '1.1b'], [20, '1.2b'], [30, '1.3b'], [40, '1.4b']]) {
@@ -27,4 +28,18 @@ test('Shulker Service uses its dedicated category and Support welcome roles', ()
   assert.equal(shulker.categoryName, 'Shulker Service');
   assert.equal(shulker.welcomeMessage, support.welcomeMessage);
   assert.deepEqual(shulker.pingRoles, support.pingRoles);
+});
+
+test('Shulker screenshot modal contains two upload fields and requires selected images', () => {
+  const both = buildShulkerUploadModal({ sessionId: 'both', includeHotbar: true, includeInventory: true }).toJSON();
+  assert.equal(both.components.length, 2);
+  assert.ok(JSON.stringify(both).includes('hotbar_image'));
+  assert.ok(JSON.stringify(both).includes('inventory_image'));
+
+  const onlyInventory = buildShulkerUploadModal({ sessionId: 'inventory', includeHotbar: false, includeInventory: true }).toJSON();
+  assert.equal(onlyInventory.components.length, 2);
+  assert.ok(JSON.stringify(onlyInventory).includes('hotbar_image'));
+  assert.ok(JSON.stringify(onlyInventory).includes('inventory_image'));
+  const primary = primaryShulkerRow('test').toJSON();
+  assert.equal(primary.components[0].options.length, 2);
 });
