@@ -13,8 +13,8 @@ export const TICKET_TYPES = {
     description: 'Order inventory/hotbar shulker boxes',
     categoryName: 'Shulker Service',
     categoryId: '1566191035934179439',
-    pingRoles: ['1505252058591138004', '1536860897509900389'],
-    welcomeMessage: '{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> will get to you shortly.',
+    pingRoles: ['1505252058591138004', '1536860897509900389', '1566201577403064360'],
+    welcomeMessage: '{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> <@&1566201577403064360> will get to you shortly.',
     form: [
       { id: 'inventory_amount', label: 'Inventory shulkers (minimum 27)', required: false },
       { id: 'hotbar_amount', label: 'Hotbar shulkers (minimum 27)', required: false },
