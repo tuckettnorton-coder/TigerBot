@@ -1,6 +1,6 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags,
-  ModalBuilder, TextInputBuilder, TextInputStyle,
+  ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
 } from 'discord.js';
 import { getShulkerDraft, patchShulkerDraft } from '../../utils/shulkerDrafts.js';
 import { getShulkerUploadOrder } from '../selectMenus/shulker_service.js';
@@ -90,7 +90,7 @@ export default {
       content: `### 📸 Screenshot Reminder\n${summary}\n\n**Have you taken screenshots of your selected inventory/hotbar?**\nYou will upload each selected screenshot separately.`,
       components: [
         new ActionRowBuilder().addComponents(
-          new (await import('discord.js')).StringSelectMenuBuilder()
+          new StringSelectMenuBuilder()
             .setCustomId(`shulker_service:reminder:${sessionId}`)
             .setPlaceholder('Have you taken the screenshots?')
             .addOptions(
