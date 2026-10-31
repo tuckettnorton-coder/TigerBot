@@ -6,9 +6,10 @@ export const SHULKER_UPDATE_CHANNEL_ID = '1566189428131631266';
 export const DEFAULT_SHULKER_FEES = Object.freeze({ serviceFeePercent: 30, refundFeePercent: 10 });
 
 export function normalizeShulkerFees(fees = {}) {
+  const source = fees && typeof fees === 'object' ? fees : {};
   return {
-    serviceFeePercent: Number.isFinite(Number(fees.serviceFeePercent)) ? Number(fees.serviceFeePercent) : 30,
-    refundFeePercent: Number.isFinite(Number(fees.refundFeePercent)) ? Number(fees.refundFeePercent) : 10,
+    serviceFeePercent: Number.isFinite(Number(source.serviceFeePercent)) ? Number(source.serviceFeePercent) : 30,
+    refundFeePercent: Number.isFinite(Number(source.refundFeePercent)) ? Number(source.refundFeePercent) : 10,
   };
 }
 
