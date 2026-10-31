@@ -23,13 +23,19 @@ test('Shulker Service refund percentage updates without changing other policy te
   assert.ok(message.includes('Min: 27 shulkers'));
 });
 
-test('Shulker Service uses its dedicated category and Support welcome roles', () => {
+test('Shulker Service grants and pings the additional role without modifying Support', () => {
   const shulker = TICKET_TYPES.shulker_service;
   const support = TICKET_TYPES.support;
+  const newRole = '1566201577403064360';
   assert.equal(shulker.categoryId, '1566191035934179439');
   assert.equal(shulker.categoryName, 'Shulker Service');
-  assert.equal(shulker.welcomeMessage, support.welcomeMessage);
-  assert.deepEqual(shulker.pingRoles, support.pingRoles);
+  assert.ok(shulker.welcomeMessage.includes(`<@&${newRole}>`));
+  assert.ok(shulker.pingRoles.includes(newRole));
+  assert.ok(support.pingRoles.every(role => shulker.pingRoles.includes(role)));
+  assert.ok(support.welcomeMessage.match(/<@&1536860897509900389>/));
+  assert.ok(support.welcomeMessage.match(/<@&1505252058591138004>/));
+  assert.ok(!support.pingRoles.includes(newRole));
+  assert.ok(!support.welcomeMessage.includes(`<@&${newRole}>`));
 });
 
 test('Inventory-only and Hotbar-only tickets require exactly one matching upload field', () => {
