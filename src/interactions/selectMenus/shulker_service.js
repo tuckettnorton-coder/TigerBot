@@ -30,7 +30,7 @@ function yesNoRow(step, sessionId, question) {
   ]);
 }
 
-function uploadModal(draft) {
+export function buildShulkerUploadModal(draft) {
   const hotbarUpload = new FileUploadBuilder()
     .setCustomId('hotbar_image')
     .setMinValues(draft.includeHotbar ? 1 : 0)
@@ -110,7 +110,7 @@ export default {
           components: [yesNoRow('reminder', sessionId, 'Ready to upload screenshots?'), ticketCancelRow()],
         });
       }
-      return interaction.showModal(uploadModal(draft));
+      return interaction.showModal(buildShulkerUploadModal(draft));
     }
 
     return interaction.reply({ content: '❌ This Shulker Service step is unavailable.', ephemeral: true });
