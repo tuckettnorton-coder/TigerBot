@@ -9,7 +9,9 @@ import { loadPaidAdPrices } from '../../utils/paidAdPricing.js';
 import { setBuildingDraft, getBuildingDraft, clearBuildingDraft } from '../../utils/buildingDrafts.js';
 import { setMiddlemanDraft } from '../../utils/middlemanDrafts.js';
 import { setPaidAdDraft } from '../../utils/paidAdDrafts.js';
-import { registerTicketEphemeral, clearTicketEphemeral, clearTicketEphemeralLater, resetMainTicketPanel } from '../../utils/ticketEphemeral.js';
+import { startShulkerDraft } from '../../utils/shulkerDrafts.js';
+import { primaryShulkerRow } from '../selectMenus/shulker_service.js';
+import { registerTicketEphemeral, clearTicketEphemeral, clearTicketEphemeralLater, resetMainTicketPanel, ticketCancelRow } from '../../utils/ticketEphemeral.js';
 import { sendSchematicRenderToChannel } from '../../commands/Tools/render.js';
 import { logger } from '../../utils/logger.js';
 
@@ -24,6 +26,21 @@ function money(value){return `$${Number(value).toFixed(2)}`;}
 
 export default { name:'ticket_form', async execute(interaction,client,args){try{
  const typeId=args?.[0],ticket=TICKET_TYPES[typeId]; if(!ticket)return interaction.reply({content:'That ticket type is unavailable.',ephemeral:true});
+ if(typeId==='shulker_service'){
+   const raw=interaction.fields.getTextInputValue('shulker_count').trim();
+   const quantity=Number(raw.replaceAll(',',''));
+   if(!/^\d[\d,]*$/.test(raw)||!Number.isSafeInteger(quantity)||quantity<27){
+     return interaction.reply({content:'❌ Shulker Service requires a minimum of **27 shulkers**. Please enter a whole number of 27 or more.',ephemeral:true});
+   }
+   const draft=startShulkerDraft(interaction.guildId,interaction.user.id,quantity);
+   await interaction.reply({
+     content:`### 📦 Shulker Service\n**Quantity:** ${quantity} shulkers\n\n**Choose one: Inventory or Hotbar?**`,
+     components:[primaryShulkerRow(draft.sessionId),ticketCancelRow()],
+     ephemeral:true,
+   });
+   registerTicketEphemeral(interaction.user.id,interaction);
+   return;
+ }
 
  if(typeId==='middleman'){
    const yourIgn=interaction.fields.getTextInputValue('your_ign').trim();

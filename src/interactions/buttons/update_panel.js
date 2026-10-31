@@ -4,6 +4,7 @@ const UPDATE_COMMANDS = new Set([
   'spawner-update',
   'digging-update',
   'building-update',
+  'shulker-update',
   'paid-ad-update',
   'giveawayrulesupdate',
   'partnerupdate',

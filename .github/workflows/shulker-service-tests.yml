@@ -1,0 +1,58 @@
+name: Shulker Service Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/commands/Utility/shulker-update.js'
+      - 'src/interactions/modals/shulker_update_modal.js'
+      - 'src/interactions/modals/shulker_service_upload.js'
+      - 'src/interactions/selectMenus/shulker_service.js'
+      - 'src/utils/shulkerDrafts.js'
+      - 'src/config/ticketTypes.js'
+      - 'src/services/ticketService.js'
+      - 'src/interactions/modals/ticket_form.js'
+      - 'src/interactions/selectMenus/ticket_select.js'
+      - 'tests/shulker-service.test.js'
+      - '.github/workflows/shulker-service-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/commands/Utility/shulker-update.js'
+      - 'src/interactions/modals/shulker_update_modal.js'
+      - 'src/interactions/modals/shulker_service_upload.js'
+      - 'src/interactions/selectMenus/shulker_service.js'
+      - 'src/utils/shulkerDrafts.js'
+      - 'src/config/ticketTypes.js'
+      - 'src/services/ticketService.js'
+      - 'src/interactions/modals/ticket_form.js'
+      - 'src/interactions/selectMenus/ticket_select.js'
+      - 'tests/shulker-service.test.js'
+      - '.github/workflows/shulker-service-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  shulker-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Check new module syntax
+        run: |
+          node --check src/commands/Utility/shulker-update.js
+          node --check src/interactions/modals/shulker_update_modal.js
+          node --check src/interactions/modals/shulker_service_upload.js
+          node --check src/interactions/selectMenus/shulker_service.js
+          node --check src/utils/shulkerDrafts.js
+          node --check src/services/ticketService.js
+          node --check src/interactions/modals/ticket_form.js
+          node --check src/interactions/selectMenus/ticket_select.js
+      - name: Run Shulker Service tests
+        run: node --test tests/shulker-service.test.js

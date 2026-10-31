@@ -7,6 +7,21 @@ export const TICKET_TYPES = {
   report_staff: { label:'Report Staff',emoji:'⚠️',description:'Click this to Report Staff',categoryName:'Staff report',pingRoles:['Admin','Head | Manager'],welcomeMessage:'{user} Welcome a @Head | Manager @Admin will get to you shortly.',form:[{id:'which_staff',label:'What staff?',required:true,placeholder:'Enter your reason'},{id:'what_happened',label:'What happened',required:true,placeholder:'What happened'}] },
   partner: { label:'Partner',emoji:'🤝',description:'Click this if you would like to Partner',categoryName:'Partners',pingRoles:['1517213956190638160','1536860331370877038'],accessRoles:['1536860331370877038','1505252058591138004'],welcomeMessage:'{user} Welcome a <@&1517213956190638160> <@&1536860331370877038> will get to you shortly.',form:[{id:'server_member_count',label:'What is your server member count?',required:true,placeholder:'Enter your server member count'},{id:'donutsmp_relation',label:'Is it Donut SMP related?',required:true,placeholder:'Yes/No'},{id:'server_ad',label:'Send your ad immediately in the ticket once created.',required:true,placeholder:'Yes/Ok'}] },
   support: { label:'Support',emoji:'🆘',description:'Click this for Support',categoryName:'General support',pingRoles:['1505252058591138004','1536860897509900389'],welcomeMessage:'{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> will get to you shortly.',form:[{id:'support_topic',label:'What do you need support with?',required:true,placeholder:'Enter your reason'},{id:'extra',label:'Anything extra?',required:true,placeholder:''}] },
+  shulker_service: {
+    label: 'Shulker Service',
+    emoji: '📦',
+    description: 'Order inventory/hotbar shulker boxes',
+    categoryName: 'Shulker Service',
+    categoryId: '1566191035934179439',
+    pingRoles: ['1505252058591138004', '1536860897509900389'],
+    welcomeMessage: '{user} Welcome a <@&1536860897509900389> <@&1505252058591138004> will get to you shortly.',
+    form: [
+      { id: 'shulker_count', label: 'Number of shulkers (minimum 27)', required: true },
+      { id: 'primary_type', label: 'Inventory or Hotbar?', required: true },
+      { id: 'include_inventory', label: 'Do you want Inventory?', required: true },
+      { id: 'include_hotbar', label: 'Do you want Hotbar?', required: true },
+    ],
+  },
   digging_services: { label:'Digging services',emoji:'⛏️',description:'Click this for Digging services',categoryName:'Building/Diging',pingRoles:['1505252058591138004','1536861272610709534','1536860897509900389','1517213500655796265'],welcomeMessage:'{user} Welcome a <@&1517213500655796265> <@&1536861272610709534> will get to you shortly.',form:[{id:'area_size',label:'What size of area? (width X length X height)',required:true,placeholder:'Enter here'},{id:'has_area',label:'Do you have a area?',required:true,placeholder:'Yes/No'},{id:'region',label:'Do you want a certain region?',required:true,placeholder:'West/East/Ocean/Asia/Europe/None'},{id:'good_chords',label:'Do you want good coords?',required:true,placeholder:'Yes/No'},{id:'ign',label:'IGN',required:true,placeholder:'IGN'}] },
   building_services: {
     label:'Building services',emoji:'🏠',description:'Click this for Building services',categoryName:'Building/Diging',pingRoles:['1505252058591138004','1536861272610709534','1536860897509900389','1517213500655796265'],welcomeMessage:'{user} Welcome a <@&1517213500655796265> <@&1536861272610709534> will get to you shortly.',

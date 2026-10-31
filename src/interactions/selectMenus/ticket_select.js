@@ -39,6 +39,20 @@ export default { name:'ticket_select', async execute(interaction) {
     // any modal or sending the next-step ephemeral menu.
     await resetMainTicketMenu(interaction);
     const existing=await findExistingTicket(interaction.guild,interaction.user.id,ticket.categoryName); if(existing)return interaction.reply({content:`You already have an open ${ticket.label} ticket: ${existing}`,ephemeral:true});
+    if(typeId==='shulker_service'){
+      const modal = new ModalBuilder()
+        .setCustomId('ticket_form:shulker_service:start')
+        .setTitle('Shulker Service')
+        .addComponents(new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('shulker_count')
+            .setLabel('How many shulkers? (minimum 27)')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('27 or more')
+            .setRequired(true)
+        ));
+      return interaction.showModal(modal);
+    }
     if(typeId==='advertisement'){setPaidAdDraft(interaction.user.id,{});await interaction.reply({content:'### 💰 Paid Advertisement\n**What paid advertisement would you like?**\n\nChoose one of the current plans below.',components:[buildPaidAdPlanMenu(), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}
     if(typeId==='buying_selling_spawners'){await interaction.reply({content:'### 💸 Buying/Selling Spawners\nFirst, select whether you want to **Buy** or **Sell**.',components:[buildSpawnerTradeMenu(), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}
     if(typeId==='digging_services'){await interaction.reply({content:'### ⛏️ Digging Service\n**Do you have an area?**\nSelect an option below.',components:[buildYesNoMenu('digging_area','Do you have an area?','I have an area/location','I need the builder to choose the area'), ticketCancelRow()],ephemeral:true});registerTicketEphemeral(interaction.user.id,interaction);return;}

@@ -13,6 +13,7 @@ const UPDATE_BUTTONS = [
   { command: 'spawner-update', label: 'Spawners', emoji: '🕷️', style: ButtonStyle.Primary },
   { command: 'digging-update', label: 'Digging', emoji: '⛏️', style: ButtonStyle.Secondary },
   { command: 'building-update', label: 'Building', emoji: '🏗️', style: ButtonStyle.Secondary },
+  { command: 'shulker-update', label: 'Shulkers', emoji: '📦', style: ButtonStyle.Secondary },
   { command: 'paid-ad-update', label: 'Paid Ads', emoji: '💰', style: ButtonStyle.Primary },
   { command: 'giveawayrulesupdate', label: 'Giveaways', emoji: '🎉', style: ButtonStyle.Success },
   { command: 'partnerupdate', label: 'Partners', emoji: '🤝', style: ButtonStyle.Success },

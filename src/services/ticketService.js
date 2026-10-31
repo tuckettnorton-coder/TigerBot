@@ -55,6 +55,7 @@ export function getTicketFromChannel(channel) {
   const typeFromChannelName =
     channel.name.startsWith('building-') ? 'building_services' :
     channel.name.startsWith('digging-') ? 'digging_services' :
+    channel.name.startsWith('shulker-') ? 'shulker_service' :
     null;
   const typeId = typeFromChannelName || ticketDefinitionFromCategory(categoryName);
   const openerOverwrite = channel.permissionOverwrites?.cache.find((overwrite) => {
@@ -65,7 +66,7 @@ export function getTicketFromChannel(channel) {
 
   if (!code || !categoryName || !openerOverwrite) return null;
 
-  return { typeId, openerId: openerOverwrite.id, categoryName, claimedBy: null, code };
+  return { typeId, openerId: openerOverwrite.id, categoryName: typeId === 'shulker_service' ? TICKET_TYPES.shulker_service.categoryName : categoryName, claimedBy: null, code };
 }
 
 function categoryByName(guild, name) {
@@ -78,6 +79,12 @@ export async function ensureTicketCategories(guild) {
   const names = [...new Set(Object.values(TICKET_TYPES).map((ticket) => ticket.categoryName))];
   const categories = {};
   for (const name of names) {
+    const configuredId = Object.values(TICKET_TYPES).find((ticket) => ticket.categoryName === name)?.categoryId;
+    if (configuredId) {
+      const configured = await guild.channels.fetch(configuredId).catch(() => null);
+      if (configured?.type === ChannelType.GuildCategory) categories[name] = configured;
+      continue;
+    }
     let category = categoryByName(guild, name);
     if (!category) category = await guild.channels.create({ name, type: ChannelType.GuildCategory, reason: 'TigerBot automatic ticket category setup' });
     categories[name] = category;
@@ -126,6 +133,7 @@ function ticketName(user, code, ticket, answers = {}) {
   if (ticket?.label === 'Building services') return `building-${code}`;
   if (ticket?.label === 'Digging services') return `digging-${code}`;
   if (ticket?.label === 'Support') return `support-${code}`;
+  if (ticket?.label === 'Shulker Service') return `shulker-${code}`;
   if (ticket?.label === 'Middleman service') return `mm-${code}`;
   if (ticket?.label === 'Sponsor a giveaway') {
     const amount = cleanChannelPart(answers.sponsor_amount || 'amount');
@@ -155,8 +163,12 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   if (!ticket) throw new Error('Unknown ticket type.');
   const existing = await findExistingTicket(guild, user.id, ticket.categoryName);
   if (existing) return { existing };
-  const category = categoryByName(guild, ticket.categoryName) || (await ensureTicketCategories(guild))[ticket.categoryName];
-  if (!category) throw new Error(`Could not create or find ticket category \"${ticket.categoryName}\".`);
+  const category = ticket.categoryId
+    ? await guild.channels.fetch(ticket.categoryId).catch(() => null)
+    : (categoryByName(guild, ticket.categoryName) || (await ensureTicketCategories(guild))[ticket.categoryName]);
+  if (!category || category.type !== ChannelType.GuildCategory) {
+    throw new Error(`Could not find ticket category \"${ticket.categoryName}\" (${ticket.categoryId || 'not configured'}).`);
+  }
 
   const pingRoles = resolveRoles(guild, ticket.pingRoles);
   const accessRoles = resolveRoles(guild, ticket.accessRoles || []);
@@ -206,7 +218,7 @@ export async function createTicketChannel({ guild, user, typeId, answers = {} })
   if (answers.schematic_url) ticketEmbed.addFields({ name: '📐 Schematic Upload', value: '[Download '+String(answers.schematic_name||'schematic').replace(/[\\[\\]]/g,'').slice(0,900)+']('+answers.schematic_url+')', inline: false });
   const ticketActionRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('calculate_ticket').setLabel('Calculate').setEmoji('🧮').setStyle(ButtonStyle.Primary),
+    ...(typeId === 'shulker_service' ? [] : [new ButtonBuilder().setCustomId('calculate_ticket').setLabel('Calculate').setEmoji('🧮').setStyle(ButtonStyle.Primary)]),
     new ButtonBuilder().setCustomId('ticket_add_user').setLabel('Add User').setEmoji('👤').setStyle(ButtonStyle.Secondary),
   );
   const welcomeRoleIds = [...welcomeText.matchAll(/<@&(\d+)>/g)].map((match) => match[1]);
