@@ -15,6 +15,8 @@ export function startShulkerDraft(guildId, userId, shulkerCount) {
     primary: null,
     includeInventory: false,
     includeHotbar: false,
+    screenshots: {},
+    completing: false,
   };
   drafts.set(key(guildId, userId), draft);
   return draft;
