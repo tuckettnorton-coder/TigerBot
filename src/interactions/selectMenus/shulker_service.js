@@ -1,5 +1,5 @@
 import {
-  ActionRowBuilder, FileUploadBuilder, LabelBuilder, ModalBuilder,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, FileUploadBuilder, LabelBuilder, ModalBuilder,
   StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
 } from 'discord.js';
 import { getShulkerDraft, patchShulkerDraft } from '../../utils/shulkerDrafts.js';
@@ -88,6 +88,9 @@ export default {
         includeInventory: primary === 'inventory',
         includeHotbar: primary === 'hotbar',
         screenshots: {},
+        inventoryAmount: null,
+        hotbarAmount: null,
+        amountsComplete: false,
       });
       const other = primary === 'inventory' ? 'hotbar' : 'inventory';
       return interaction.update({
@@ -107,12 +110,25 @@ export default {
         includeHotbar: draft.primary === 'hotbar' || (draft.primary === 'inventory' && extra),
       });
       return interaction.update({
-        content: '### 📸 Screenshot Reminder\n**Have you taken screenshots of your selected inventory/hotbar?**\nPlease take clear screenshots before continuing; you will upload each selected screenshot separately.',
-        components: [yesNoRow('reminder', sessionId, 'Have you taken the screenshots?'), ticketCancelRow()],
+        content: '### 📦 Shulker Service Quantities\nEnter an amount for each selected option. **Minimum 27 shulkers per Inventory or Hotbar order.**',
+        components: [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`shulker_service_amounts:${sessionId}`)
+              .setLabel('Enter Shulker Amounts')
+              .setStyle(ButtonStyle.Primary),
+          ),
+          ticketCancelRow(),
+        ],
       });
     }
 
     if (step === 'reminder') {
+      if (!draft.amountsComplete
+        || (draft.includeInventory && (!Number.isSafeInteger(draft.inventoryAmount) || draft.inventoryAmount < 27))
+        || (draft.includeHotbar && (!Number.isSafeInteger(draft.hotbarAmount) || draft.hotbarAmount < 27))) {
+        return interaction.reply({ content: '❌ Enter at least 27 shulkers for every selected option before uploading screenshots.', ephemeral: true });
+      }
       const answer = interaction.values?.[0];
       if (!draft.primary || !['yes', 'no'].includes(answer)) {
         return interaction.reply({ content: '❌ Invalid screenshot confirmation.', ephemeral: true });
