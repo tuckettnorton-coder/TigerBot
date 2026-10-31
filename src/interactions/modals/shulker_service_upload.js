@@ -1,40 +1,35 @@
-import { MessageFlags } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
 import { createTicketChannel, logTicket } from '../../services/ticketService.js';
-import { clearShulkerDraft, getShulkerDraft } from '../../utils/shulkerDrafts.js';
+import { clearShulkerDraft, getShulkerDraft, patchShulkerDraft } from '../../utils/shulkerDrafts.js';
+import { getNextShulkerUpload, getShulkerUploadOrder } from '../selectMenus/shulker_service.js';
 import {
-  clearTicketEphemeral, clearTicketEphemeralLater, resetMainTicketPanel,
+  clearTicketEphemeral, clearTicketEphemeralLater, registerTicketEphemeral,
+  resetMainTicketPanel, ticketCancelRow,
 } from '../../utils/ticketEphemeral.js';
 
-function uploadedFile(fields, customId) {
-  return fields.getUploadedFiles(customId, false)?.first() || null;
-}
-
 function isImage(file) {
-  return !file || (
-    (file.contentType ? file.contentType.startsWith('image/') : true)
-    && /\.(png|jpe?g|gif|webp)$/i.test(file.name || '')
-  );
+  return Boolean(file
+    && (file.contentType ? file.contentType.startsWith('image/') : true)
+    && /\.(png|jpe?g|gif|webp)$/i.test(file.name || ''));
 }
 
-async function postImage(channel, name, file) {
-  if (!file) return;
+async function postImage(channel, kind, file) {
+  const label = kind === 'inventory' ? 'Inventory' : 'Hotbar';
   const extension = file.name.split('.').pop().toLowerCase();
   try {
     await channel.send({
-      content: `📸 **${name} Screenshot**`,
-      files: [{ attachment: file.url, name: `shulker-${name.toLowerCase()}.${extension}` }],
+      content: `📸 **${label} Screenshot**`,
+      files: [{ attachment: file.url, name: `shulker-${kind}.${extension}` }],
     });
   } catch {
-    await channel.send({
-      content: `📸 **${name} Screenshot:** ${file.url}`,
-    });
+    await channel.send({ content: `📸 **${label} Screenshot:** ${file.url}` });
   }
 }
 
 export default {
   name: 'shulker_service_upload',
   async execute(interaction, client, args = []) {
-    const sessionId = args[0];
+    const [sessionId, kind] = args;
     const draft = getShulkerDraft(interaction.guildId, interaction.user.id, sessionId);
     if (!draft || !draft.primary) {
       return interaction.reply({
@@ -44,21 +39,50 @@ export default {
     }
 
     try {
-      const hotbar = uploadedFile(interaction.fields, 'hotbar_image');
-      const inventory = uploadedFile(interaction.fields, 'inventory_image');
-      if (!isImage(hotbar) || !isImage(inventory)) {
+      const nextExpected = getNextShulkerUpload(draft);
+      if (draft.completing || !nextExpected || nextExpected !== kind) {
         return interaction.reply({
-          content: '❌ Please upload screenshots as PNG, JPG, GIF, or WebP images.',
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-      if ((draft.includeHotbar && !hotbar) || (draft.includeInventory && !inventory)) {
-        return interaction.reply({
-          content: '❌ You must upload screenshots for every selected inventory/hotbar.',
+          content: '❌ That screenshot step is no longer active. Please use the current upload step.',
           flags: MessageFlags.Ephemeral,
         });
       }
 
+      const file = interaction.fields.getUploadedFiles(`${kind}_image`, false)?.first();
+      if (!isImage(file)) {
+        return interaction.reply({
+          content: '❌ Upload one valid PNG, JPG, GIF, or WebP screenshot.',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      patchShulkerDraft(interaction.guildId, interaction.user.id, sessionId, {
+        screenshots: {
+          ...draft.screenshots,
+          [kind]: { name: file.name, url: file.url, contentType: file.contentType },
+        },
+      });
+      const remaining = getNextShulkerUpload(draft);
+      if (remaining) {
+        const label = kind === 'inventory' ? 'Inventory' : 'Hotbar';
+        const nextLabel = remaining === 'inventory' ? 'Inventory' : 'Hotbar';
+        await interaction.reply({
+          content: `✅ **${label} screenshot uploaded.**\nNow upload your **${nextLabel} screenshot** to finish your Shulker Service ticket.`,
+          components: [
+            new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`shulker_service_next_upload:${sessionId}`)
+                .setLabel(`Upload ${nextLabel} Image`)
+                .setStyle(ButtonStyle.Primary),
+            ),
+            ticketCancelRow(),
+          ],
+          flags: MessageFlags.Ephemeral,
+        });
+        registerTicketEphemeral(interaction.user.id, interaction);
+        return;
+      }
+
+      draft.completing = true;
       const answers = {
         shulker_count: String(draft.shulkerCount),
         primary_type: draft.primary === 'inventory' ? 'Inventory' : 'Hotbar',
@@ -75,19 +99,22 @@ export default {
         return interaction.editReply(`You already have an open Shulker Service ticket: ${result.existing}`);
       }
 
-      await postImage(result.channel, 'Hotbar', hotbar);
-      await postImage(result.channel, 'Inventory', inventory);
+      for (const screenshotKind of getShulkerUploadOrder(draft)) {
+        await postImage(result.channel, screenshotKind, draft.screenshots[screenshotKind]);
+      }
       await result.channel.send('💬 **Pricing will be discussed with staff in this ticket.** No automatic price calculation is used.');
 
       const displayName = interaction.member?.displayName || interaction.user.globalName || interaction.user.username;
       await logTicket(interaction.guild,
         `🎫 **Ticket opened** • Shulker Service • ${displayName} • ${result.channel}`);
+
       clearShulkerDraft(interaction.guildId, interaction.user.id);
       await resetMainTicketPanel(interaction.user.id);
       await clearTicketEphemeral(interaction.user.id);
-      await interaction.editReply(`✅ Shulker Service ticket created: ${result.channel}\nYour screenshots are included below the ticket panel.`);
+      await interaction.editReply(`✅ Shulker Service ticket created: ${result.channel}\nYour screenshot${getShulkerUploadOrder(draft).length === 1 ? ' is' : 's are'} included below the ticket panel.`);
       clearTicketEphemeralLater(interaction);
     } catch (error) {
+      draft.completing = false;
       const payload = { content: `❌ Could not create the Shulker Service ticket: ${error.message}` };
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply(payload).catch(() => {});
