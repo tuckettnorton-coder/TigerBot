@@ -21,6 +21,7 @@ export const TICKET_TYPES = {
       { id: 'primary_type', label: 'Inventory or Hotbar?', required: true },
       { id: 'include_inventory', label: 'Do you want Inventory?', required: true },
       { id: 'include_hotbar', label: 'Do you want Hotbar?', required: true },
+      { id: 'ign', label: 'What is your Minecraft IGN?', required: true },
     ],
   },
   digging_services: { label:'Digging services',emoji:'⛏️',description:'Click this for Digging services',categoryName:'Building/Diging',pingRoles:['1505252058591138004','1536861272610709534','1536860897509900389','1517213500655796265'],welcomeMessage:'{user} Welcome a <@&1517213500655796265> <@&1536861272610709534> will get to you shortly.',form:[{id:'area_size',label:'What size of area? (width X length X height)',required:true,placeholder:'Enter here'},{id:'has_area',label:'Do you have a area?',required:true,placeholder:'Yes/No'},{id:'region',label:'Do you want a certain region?',required:true,placeholder:'West/East/Ocean/Asia/Europe/None'},{id:'good_chords',label:'Do you want good coords?',required:true,placeholder:'Yes/No'},{id:'ign',label:'IGN',required:true,placeholder:'IGN'}] },
