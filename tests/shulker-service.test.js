@@ -50,7 +50,8 @@ test('Inventory-only and Hotbar-only tickets require exactly one matching upload
     assert.deepEqual(getShulkerUploadOrder(draft), [first]);
     assert.equal(getNextShulkerUpload(draft), first);
     const modal = buildShulkerUploadModal(draft).toJSON();
-    assert.equal(modal.components.length, 1);
+    assert.equal(modal.components.length, 2);
+    assert.ok(JSON.stringify(modal.components.at(-1)).includes('"ign"'));
     assert.ok(JSON.stringify(modal).includes(`${first}_image`));
     const other = first === 'inventory' ? 'hotbar' : 'inventory';
     assert.ok(!JSON.stringify(modal).includes(`${other}_image`));
@@ -76,7 +77,8 @@ test('Both views are uploaded one after the other, in the order selected', () =>
     draft.screenshots[first] = { name: 'first.png', url: 'https://example.com/first.png' };
     assert.equal(getNextShulkerUpload(draft), other);
     const nextModal = buildShulkerUploadModal(draft).toJSON();
-    assert.equal(nextModal.components.length, 1);
+    assert.equal(nextModal.components.length, 2);
+    assert.ok(JSON.stringify(nextModal.components.at(-1)).includes('"ign"'));
     assert.ok(JSON.stringify(nextModal).includes(`${other}_image`));
     assert.ok(!JSON.stringify(nextModal).includes(`${first}_image`));
 
@@ -157,4 +159,5 @@ test('Shulker ticket fields show each selected amount separately', () => {
   assert.equal(fields.some(field => field.id === 'shulker_count'), false);
   assert.ok(fields.some(field => field.id === 'inventory_amount'));
   assert.ok(fields.some(field => field.id === 'hotbar_amount'));
+  assert.equal(fields.at(-1).id, 'ign');
 });
