@@ -55,6 +55,15 @@ export default {
         });
       }
 
+      const isLastScreenshot = getShulkerUploadOrder(draft).at(-1) === kind;
+      const ign = isLastScreenshot ? interaction.fields.getTextInputValue('ign').trim() : null;
+      if (isLastScreenshot && !ign) {
+        return interaction.reply({
+          content: '❌ Please enter your Minecraft IGN.',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
       patchShulkerDraft(interaction.guildId, interaction.user.id, sessionId, {
         screenshots: {
           ...draft.screenshots,
@@ -94,6 +103,7 @@ export default {
         primary_type: draft.primary === 'inventory' ? 'Inventory' : 'Hotbar',
         include_inventory: draft.includeInventory ? 'Yes' : 'No',
         include_hotbar: draft.includeHotbar ? 'Yes' : 'No',
+        ign,
       };
 
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
