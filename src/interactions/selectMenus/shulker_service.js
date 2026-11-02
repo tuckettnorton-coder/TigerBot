@@ -1,6 +1,6 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, FileUploadBuilder, LabelBuilder, ModalBuilder,
-  StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
+  StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle,
 } from 'discord.js';
 import { getShulkerDraft, patchShulkerDraft } from '../../utils/shulkerDrafts.js';
 import { ticketCancelRow } from '../../utils/ticketEphemeral.js';
@@ -58,7 +58,7 @@ export function buildShulkerUploadModal(draft, kind = getNextShulkerUpload(draft
     .setMaxValues(1)
     .setRequired(true);
 
-  return new ModalBuilder()
+  const modal = new ModalBuilder()
     .setCustomId(`shulker_service_upload:${draft.sessionId}:${kind}`)
     .setTitle(`Upload ${label} Screenshot`)
     .addLabelComponents(
@@ -67,6 +67,22 @@ export function buildShulkerUploadModal(draft, kind = getNextShulkerUpload(draft
         .setDescription(`Upload one clear screenshot of your ${label.toLowerCase()}.`)
         .setFileUploadComponent(upload),
     );
+
+  // Ask for IGN only after the final selected screenshot.
+  if (getShulkerUploadOrder(draft).at(-1) === kind) {
+    modal.addLabelComponents(
+      new LabelBuilder()
+        .setLabel('What is your Minecraft IGN?')
+        .setTextInputComponent(
+          new TextInputBuilder()
+            .setCustomId('ign')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('Your Minecraft username')
+            .setRequired(true),
+        ),
+    );
+  }
+  return modal;
 }
 
 export default {
