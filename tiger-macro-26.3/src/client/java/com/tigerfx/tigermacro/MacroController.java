@@ -73,7 +73,7 @@ public final class MacroController {
             return;
         }
 
-        long window = mc.getWindow().getWindow();
+        long window = mc.getWindow().handle();
         if (held && activeKey == cfg.targetKey && activeWindow == window) return;
 
         reset();
