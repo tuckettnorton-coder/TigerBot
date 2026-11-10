@@ -32,15 +32,14 @@ public final class TigerMacroClient implements ClientModInitializer {
             }
             while (toggleMacro.consumeClick()) {
                 boolean enabled = MacroController.toggleEnabled();
-                if (mc.player != null)
-                    mc.player.displayClientMessage(Component.literal("Tiger Macro " + (enabled ? "enabled" : "disabled")), true);
+                if (mc.player != null) System.out.println("[TigerMacro] " + (enabled ? "enabled" : "disabled"));
             }
             MacroController.tick(mc);
         });
     }
     public static KeyMapping targetKey() { return target; }
     public static boolean isUtilityKey(int key) {
-        return key == openSettings.getKey().getValue() || key == toggleMacro.getKey().getValue();
+        return key == InputConstants.KEY_K || key == InputConstants.KEY_F8;
     }
     public static void setTargetKey(int key) {
         if (isUtilityKey(key)) return;
