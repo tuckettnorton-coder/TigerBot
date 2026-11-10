@@ -46,7 +46,7 @@ public final class MacroController {
         if (lastPulse > holdStart && now - lastPulse < intervalNanos) return;
         // Click the physical target key in the game's key-mapping dispatch,
         // without inventing a synthetic release that would interrupt held items.
-        KeyMapping.click(TigerMacroClient.targetKey().getKey());
+        KeyMapping.click(InputConstants.Type.KEYBOARD.getOrCreate(MacroConfig.get().targetKey));
         lastPulse = now;
     }
 }
