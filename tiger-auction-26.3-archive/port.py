@@ -151,6 +151,94 @@ for file in (root/"src/main/java").rglob("*.java"):
         needle="    }\n\n    private void applyPendingPreset() {"
         s=s.replace(needle,"        applyPendingPreset();\n    }\n\n    private void applyPendingPreset() {",1)
 
+
+    if file.name == "AuctionScreen.java":
+        # Restore the exact 1.1.9 preset layout: five inline gold slots,
+        # a Save Preset toggle, click-to-load and right-click-to-delete.
+        s=s.replace("""        addRenderableWidget(Button.builder(Component.literal("PRESETS"), b ->
+            minecraft.gui.setScreen(new AuctionPresetsScreen(this)))
+            .bounds(panelX + 464, panelY + 283, 75, 20).build());
+""", "")
+        s=s.replace(".bounds(panelX + 544, panelY + 283, 78, 20).build());",
+                    ".bounds(panelX + 345, panelY + 9, 100, 20).build());")
+        s=s.replace(".bounds(panelX + 345, panelY + 283, 115, 20).build());",
+                    ".bounds(panelX + 345, panelY + 217, 115, 20).build());")
+        s=s.replace("            drawSelectedItem(graphics);",
+                    "            drawSelectedItem(graphics);\n            tigerDrawPresetSlots(graphics,panelMouseX,panelMouseY);")
+        s=s.replace("        event = scaleMouse(event);",
+                    "        event = scaleMouse(event);\n        if (tigerPresetClick(event)) return true;", 1)
+        code = """    private boolean tigerSavingPreset;
+
+    private void tigerDrawPresetSlots(GuiGraphicsExtractor g, int mx, int my) {
+        int x=panelX+344, y=panelY+248;
+        g.fill(x,y,x+278,y+74,0xFF100D08);
+        g.fill(x,y,x+278,y+2,0xFFFFC857);
+        g.text(font,tigerSavingPreset?"SAVE MODE - CHOOSE A SLOT":"SAVED AUCTIONS / 5 SLOTS",
+            x+5,y+5,0xFFFFE8A5);
+        int[] xx={348,439,530,348,439};
+        int[] yy={280,280,280,301,301};
+        int hovered=-1;
+        for(int i=0;i<5;i++){
+            if(mx>=panelX+xx[i]&&mx<panelX+xx[i]+86&&
+               my>=panelY+yy[i]&&my<panelY+yy[i]+18) hovered=i;
+        }
+        String info=tigerSavingPreset?"CLICK A SLOT TO SAVE / OVERWRITE":
+              "CLICK = LOAD  RIGHT-CLICK = CLEAR";
+        if(hovered>=0 && !tigerSavingPreset){
+            AuctionPresets.Preset p=AuctionPresets.get(hovered);
+            if(p!=null) info="x"+p.quantity()+" "+p.min()+"-"+p.max()+" "+p.duration();
+        }
+        if(info.length()>47) info=info.substring(0,46);
+        g.text(font,info,x+5,y+19,0xFFB9A982);
+        for(int i=0;i<5;i++){
+            int sx=panelX+xx[i],sy=panelY+yy[i];
+            g.fill(sx,sy,sx+86,sy+18, hovered==i?0xFFB18F42:0xFF3D3020);
+            g.fill(sx+1,sy+1,sx+85,sy+17, hovered==i?0xFF2B2314:0xFF20180D);
+            AuctionPresets.Preset p=AuctionPresets.get(i);
+            String text=(i+1)+" "+(p==null?"EMPTY":p.label()+" x"+p.quantity());
+            if(text.length()>14)text=text.substring(0,13)+"..";
+            g.text(font,text,sx+4,sy+5,p==null?0xFF9D9B8B:0xFFFFC857);
+        }
+        int saveX=panelX+530,saveY=panelY+301;
+        g.fill(saveX,saveY,saveX+86,saveY+18,tigerSavingPreset?0xFF705117:0xFF4B3616);
+        g.fill(saveX+1,saveY+1,saveX+85,saveY+17,0xFF1D160A);
+        g.text(font,tigerSavingPreset?"CANCEL SAVE":"SAVE PRESET",saveX+7,saveY+5,0xFFFFE8A5);
+    }
+
+    private boolean tigerPresetClick(MouseButtonEvent e){
+        double x=e.x()-panelX,y=e.y()-panelY;
+        if(x<344 || x>=622 || y<248 || y>=322) return false;
+        if(e.button()!=0 && e.button()!=1)return true;
+        if(x>=530 && x<616 && y>=301 && y<319){
+            if(e.button()==0) tigerSavingPreset=!tigerSavingPreset;
+            return true;
+        }
+        int[] xx={348,439,530,348,439};
+        int[] yy={280,280,280,301,301};
+        for(int i=0;i<5;i++) {
+            if(x<xx[i] || x>=xx[i]+86 || y<yy[i] || y>=yy[i]+18)continue;
+            if(e.button()==1) {
+                AuctionPresets.clear(i);
+                tigerSavingPreset=false;
+                status="Cleared preset slot "+(i+1);
+            } else if(tigerSavingPreset) {
+                savePreset(i);
+                tigerSavingPreset=false;
+            } else {
+                AuctionPresets.Preset p=AuctionPresets.get(i);
+                if(p!=null){
+                    AuctionPresets.select(i);
+                    applyPendingPreset();
+                }else status="Empty preset slot "+(i+1)+". Click SAVE PRESET first.";
+            }
+            return true;
+        }
+        return true;
+    }
+
+"""
+        s=s.replace("    private void startAuction() {", code + "    private void startAuction() {")
+
     file.write_text(s)
 mod=root/"src/main/resources/fabric.mod.json"
 s=mod.read_text().replace('"minecraft": "~1.21.11"', '"minecraft": "26.3"').replace('"minecraft": "1.21.11"', '"minecraft": "26.3"').replace('"java": ">=21"', '"java": ">=25"').replace("for Minecraft 1.21.11.", "for Minecraft 26.3.")
