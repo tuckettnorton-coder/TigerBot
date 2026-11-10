@@ -105,8 +105,65 @@ for file in (root/"src/main/java").rglob("*.java"):
         );
         ClientTickEvents.END_CLIENT_TICK.register(client -> {""")
 
+
+    if file.name == "AuctionScreen.java":
+        # Restore the five-preset manager and profit ledger entrypoints, in unused
+        # space beside the existing "SAVE ITEM" button.
+        s=s.replace('        addRenderableWidget(Button.builder(Component.literal("SAVE ITEM")', """
+        addRenderableWidget(Button.builder(Component.literal("PRESETS"), b ->
+            minecraft.gui.setScreen(new AuctionPresetsScreen(this)))
+            .bounds(panelX + 464, panelY + 283, 75, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("PROFITS"), b ->
+            minecraft.gui.setScreen(new ProfitScreen(this)))
+            .bounds(panelX + 544, panelY + 283, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("SAVE ITEM")""")
+        s=s.replace("    private void startAuction() {", """    private void applyPendingPreset() {
+        AuctionPresets.Preset p = AuctionPresets.takePending();
+        if (p == null) return;
+        for (Item candidate : allItems) {
+            if (BuiltInRegistries.ITEM.getKey(candidate).toString().equals(p.id())) {
+                selectedItem = candidate;
+                break;
+            }
+        }
+        quantity = Math.max(1, Math.min(64, p.quantity()));
+        minimumBox.setValue(p.min());
+        maximumBox.setValue(p.max());
+        durationBox.setValue(p.duration());
+        status = "Loaded preset: " + p.label();
+    }
+
+    void savePreset(int index) {
+        AuctionPresets.save(index,
+            BuiltInRegistries.ITEM.getKey(selectedItem).toString(),
+            new ItemStack(selectedItem).getHoverName().getString(), quantity,
+            minimumBox.getValue(), maximumBox.getValue(), durationBox.getValue());
+        status = "Saved auction preset " + (index + 1);
+    }
+
+    private void startAuction() {""")
+        s=s.replace("    }\n\n    private void startAuction() {",
+            "    }\n\n    private void startAuction() {")
+        # Apply any selected saved preset after re-entering the auction screen.
+        needle="    }\n\n    private void applyPendingPreset() {"
+        s=s.replace(needle,"        applyPendingPreset();\n    }\n\n    private void applyPendingPreset() {",1)
+
     file.write_text(s)
 mod=root/"src/main/resources/fabric.mod.json"
 s=mod.read_text().replace('"minecraft": "~1.21.11"', '"minecraft": "26.3"').replace('"minecraft": "1.21.11"', '"minecraft": "26.3"').replace('"java": ">=21"', '"java": ">=25"')
 mod.write_text(s)
 print("Ported", len(list((root/"src/main/java").rglob("*.java"))), "Java source files")
+
+# Add the reconstructed 1.1.9-only modules. This is a direct copy, not a
+# text transform, because the new classes already target Minecraft 26.3.
+for java_file in (Path(__file__).resolve().parent/"addons").rglob("*.java"):
+    relative = java_file.relative_to(Path(__file__).resolve().parent/"addons")
+    destination = root/"src/main/java"/relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(java_file.read_text())
+
+# Preserve original entrypoint order and attach the economy ledger listener.
+s=mod.read_text()
+s=s.replace('"net.tigerfx.tigerauction.TigerFinanceTracker"',
+            '"net.tigerfx.tigerauction.TigerFinanceTracker",\n      "net.tigerfx.tigerauction.ProfitHooks"')
+mod.write_text(s)
