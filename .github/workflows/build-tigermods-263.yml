@@ -53,3 +53,39 @@ jobs:
           name: TigerAuction-original-source
           path: tiger-auction-26.3-archive/source/
           retention-days: 30
+
+  auction:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+      - name: Extract source and apply 26.3 compatibility updates
+        shell: bash
+        run: |
+          mkdir -p tiger-auction-26.3-archive/source
+          base64 -d tiger-auction-26.3-archive/tigerauction-src.tar.xz.b64 | tar -xJ -C tiger-auction-26.3-archive/source
+          python3 tiger-auction-26.3-archive/port.py
+      - name: Compile TigerAuction 26.3
+        shell: bash
+        working-directory: tiger-auction-26.3-archive/source
+        run: |
+          set -o pipefail
+          gradle --no-daemon clean build 2>&1 | tee auction-build.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tiger-auction-26.3-build-log
+          path: tiger-auction-26.3-archive/source/auction-build.log
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: TigerAuction-26.3-JAR
+          path: tiger-auction-26.3-archive/source/build/libs/*.jar
+          retention-days: 30
