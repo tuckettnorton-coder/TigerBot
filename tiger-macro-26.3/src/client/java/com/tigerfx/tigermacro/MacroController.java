@@ -1,6 +1,7 @@
 package com.tigerfx.tigermacro;
 
 import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.input.KeyEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,7 +68,7 @@ public final class MacroController {
         MacroConfig cfg = MacroConfig.get();
         if (!cfg.enabled || mc.player == null || mc.level == null
                 || mc.gui.screen() != null || TigerMacroClient.targetKey() == null
-                || !TigerMacroClient.targetKey().isDown()
+                || !InputConstants.isKeyDown(cfg.targetKey)
                 || !ItemFilters.allowsHeldItem(mc)) {
             if (held) reset();
             return;
@@ -99,7 +100,7 @@ public final class MacroController {
                     MacroConfig cfg = MacroConfig.get();
                     if (!cfg.enabled || client.player == null || client.level == null
                             || client.gui.screen() != null
-                            || !TigerMacroClient.targetKey().isDown()
+                            || !InputConstants.isKeyDown(cfg.targetKey)
                             || !ItemFilters.allowsHeldItem(client)
                             || cfg.targetKey != activeKey) {
                         reset();
