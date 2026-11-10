@@ -1,0 +1,71 @@
+name: Smoke-test Tiger Mods in Minecraft 26.3
+on:
+  push:
+    branches: ["build/tigermods-26.3-20261110"]
+    paths: [".github/workflows/smoke-tigermods-263.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  start-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+      - name: Ensure a virtual display
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y xvfb mesa-utils libgl1-mesa-dri
+          fi
+      - name: Compile TigerMacro 26.3
+        working-directory: tiger-macro-26.3
+        run: gradle --no-daemon build
+      - name: Extract and compile TigerAuction 26.3
+        shell: bash
+        run: |
+          mkdir -p tiger-auction-26.3-archive/source
+          base64 -d tiger-auction-26.3-archive/tigerauction-src.tar.xz.b64 | tar -xJ -C tiger-auction-26.3-archive/source
+          python3 tiger-auction-26.3-archive/port.py
+          gradle --no-daemon -p tiger-auction-26.3-archive/source build
+      - name: Start client with both mods installed
+        shell: bash
+        run: |
+          mkdir -p tiger-macro-26.3/run/mods
+          cp tiger-auction-26.3-archive/source/build/libs/tiger-auction-*.jar tiger-macro-26.3/run/mods/
+          set +e
+          timeout --signal=INT --kill-after=10s 130s xvfb-run -a -s '-screen 0 1280x800x24' \
+            gradle --no-daemon -p tiger-macro-26.3 runClient --console=plain >client-smoke.log 2>&1
+          RC=$?
+          set -e
+          echo "Startup return code: $RC"
+          tail -n 140 client-smoke.log
+          echo "=== CHECKS ==="
+          if grep -E 'Duplicate.*hud|Already registered|Caused by:|NoClassDefFoundError|UnsupportedClassVersionError|Incompatible mods found|Exception in thread' client-smoke.log; then
+            echo "Client startup reported a mod/loader failure."
+            exit 1
+          fi
+          if ! grep -Ei 'fabric|minecraft' client-smoke.log >/dev/null; then
+            echo "No Fabric or Minecraft startup output; smoke test inconclusive."
+            exit 1
+          fi
+          if [ "$RC" -ne 0 ] && [ "$RC" -ne 124 ]; then
+            echo "Client exited unexpectedly."
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TigerMods-26.3-client-startup-log
+          path: |
+            client-smoke.log
+            tiger-macro-26.3/run/logs/latest.log
+          retention-days: 7
