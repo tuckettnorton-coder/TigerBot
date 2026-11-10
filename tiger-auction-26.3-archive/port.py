@@ -49,7 +49,7 @@ for file in (root/"src/main/java").rglob("*.java"):
     s=s.replace(".drawString(", ".text(")
     s=s.replace(".drawCenteredString(", ".centeredText(")
     s=s.replace(".setScreen(", ".gui.setScreen(")
-    s=s.replace("client.screen", "client.gui.screen()")
+    s=s.replace("client.screen == null", "client.gui.screen() == null")\n    s=s.replace("client.screen != null", "client.gui.screen() != null")
     s=s.replace("minecraft.screen", "minecraft.gui.screen()")
     s=s.replace("KeyBindingHelper", "KeyMappingHelper")
     s=s.replace("registerKeyBinding", "registerKeyMapping")
