@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "tigermacro",
+  "version": "${version}",
+  "name": "Tiger Macro",
+  "description": "TigerMacro for Minecraft 26.3 with saved blacklist/whitelist item filters, searched item icons, keybinds, and timing options.",
+  "authors": ["TigerFX"],
+  "environment": "client",
+  "entrypoints": { "client": ["com.tigerfx.tigermacro.TigerMacroClient"] },
+  "depends": { "fabricloader": ">=0.19.5", "minecraft": "26.3", "java": ">=25", "fabric-api": "*" }
+}
