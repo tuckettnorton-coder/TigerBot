@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends xvfb mesa-utils libgl1 libgl1-mesa-dri libglx-mesa0 libegl-mesa0 libvulkan1 mesa-vulkan-drivers vulkan-tools
+          sudo apt-get install -y --no-install-recommends xvfb mesa-utils libgl1 libgl1-mesa-dri libglx-mesa0 libegl-mesa0 libvulkan1 mesa-vulkan-drivers vulkan-tools libflite1 libasound2t64
           LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe xvfb-run -a -s '-screen 0 1280x800x24 +extension GLX +render' glxinfo -B
       - name: Compile TigerMacro 26.3
         working-directory: tiger-macro-26.3
