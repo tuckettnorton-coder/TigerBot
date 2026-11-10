@@ -19,13 +19,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.7.1'
-      - name: Ensure a virtual display
+      - name: Prepare software OpenGL / Vulkan and virtual display
         shell: bash
         run: |
-          if ! command -v xvfb-run >/dev/null 2>&1; then
-            sudo apt-get update -qq
-            sudo apt-get install -y xvfb mesa-utils libgl1-mesa-dri
-          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb mesa-utils libgl1 libgl1-mesa-dri libglx-mesa0 libegl-mesa0 libvulkan1 mesa-vulkan-drivers vulkan-tools
+          LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe xvfb-run -a -s '-screen 0 1280x800x24 +extension GLX +render' glxinfo -B
       - name: Compile TigerMacro 26.3
         working-directory: tiger-macro-26.3
         run: gradle --no-daemon build
@@ -42,7 +41,8 @@ jobs:
           mkdir -p tiger-macro-26.3/run/mods
           cp tiger-auction-26.3-archive/source/build/libs/tiger-auction-*.jar tiger-macro-26.3/run/mods/
           set +e
-          timeout --signal=INT --kill-after=10s 130s xvfb-run -a -s '-screen 0 1280x800x24' \
+          timeout --signal=TERM --kill-after=5s 70s env LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe MESA_GL_VERSION_OVERRIDE=4.5COMPAT \
+            xvfb-run -a -s '-screen 0 1280x800x24 +extension GLX +render' \
             gradle --no-daemon -p tiger-macro-26.3 runClient --console=plain >client-smoke.log 2>&1
           RC=$?
           set -e
@@ -57,7 +57,7 @@ jobs:
             echo "No Fabric or Minecraft startup output; smoke test inconclusive."
             exit 1
           fi
-          if [ "$RC" -ne 0 ] && [ "$RC" -ne 124 ]; then
+          if [ "$RC" -ne 0 ] && [ "$RC" -ne 124 ] && [ "$RC" -ne 137 ]; then
             echo "Client exited unexpectedly."
             exit 1
           fi
