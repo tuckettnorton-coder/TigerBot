@@ -1,0 +1,38 @@
+name: Build Tiger Mods for Minecraft 26.3
+on:
+  push:
+    branches:
+      - build/tigermods-26.3-20261110
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+      - name: Build TigerMacro 26.3
+        working-directory: tiger-macro-26.3
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon clean build --stacktrace 2>&1 | tee macro-build.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tiger-macro-26.3-build-log
+          path: tiger-macro-26.3/macro-build.log
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: TigerMacro-26.3-JAR
+          path: tiger-macro-26.3/build/libs/*.jar
+          retention-days: 30
