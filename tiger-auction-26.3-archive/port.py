@@ -153,7 +153,7 @@ for file in (root/"src/main/java").rglob("*.java"):
 
     file.write_text(s)
 mod=root/"src/main/resources/fabric.mod.json"
-s=mod.read_text().replace('"minecraft": "~1.21.11"', '"minecraft": "26.3"').replace('"minecraft": "1.21.11"', '"minecraft": "26.3"').replace('"java": ">=21"', '"java": ">=25"')
+s=mod.read_text().replace('"minecraft": "~1.21.11"', '"minecraft": "26.3"').replace('"minecraft": "1.21.11"', '"minecraft": "26.3"').replace('"java": ">=21"', '"java": ">=25"').replace("for Minecraft 1.21.11.", "for Minecraft 26.3.")
 mod.write_text(s)
 print("Ported", len(list((root/"src/main/java").rglob("*.java"))), "Java source files")
 
