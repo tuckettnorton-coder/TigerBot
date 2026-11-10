@@ -62,7 +62,7 @@ for file in (root/"src/main/java").rglob("*.java"):
     s=s.replace("GLFW.GLFW_KEY_DELETE", "InputConstants.KEY_DELETE")
     s=s.replace("GLFW.GLFW_KEY_SPACE", "InputConstants.KEY_SPACE")
     # New extractors do not expose the old mutable pose stack.
-    s=re.sub(r'^.*?\\.pose\\(\\)\\.(?:pushMatrix|popMatrix|translate|scale)\\(.*?\\);.*$', '// Transform previously applied by 1.21 GUI pose stack',s,flags=re.M)
+    # Matrix3x2fStack transformations remain supported by GuiGraphicsExtractor in 26.3.
     s=s.replace("displayClientMessage(", "sendSystemMessage(")
     s=s.replace("import net.minecraft.client.gui.GuiGraphicsExtractor;", "import net.minecraft.client.gui.GuiGraphicsExtractor;")
     if file.name == "TigerAuctionClient.java":
@@ -72,6 +72,30 @@ for file in (root/"src/main/java").rglob("*.java"):
         s=s.replace("client.player.sendSystemMessage(Component.literal(message), false);","client.player.sendSystemMessage(Component.literal(message));")
     if file.name=="AuctionControlsScreen.java":
         s=s.replace("GLFW.glfwGetKeyName(", "InputConstants.getKeyName(")
+
+    # Fix remaining 26.3 key mapping import and inventory item naming.
+    s=s.replace("net.fabricmc.fabric.api.client.keybinding.v1.KeyMappingHelper", "net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper")
+    for old in ["active.item","finished.item","item","selectedItem","stackItem"]:
+        s=s.replace(old+".getName().getString()", "new ItemStack("+old+").getHoverName().getString()")
+    # Player.sendSystemMessage no longer takes an overlay argument in 26.3.
+    s=re.sub(r'(\.sendSystemMessage\(\s*Component\.literal\([\s\S]*?\))\s*,\s*(?:true|false)\s*\)',r'\1)',s)
+    if file.name == "AuctionLoggingClient.java":
+        begin=s.find("        ScreenEvents.AFTER_INIT.register(")
+        if begin != -1:
+            end=s.find("\n        });", begin)
+            if end != -1:
+                s=s[:begin]+s[end+len("\n        });"):]
+    if file.name == "AuctionScreen.java":
+        s=s.replace('addRenderableWidget(Button.builder(Component.literal("CONTROLS")', 
+        'addRenderableWidget(Button.builder(Component.literal("AUCTION LOGS"), b -> minecraft.gui.setScreen(new AuctionLogScreen(this)))\n                .bounds(panelX + 230, panelY + 328, 100, 22).build());\n        addRenderableWidget(Button.builder(Component.literal("CONTROLS")')
+        s=s.replace("0xFF6AD7FF", "0xFFFFC857").replace("0xFFE3F5FF","0xFFFFE8A5").replace("0xF0111A24","0xF017120A")
+    if file.name == "TigerExtras.java":
+        s=s.replace("static int theme = 0;", "static int theme = 1;")
+    if file.name == "TigerAuctionClient.java":
+        s=s.replace('import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;',
+            'import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;\nimport net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;\nimport net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;')
+        s=s.replace("HudElementRegistry.addLast(", "HudElementRegistry.attachElementAfter(VanillaHudElements.TITLE_AND_SUBTITLE,")
+
     file.write_text(s)
 mod=root/"src/main/resources/fabric.mod.json"
 s=mod.read_text().replace('"minecraft": "~1.21.11"', '"minecraft": "26.3"').replace('"minecraft": "1.21.11"', '"minecraft": "26.3"').replace('"java": ">=21"', '"java": ">=25"')
