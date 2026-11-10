@@ -32,7 +32,8 @@ public final class TigerMacroClient implements ClientModInitializer {
             }
             while (toggleMacro.consumeClick()) {
                 boolean enabled = MacroController.toggleEnabled();
-                if (mc.player != null) System.out.println("[TigerMacro] " + (enabled ? "enabled" : "disabled"));
+                if (mc.player != null)
+                    mc.player.sendSystemMessage(Component.literal("Tiger Macro " + (enabled ? "ENABLED" : "DISABLED") + " • " + (ItemFilters.isWhitelistMode() ? "Whitelist" : "Blacklist") + " mode"));
             }
             MacroController.tick(mc);
         });
