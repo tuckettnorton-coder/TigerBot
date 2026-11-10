@@ -80,6 +80,7 @@ for file in (root/"src/main/java").rglob("*.java"):
     # Player.sendSystemMessage no longer takes an overlay argument in 26.3.
     s=re.sub(r'(\.sendSystemMessage\(\s*Component\.literal\([\s\S]*?\))\s*,\s*(?:true|false)\s*\)',r'\1)',s)
     if file.name == "AuctionLoggingClient.java":
+        s=s.replace("import net.minecraft.world.item.Item;", "import net.minecraft.world.item.Item;\nimport net.minecraft.world.item.ItemStack;")
         begin=s.find("        ScreenEvents.AFTER_INIT.register(")
         if begin != -1:
             end=s.find("\n        });", begin)
