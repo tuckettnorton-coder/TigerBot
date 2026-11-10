@@ -36,3 +36,20 @@ jobs:
           name: TigerMacro-26.3-JAR
           path: tiger-macro-26.3/build/libs/*.jar
           retention-days: 30
+
+  auction_source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract latest editable auction source
+        shell: bash
+        run: |
+          mkdir -p tiger-auction-26.3-archive/source
+          base64 -d tiger-auction-26.3-archive/tigerauction-src.tar.xz.b64 | tar -xJ -C tiger-auction-26.3-archive/source
+          find tiger-auction-26.3-archive/source -maxdepth 5 -type f | head -80
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: TigerAuction-original-source
+          path: tiger-auction-26.3-archive/source/
+          retention-days: 30
