@@ -239,6 +239,11 @@ for file in (root/"src/main/java").rglob("*.java"):
 """
         s=s.replace("    private void startAuction() {", code + "    private void startAuction() {")
 
+    if file.name == "TigerAuctionClient.java":
+        # Keep the original 1.1.9 direct auction entry and single HUD.
+        s=s.replace("new TigerDashboardScreen()", "new AuctionScreen()")
+        s=s.replace("            TigerExtras.ensureLoaded();\n", "")
+        s=s.replace("                TigerExtras.renderHud(graphics);\n", "")
     file.write_text(s)
 mod=root/"src/main/resources/fabric.mod.json"
 s=mod.read_text().replace('"minecraft": "~1.21.11"', '"minecraft": "26.3"').replace('"minecraft": "1.21.11"', '"minecraft": "26.3"').replace('"java": ">=21"', '"java": ">=25"').replace("for Minecraft 1.21.11.", "for Minecraft 26.3.")
