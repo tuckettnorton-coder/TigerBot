@@ -94,7 +94,15 @@ for file in (root/"src/main/java").rglob("*.java"):
     if file.name == "TigerAuctionClient.java":
         s=s.replace('import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;',
             'import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;\nimport net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;\nimport net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;')
-        s=s.replace("HudElementRegistry.addLast(", "HudElementRegistry.attachElementAfter(VanillaHudElements.TITLE_AND_SUBTITLE,")
+        s=s.replace("        ClientTickEvents.END_CLIENT_TICK.register(client -> {", """        HudElementRegistry.attachElementAfter(
+            VanillaHudElements.TITLE_AND_SUBTITLE,
+            Identifier.fromNamespaceAndPath(MOD_ID, "auction_hud"),
+            (graphics, deltaTracker) -> {
+                AuctionState.renderHud(graphics);
+                TigerExtras.renderHud(graphics);
+            }
+        );
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {""")
 
     file.write_text(s)
 mod=root/"src/main/resources/fabric.mod.json"
