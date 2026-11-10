@@ -1,0 +1,20 @@
+name: Build Java decompiler tool
+on:
+  push:
+    branches: ["build/tigermods-26.3-20261110"]
+    paths: [".github/workflows/build-decompiler-download.yml"]
+  workflow_dispatch:
+jobs:
+  cfr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download CFR decompiler
+        run: |
+          curl -fLsS --retry 3 -o cfr-0.152.jar https://www.benf.org/other/cfr/cfr-0.152.jar
+          file cfr-0.152.jar
+          ls -lh cfr-0.152.jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cfr-0.152
+          path: cfr-0.152.jar
+          retention-days: 1
