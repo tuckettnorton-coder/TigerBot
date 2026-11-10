@@ -67,7 +67,10 @@ for file in (root/"src/main/java").rglob("*.java"):
     s=s.replace("import net.minecraft.client.gui.GuiGraphicsExtractor;", "import net.minecraft.client.gui.GuiGraphicsExtractor;")
     if file.name == "TigerAuctionClient.java":
         s=s.replace("import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;", "")
-        s=re.sub(r'\\s*HudElementRegistry\\.addLast\\(.*?\\n\\s*\\);', '\\n', s, flags=re.S)
+        # Remove the old HUD registration before adding its 26.3 replacement.
+        # The previous transformer left both registrations with the SAME id,
+        # which caused Fabric to reject TigerAuction during client startup.
+        s=re.sub(r'\s*HudElementRegistry\.addLast\([\s\S]*?\n\s*\);', '\n', s, count=1)
         s=s.replace("ClientTickEvents.END_CLIENT_TICK", "ClientTickEvents.END_CLIENT_TICK")
         s=s.replace("client.player.sendSystemMessage(Component.literal(message), false);","client.player.sendSystemMessage(Component.literal(message));")
     if file.name=="AuctionControlsScreen.java":
