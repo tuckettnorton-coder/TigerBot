@@ -48,7 +48,7 @@ function saveMessageId(messageId) { fs.writeFileSync(MESSAGE_FILE, `${JSON.strin
 
 export function formatDiggingPriceMessage(data) {
   const { prices, notes, refundPolicy, ticket = DEFAULT_TICKET } = data;
-  return ['# Digging Prices', `- ${prices.perBlock} Per block`, `- ${prices.goodCoords} For good coords`, `- ${prices.customRegion} For custom region`, '', '# Additional Notes', notes, '', '# 💰 Refund Policy', refundPolicy, '', `### ${ticket}`].join('\n');
+  return ['# Digging Prices', `- ${prices.perBlock} Per block`, `- ${prices.goodCoords} For good coords`, `- ${prices.customRegion} For custom region`, '', '# Additional Notes', notes, '', '# 💰 Refund Policy', refundPolicy, '', `### ${ticket}`, '', 'You must pay all taxes and fees. We must receive the full amount with nothing taken out.'].join('\n');
 }
 
 export const data = new SlashCommandBuilder()
