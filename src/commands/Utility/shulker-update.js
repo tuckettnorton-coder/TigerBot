@@ -41,6 +41,8 @@ export function formatShulkerServiceMessage(rawFees = DEFAULT_SHULKER_FEES) {
     '### WE NEVER GO FIRST',
     '### Make a `Shulker service` <#1504949441650622575> To Buy',
     '<@&1528495941328441456>',
+    '',
+    'You must pay all taxes and fees. We must receive the full amount with nothing taken out.',
   ].join('\n');
 }
 
