@@ -41,7 +41,9 @@ export function formatBuildingPriceMessage(data){
     data.rules,
     '',
     `### ${data.ticket}`,
-    '<@&1528495941328441456>'
+    '<@&1528495941328441456>',
+    '',
+    'You must pay all taxes and fees. We must receive the full amount with nothing taken out.'
   ].join('\n');
 }
 export const data=new SlashCommandBuilder().setName('building-update').setDescription('Update the building service prices and information').setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
