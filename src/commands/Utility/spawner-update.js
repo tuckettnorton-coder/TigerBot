@@ -100,7 +100,7 @@ export function formatPriceMessage(prices) {
     '# MINIMUM 3+',
     `**ALL messages** regarding your ticket / spawners will be IN THE TICKET ONLY!! Scammers can SEE your ticket but not the messages inside, **dont get fooled by this**! <@&${SPAWNER_UPDATE_ROLE_ID}>`,
   ].join('\n');
-  return `${sections.join('\n\n')}\n\n${note}`;
+  return `${sections.join('\n\n')}\n\n${note}\n\nYou must pay all taxes and fees. We must receive the full amount with nothing taken out.`;
 }
 
 export const data = new SlashCommandBuilder()
