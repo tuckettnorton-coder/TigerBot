@@ -3,6 +3,12 @@ import { parseAmount, formatResult } from './calculator.js';
 import { getLatestUpdateData } from './updateState.js';
 
 const LABELS = { skeleton: 'Skeleton', creeper: 'Creeper', irongolem: 'Iron Golem', zombifiedpiglin: 'Zombified Piglin', blaze: 'Blaze', cow: 'Cow', pig: 'Pig' };
+const SELL_TAX_RATE = 0.02;
+
+function deductSellTax(total) {
+  const taxDeduction = Math.round(total * SELL_TAX_RATE);
+  return { taxDeduction, totalAfterTax: total - taxDeduction };
+}
 
 function parsePrice(value) {
   const parsed = parseAmount(value);
@@ -27,22 +33,54 @@ export async function calculateSpawnerPrice({ trade, spawnerType, amount, client
   const tier = quantity >= 64 ? '64' : '3';
   const unitPrice = parsePrice(priceSet?.[`${trade}${tier}`]);
   const total = unitPrice * quantity;
-  return { trade, spawnerType, spawnerLabel: LABELS[spawnerType], quantity, tier, unitPrice, unitPriceFormatted: formatResult(unitPrice), total, totalFormatted: formatResult(total) };
+  const { taxDeduction, totalAfterTax } = trade === 'sell' ? deductSellTax(total) : { taxDeduction: 0, totalAfterTax: total };
+  return { trade, spawnerType, spawnerLabel: LABELS[spawnerType], quantity, tier, unitPrice, unitPriceFormatted: formatResult(unitPrice), total, totalFormatted: formatResult(total), taxDeduction, taxDeductionFormatted: formatResult(taxDeduction), totalAfterTax, totalAfterTaxFormatted: formatResult(totalAfterTax) };
 }
 
 export function buildSpawnerCalculationMessage(result) {
   const action = result.trade === 'buy' ? 'You are buying from Tiger Market' : 'You are selling to Tiger Market';
-  return ['### 🧮 Automatic Spawner Price Calculation', `**${action}**`, `**Spawner:** ${result.spawnerLabel}`, `**Amount:** ${result.quantity.toLocaleString()}`, `**Price per spawner:** ${result.unitPriceFormatted}`, `**Price tier:** ${result.tier === '64' ? '64+ rate' : '3+ rate'}`, `### 💰 **Total: ${result.totalFormatted}**`, '', 'This total was calculated automatically from the current prices in the spawner price system.'].join('\n');
+  const lines = [
+    '### 🧮 Automatic Spawner Price Calculation',
+    `**${action}**`,
+    `**Spawner:** ${result.spawnerLabel}`,
+    `**Amount:** ${result.quantity.toLocaleString()}`,
+    `**Price per spawner:** ${result.unitPriceFormatted}`,
+    `**Price tier:** ${result.tier === '64' ? '64+ rate' : '3+ rate'}`,
+  ];
+  if (result.trade === 'sell') {
+    lines.push(
+      `**Cost without taxes:** ${result.totalFormatted}`,
+      `**2% tax deducted:** -${result.taxDeductionFormatted}`,
+      `### 💰 **Cost with taxes: ${result.totalAfterTaxFormatted}**`,
+      '',
+      'The 2% tax has been deducted from the selling total.',
+    );
+  } else {
+    lines.push(`### 💰 **Total: ${result.totalFormatted}**`, '', 'This total was calculated automatically from the current prices in the spawner price system.');
+  }
+  return lines.join('\n');
 }
 
 export function buildSpawnerMultiCalculationMessage(results) {
   const total = results.reduce((sum, result) => sum + result.total, 0);
-  const lines = ['### 🧮 Automatic Spawner Price Calculation', `**${results[0]?.trade === 'buy' ? 'You are buying from Tiger Market' : 'You are selling to Tiger Market'}**`, ''];
+  const isSell = results[0]?.trade === 'sell';
+  const lines = ['### 🧮 Automatic Spawner Price Calculation', `**${isSell ? 'You are selling to Tiger Market' : 'You are buying from Tiger Market'}**`, ''];
   for (const result of results) lines.push(`**${result.spawnerLabel}:** ${result.quantity.toLocaleString()} × ${result.unitPriceFormatted} = **${result.totalFormatted}**`);
-  lines.push('', `### 💰 **Grand Total: ${formatResult(total)}**`, '', 'This total was calculated automatically from the current prices in the spawner price system.');
+  if (isSell) {
+    const { taxDeduction, totalAfterTax } = deductSellTax(total);
+    lines.push(
+      '',
+      `**Cost without taxes:** ${formatResult(total)}`,
+      `**2% tax deducted:** -${formatResult(taxDeduction)}`,
+      `### 💰 **Cost with taxes: ${formatResult(totalAfterTax)}**`,
+      '',
+      'The 2% tax has been deducted from the selling total.',
+    );
+  } else {
+    lines.push('', `### 💰 **Grand Total: ${formatResult(total)}**`, '', 'This total was calculated automatically from the current prices in the spawner price system.');
+  }
   return lines.join('\n');
 }
-
 
 const spawnerDrafts = new Map();
 const SPAWNER_DRAFT_TTL = 15 * 60 * 1000;
