@@ -1,0 +1,38 @@
+name: Spawner Sell Tax Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/utils/spawnerPricing.js'
+      - 'src/interactions/modals/ticket_form.js'
+      - 'tests/spawner-sell-tax.test.js'
+      - '.github/workflows/spawner-sell-tax-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/utils/spawnerPricing.js'
+      - 'src/interactions/modals/ticket_form.js'
+      - 'tests/spawner-sell-tax.test.js'
+      - '.github/workflows/spawner-sell-tax-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  sell-tax-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Check module syntax
+        run: |
+          node --check src/utils/spawnerPricing.js
+          node --check src/interactions/modals/ticket_form.js
+      - name: Run spawner tax tests
+        run: node --test tests/spawner-sell-tax.test.js
