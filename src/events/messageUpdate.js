@@ -2,6 +2,7 @@ import { Events } from 'discord.js';
 import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
 import { logger } from '../utils/logger.js';
 import { formatLogLine } from '../utils/logging/logEmbeds.js';
+import { enforceNoEditOnUpdate } from '../services/noEditService.js';
 
 const MAX_LOGGED_EDIT_CONTENT_LENGTH = 512;
 
@@ -12,6 +13,9 @@ export default {
   async execute(oldMessage, newMessage) {
     try {
       if (!newMessage.guild || newMessage.author?.bot) return;
+
+      // Enforce the edited-link filter before logging the edited content.
+      if (await enforceNoEditOnUpdate(oldMessage, newMessage)) return;
 
       if (oldMessage.content === newMessage.content) return;
 

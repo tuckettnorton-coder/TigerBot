@@ -45,6 +45,8 @@ export default {
 
       if (message.author?.bot) return;
 
+      // Hide malicious edited links from moderation logs as well.
+      const removedByNoEdit = message.client?.noEditRecentlyDeleted?.delete(message.id) === true;
       const metaLines = [
         formatLogLine('Channel', message.channel ? `${message.channel.name} ${message.channel.toString()}` : 'Unknown'),
         formatLogLine('Message ID', `\`${message.id}\``),
@@ -52,9 +54,15 @@ export default {
         formatLogLine('Message created', `<t:${Math.floor(message.createdTimestamp / 1000)}:R>`),
       ];
 
+      if (removedByNoEdit) {
+        metaLines.push(formatLogLine('Moderation', 'No Edit removed a link-containing edited message'));
+      }
+
       let messageBody = null;
       if (message.content) {
-        messageBody = message.content.length > MAX_LOGGED_MESSAGE_CONTENT_LENGTH
+        messageBody = removedByNoEdit
+          ? '*(Content hidden: edited link removed by No Edit)*'
+          : message.content.length > MAX_LOGGED_MESSAGE_CONTENT_LENGTH
           ? `${message.content.substring(0, MAX_LOGGED_MESSAGE_CONTENT_LENGTH - 3)}...`
           : message.content;
       }
