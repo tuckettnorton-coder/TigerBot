@@ -1,0 +1,31 @@
+name: No Edit moderation tests
+
+on:
+  push:
+    paths:
+      - 'src/services/noEditService.js'
+      - 'src/commands/Moderation/noedit.js'
+      - 'src/events/messageUpdate.js'
+      - 'src/events/messageDelete.js'
+      - 'tests/noedit.test.js'
+      - '.github/workflows/noedit-tests.yml'
+  pull_request:
+    paths:
+      - 'src/services/noEditService.js'
+      - 'src/commands/Moderation/noedit.js'
+      - 'src/events/messageUpdate.js'
+      - 'src/events/messageDelete.js'
+      - 'tests/noedit.test.js'
+      - '.github/workflows/noedit-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - run: node --test tests/noedit.test.js
