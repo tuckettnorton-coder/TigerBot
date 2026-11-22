@@ -1,8 +1,7 @@
 import { Events } from "discord.js";
 import { logger, startupLog } from "../utils/logger.js";
 import config from "../config/application.js";
-import { reconcileReactionRoleMessages } from "../services/reactionRoleService.js";
-import { reconcileTicketPanels, reconcileVerificationPanels, reconcileReactionRolePanelHealth } from "../services/panelHealthService.js";
+import { reconcileTicketPanels, reconcileVerificationPanels } from "../services/panelHealthService.js";
 import { initRiffyAfterReady } from "../services/music/riffySetup.js";
 
 export default {
@@ -21,11 +20,6 @@ export default {
         initRiffyAfterReady(client);
       }
 
-      const reconciliationSummary = await reconcileReactionRoleMessages(client);
-      startupLog(
-        `Reaction role reconciliation: scanned ${reconciliationSummary.scannedMessages}, removed ${reconciliationSummary.removedMessages}, errors ${reconciliationSummary.errors}`
-      );
-
       const ticketPanelSummary = await reconcileTicketPanels(client);
       startupLog(
         `Ticket panel health: scanned ${ticketPanelSummary.scannedGuilds} guilds, healthy ${ticketPanelSummary.healthyPanels}, deleted ${ticketPanelSummary.deletedPanels}, missing channel ${ticketPanelSummary.missingChannels}, recovered ${ticketPanelSummary.recoveredIds}, errors ${ticketPanelSummary.errors}`
@@ -34,11 +28,6 @@ export default {
       const verificationPanelSummary = await reconcileVerificationPanels(client);
       startupLog(
         `Verification panel health: scanned ${verificationPanelSummary.scannedGuilds} guilds, healthy ${verificationPanelSummary.healthyPanels}, deleted ${verificationPanelSummary.deletedPanels}, missing channel ${verificationPanelSummary.missingChannels}, recovered ${verificationPanelSummary.recoveredIds}, errors ${verificationPanelSummary.errors}`
-      );
-
-      const reactionRolePanelSummary = await reconcileReactionRolePanelHealth(client);
-      startupLog(
-        `Reaction role panel health: scanned ${reactionRolePanelSummary.scannedPanels} panels, healthy ${reactionRolePanelSummary.healthyPanels}, deleted ${reactionRolePanelSummary.deletedPanels}, missing channel ${reactionRolePanelSummary.missingChannels}, recovered ${reactionRolePanelSummary.recoveredIds}, errors ${reactionRolePanelSummary.errors}`
       );
 
       // Level-role reconciliation was removed with the leveling feature. Do not call
