@@ -44,3 +44,14 @@ be enabled in Discord's developer portal for prefix messages to be read.
 
 Saved mappings use the bot's existing database and survive restarts as long as
 the hosting platform preserves the database or fallback file.
+
+## Existing panel doesn't assign roles?
+
+1. Deploy the latest `main` branch, then restart TigerBot.
+2. In an administrator/staff channel, copy the full panel message link (Discord: right-click the message > Copy Message Link).
+3. Send `!rr check https://discord.com/channels/SERVER_ID/CHANNEL_ID/MESSAGE_ID` using that actual link.
+4. The reply reports registered reaction handlers, the number of mapped roles, bot permissions, and role hierarchy errors.
+5. If the saved mapping was lost, `!rr check` recovers it directly from the original TigerBot panel embed. You do **not** need to recreate the message.
+6. React again and check the hosting logs for `Carl-style reaction role` messages if it still fails.
+
+The system supports both `No ping` and `No Pings` as the opt-out role name. This does not override Discord's built-in `@everyone` notifications.
