@@ -1,0 +1,27 @@
+name: TigerDropperDemo 26.3 Build
+on:
+  push:
+    branches: [ 'sandbox/tigerdropper-26.3-build' ]
+    paths:
+      - 'tigerdropper-build/**'
+      - '.github/workflows/tigerdropper-build.yml'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Compile with actual Minecraft 26.3 and Fabric dependencies
+        working-directory: tigerdropper-build
+        run: gradle build --stacktrace --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TigerDropperDemo-26.3-JAR
+          path: tigerdropper-build/build/libs/*.jar
