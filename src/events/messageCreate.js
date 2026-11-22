@@ -19,6 +19,7 @@ import {
   recordCorrectCount,
 } from '../services/countingGameService.js';
 import { withUpdatePostLock } from '../utils/updatePostLock.js';
+import { handleCarlReactionRoleMessage } from '../services/carlReactionRoles.js';
 
 const REPEAT_MESSAGE_KEY = (guildId) => 'guild:' + guildId + ':repeat-message';
 const STICKY_MARKER = '\u2063\u200B\u2063';
@@ -318,6 +319,9 @@ export default {
       if (message.author.bot || !message.guild || !claimMessageOnce(message.id)) return;
 
       logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
+
+      // Guided !rr make setup must receive channel/role replies before filters and normal commands.
+      if (await handleCarlReactionRoleMessage(message, client)) return;
 
       const bumpOnlyFiltered = await handleBumpOnlyChannel(message);
       if (bumpOnlyFiltered) return;
