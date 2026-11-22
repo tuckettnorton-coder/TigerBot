@@ -96,9 +96,6 @@ export const commandAliases = {
     'ss': 'serverstats',
     'sstats': 'serverstats',
 
-    'rr': 'reactroles',
-    'reactionroles': 'reactroles',
-
     'jtc': 'jointocreate',
     'jointocreate': 'jointocreate',
 
