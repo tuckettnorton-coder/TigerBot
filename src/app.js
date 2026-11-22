@@ -1,5 +1,5 @@
 ﻿import 'dotenv/config';
-import { Client, Collection, GatewayIntentBits } from 'discord.js';
+import { Client, Collection, GatewayIntentBits, Partials } from 'discord.js';
 import { REST } from '@discordjs/rest';
 import express from 'express';
 import cron from 'node-cron';
@@ -38,6 +38,7 @@ class TitanBot extends Client {
 
         GatewayIntentBits.GuildBans,                    
       ],
+      partials: [Partials.Message, Partials.Channel, Partials.Reaction],
     });
 
     this.config = config;
