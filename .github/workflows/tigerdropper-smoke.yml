@@ -1,0 +1,44 @@
+name: TigerDropperDemo 26.3 Startup Smoke
+on:
+  push:
+    branches: [ 'sandbox/tigerdropper-26.3-build' ]
+    paths:
+      - '.github/workflows/tigerdropper-smoke.yml'
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Install virtual display and OpenGL software renderer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libasound2t64
+      - name: Launch development client with real 26.3 game
+        working-directory: tigerdropper-build
+        run: |
+          set +e
+          timeout 100s xvfb-run -a gradle runClient --no-daemon > smoke-output.log 2>&1
+          code=$?
+          grep -E 'Minecraft|Error|Exception|Render thread|Backend library' smoke-output.log | tail -40 || true
+          if grep -E 'Unreported exception thrown|Could not execute entrypoint|Minecraft has crashed|java.lang.IncompatibleClassChangeError|java.lang.NoSuchMethodError' smoke-output.log; then
+            echo 'Game launch failed'
+            exit 1
+          fi
+          if ! grep -q -E 'Backend library: LWJGL|Created window using SDL video driver' smoke-output.log; then
+            echo "Game did not reach client graphics startup. exit=$code"
+            exit 1
+          fi
+          echo "Passed game initialization smoke test (client started; exit=$code)"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TigerDropperDemo-startup-smoke-logs
+          path: tigerdropper-build/smoke-output.log
