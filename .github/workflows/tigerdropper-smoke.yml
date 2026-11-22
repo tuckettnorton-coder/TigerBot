@@ -20,20 +20,20 @@ jobs:
       - name: Install virtual display and OpenGL software renderer
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libasound2t64
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 libgl1 libegl1 mesa-utils libasound2t64
       - name: Launch development client with real 26.3 game
         working-directory: tigerdropper-build
         run: |
           set +e
-          timeout 100s xvfb-run -a gradle runClient --no-daemon > smoke-output.log 2>&1
+          timeout 85s xvfb-run -a -s '-screen 0 1920x1080x24 +extension GLX' env LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe gradle runClient --no-daemon > smoke-output.log 2>&1
           code=$?
           grep -E 'Minecraft|Error|Exception|Render thread|Backend library' smoke-output.log | tail -40 || true
-          if grep -E 'Unreported exception thrown|Could not execute entrypoint|Minecraft has crashed|java.lang.IncompatibleClassChangeError|java.lang.NoSuchMethodError' smoke-output.log; then
+          if grep -E 'Unreported exception thrown|Could not execute entrypoint|Minecraft has crashed|java.lang.IncompatibleClassChangeError|java.lang.NoSuchMethodError|Failed to create backend OpenGL|Failed to create backend Vulkan|Exception in thread "main"' smoke-output.log; then
             echo 'Game launch failed'
             exit 1
           fi
-          if ! grep -q -E 'Backend library: LWJGL|Created window using SDL video driver' smoke-output.log; then
-            echo "Game did not reach client graphics startup. exit=$code"
+          if ! grep -q -E 'Sound engine started|Sound Engine started|OpenAL initialized|Reloading ResourceManager' smoke-output.log; then
+            echo "Game did not complete client graphics initialization. exit=$code"
             exit 1
           fi
           echo "Passed game initialization smoke test (client started; exit=$code)"
