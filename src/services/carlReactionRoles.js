@@ -151,7 +151,7 @@ async function publish(message, client, key, session) {
   } catch (error) {
     if (posted) await posted.delete().catch(() => {});
     logger.error('Carl-style reaction roles could not be published:', error);
-    await say(message, 'Could not publish the panel. Make sure every emoji works in this server and the bot has the required permissions. Your setup is saved here; correct the problem and send done again.');
+    await say(message, 'Could not publish the panel. Make sure every emoji works in this server and the bot has the required permissions. Your setup is saved here. Fix permissions and send done again, or send cancel to restart if an emoji is invalid.');
     return;
   }
 
@@ -245,7 +245,7 @@ export async function handleCarlReactionRoleMessage(message, client) {
   }
 
   if (session.step === 'details') {
-    const index = content.indexOf(' | ');
+    const index = content.lastIndexOf(' | ');
     if (index < 1) {
       await say(message, 'Use this format with a space on each side of the vertical line:\nTiger Market | Ping Roles | React below to choose your notifications!');
       return true;
