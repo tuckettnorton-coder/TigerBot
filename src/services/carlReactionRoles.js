@@ -107,9 +107,9 @@ async function checkPanel(message, client, raw) {
   const me = await message.guild.members.fetchMe().catch(() => null);
   const missing = [];
   if (!me?.permissions.has(PermissionFlagsBits.ManageRoles)) missing.push('Manage Roles permission');
-  if (!channel.permissionsFor(me)?.has(PermissionFlagsBits.ViewChannel)) missing.push('View Channel permission');
-  if (!channel.permissionsFor(me)?.has(PermissionFlagsBits.ReadMessageHistory)) missing.push('Read Message History permission');
-  if (!channel.permissionsFor(me)?.has(PermissionFlagsBits.AddReactions)) missing.push('Add Reactions permission');
+  if (!me || !channel.permissionsFor(me)?.has(PermissionFlagsBits.ViewChannel)) missing.push('View Channel permission');
+  if (!me || !channel.permissionsFor(me)?.has(PermissionFlagsBits.ReadMessageHistory)) missing.push('Read Message History permission');
+  if (!me || !channel.permissionsFor(me)?.has(PermissionFlagsBits.AddReactions)) missing.push('Add Reactions permission');
 
   const invalidRoles = [];
   for (const entry of data.entries) {
