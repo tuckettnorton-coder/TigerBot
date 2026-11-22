@@ -54,8 +54,8 @@ public final class TigerDropperDemo implements ClientModInitializer {
   private static void tick(Minecraft mc) {
     if(mc.player==null||mc.level==null)return;
     if(overlayTicks>0)overlayTicks--;
-    while(PANEL.consumeClick())mc.gui.setScreen(new ConfigPanel(ItemStack.EMPTY));
-    while(HELD.consumeClick())mc.gui.setScreen(new ConfigPanel(mc.player.getMainHandItem().copy()));
+    while(PANEL.consumeClick())mc.gui.setScreen(new QuickAssignPanel());
+    while(HELD.consumeClick())mc.gui.setScreen(new QuickAssignPanel());
     while(WIN.consumeClick())show(0,slot,"HOST WIN DEMO");
     while(LOSE.consumeClick())show(1,slot,"VIEWER WIN DEMO");
     while(RANDOM.consumeClick()){int s=java.util.concurrent.ThreadLocalRandom.current().nextInt(2);show(s,java.util.concurrent.ThreadLocalRandom.current().nextInt(9),"RANDOM DEMO");}
@@ -129,11 +129,77 @@ public final class TigerDropperDemo implements ClientModInitializer {
       Files.createDirectories(FILE.getParent());Files.writeString(FILE,JSON.toJson(root));
     }catch(Exception ignored){}
   }
+
+  /** One-click assignment: hold an item, click its 1-9 number under HOST or VIEWER. */
+  private static final class QuickAssignPanel extends Screen {
+    private int x,y;
+    private String notice="Hold your item, then click its number under HOST or VIEWER.";
+    QuickAssignPanel(){super(Component.literal("Tiger Dropper - Hold Item and Assign Number"));}
+    private void button(String title,int px,int py,int w,Runnable action){
+      addRenderableWidget(Button.builder(Component.literal(title),b->action.run()).bounds(px,py,w,20).build());
+    }
+    @Override protected void init(){
+      x=Math.max(4,(width-438)/2);
+      y=Math.max(10,(height-228)/2);
+      button("Advanced item settings",x,y,172,()->{
+        ItemStack held=this.minecraft.player==null?ItemStack.EMPTY:this.minecraft.player.getMainHandItem().copy();
+        this.minecraft.gui.setScreen(new ConfigPanel(held));
+      });
+      button("Close",x+348,y,88,this::onClose);
+      for(int i=0;i<9;i++){
+        final int number=i;
+        final int xx=x+i*47;
+        button(Integer.toString(i+1),xx,y+79,44,()->assign(0,number));
+        button(Integer.toString(i+1),xx,y+142,44,()->assign(1,number));
+      }
+    }
+    private void assign(int targetSide,int number){
+      if(this.minecraft==null||this.minecraft.player==null){
+        notice="Enter a world and hold an item first.";
+        return;
+      }
+      ItemStack held=this.minecraft.player.getMainHandItem();
+      if(held==null||held.isEmpty()){
+        notice="Your main hand is empty. Hold the item you want to assign.";
+        return;
+      }
+      // Host and Viewer each have their own 1-9 slots. Do not change the other side.
+      String displayName=held.getHoverName().getString();
+      set(targetSide,number,held.copy(),displayName,number+1);
+      notice=(targetSide==0?"HOST":"VIEWER")+" #"+(number+1)+" saved: "+displayName;
+    }
+    @Override public void extractRenderState(GuiGraphicsExtractor g,int mx,int my,float dt){
+      super.extractRenderState(g,mx,my,dt);
+      g.text(this.font,"CLIENT-SIDE VISUAL SIMULATION - NO SERVER CHANGES",x,y+25,0xFFFFD37D,true);
+      Minecraft mc=Minecraft.getInstance();
+      ItemStack held=mc.player==null?ItemStack.EMPTY:mc.player.getMainHandItem();
+      g.text(this.font,"HELD ITEM:",x+1,y+46,0xFFFFFFFF,false);
+      if(held!=null&&!held.isEmpty()){
+        g.item(held,x+72,y+40);
+        String title=held.getHoverName().getString();
+        while(this.font.width(title)>318 && title.length()>4)title=title.substring(0,title.length()-4)+"...";
+        g.text(this.font,title,x+94,y+46,0xFFBFFFE0,false);
+      } else {
+        g.text(this.font,"Empty hand - choose an item first",x+78,y+46,0xFFFFB7B7,false);
+      }
+      g.text(this.font,"HOST: click 1-9 to assign your held item",x,y+66,0xFFFFD785,true);
+      g.text(this.font,"VIEWER: click 1-9 to assign your held item",x,y+129,0xFF9FD9FF,true);
+      for(int i=0;i<9;i++){
+        int xx=x+i*47+14;
+        if(STACKS[0][i]!=null&&!STACKS[0][i].isEmpty())g.item(STACKS[0][i],xx,y+101);
+        if(STACKS[1][i]!=null&&!STACKS[1][i].isEmpty())g.item(STACKS[1][i],xx,y+164);
+      }
+      g.text(this.font,notice,x,y+193,0xFFFFE6A8,false);
+      g.text(this.font,"Each side saves separately. Icons show your saved assignments.",x,y+210,0xFFD6DCE7,false);
+    }
+    @Override public void onClose(){this.minecraft.gui.setScreen(null);}
+  }
+
   private static class ConfigPanel extends Screen {
     private ItemStack draft;
     private int editSide=side,editSlot=slot,editNumber=NUMBERS[side][slot];
     private EditBox nameInput;
-    private String name="",notice="Pick an item, choose Host/Viewer, slot, number, then Save.";
+    private String name="",notice="Browse or Capture held, choose Host/Viewer, slot, number, then Save.";
     private int x,y;
     ConfigPanel(ItemStack item){super(Component.literal("Tiger Dropper - Visual Demo Settings"));draft=item==null?ItemStack.EMPTY:item;name=Objects.toString(NAMES[editSide][editSlot],"");}
     private void add(String label,int px,int py,int w,Runnable run){
