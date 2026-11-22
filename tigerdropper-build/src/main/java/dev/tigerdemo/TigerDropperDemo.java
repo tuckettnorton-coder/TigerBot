@@ -181,7 +181,7 @@ public final class TigerDropperDemo implements ClientModInitializer {
     Picker(ConfigPanel parent){super(Component.literal("Tiger Dropper - Browse Items"));this.parent=parent;}
     private void refresh(){
       results.clear();
-      for(Item item:BuiltInRegistries.ITEM){String name=BuiltInRegistries.ITEM.getKey(item).toString();if(name.contains(filter.toLowerCase(Locale.ROOT)))results.add(item);}
+      for(Item item:BuiltInRegistries.ITEM){String id=BuiltInRegistries.ITEM.getKey(item).toString();String itemName=new ItemStack(item).getHoverName().getString();String q=filter.toLowerCase(Locale.ROOT);if(id.toLowerCase(Locale.ROOT).contains(q)||itemName.toLowerCase(Locale.ROOT).contains(q))results.add(item);}
       results.sort(Comparator.comparing(it->BuiltInRegistries.ITEM.getKey(it).toString()));
     }
     @Override protected void init(){x=Math.max(4,(width-428)/2);y=Math.max(12,(height-278)/2);refresh();buttons();}
@@ -195,13 +195,29 @@ public final class TigerDropperDemo implements ClientModInitializer {
         String label=id.startsWith("minecraft:")?id.substring(10):id;
         if(label.length()>19)label=label.substring(0,18)+"...";
         int xx=x+(i%3)*142,yy=y+50+(i/3)*23;
-        add(label,xx,yy,138,()->{parent.draft=new ItemStack(item);parent.notice="Selected "+id;this.minecraft.gui.setScreen(parent);});
+        add("",xx,yy,138,()->{parent.draft=new ItemStack(item);parent.notice="Selected "+id;this.minecraft.gui.setScreen(parent);});
       }
       add("Previous",x,y+239,100,()->{page=Math.max(0,page-1);buttons();});
       add("Next",x+328,y+239,100,()->{if((page+1)*24<results.size())page++;buttons();});
     }
     private void add(String s,int xx,int yy,int w,Runnable act){addRenderableWidget(Button.builder(Component.literal(s),b->act.run()).bounds(xx,yy,w,20).build());}
-    @Override public void extractRenderState(GuiGraphicsExtractor g,int mx,int my,float dt){super.extractRenderState(g,mx,my,dt);g.text(this.font,"SEARCH ALL REGISTERED ITEMS - DEMO",x,y+4,0xFFFFE49B,true);g.text(this.font,"Page "+(page+1),x+187,y+244,0xFFFFFFFF,false);}
+    @Override public void extractRenderState(GuiGraphicsExtractor g,int mx,int my,float dt){
+      super.extractRenderState(g,mx,my,dt);
+      g.text(this.font,"SEARCH ITEMS BY NAME OR ID - DEMO",x,y+4,0xFFFFE49B,true);
+      g.text(this.font,"Page "+(page+1)+" / "+Math.max(1,(results.size()+23)/24),x+180,y+244,0xFFFFFFFF,false);
+      // Icon and translated item name, drawn inside each clickable search row.
+      for(int i=0;i<24;i++){
+        int at=page*24+i;
+        if(at>=results.size())break;
+        Item item=results.get(at);
+        ItemStack displayed=new ItemStack(item);
+        int xx=x+(i%3)*142,yy=y+50+(i/3)*23;
+        g.item(displayed,xx+3,yy+2);
+        String title=displayed.getHoverName().getString();
+        while(this.font.width(title)>108 && title.length()>4) title=title.substring(0,title.length()-4)+"...";
+        g.text(this.font,title,xx+24,yy+6,0xFFF1F5FF,false);
+      }
+    }
     @Override public void onClose(){this.minecraft.gui.setScreen(parent);}
   }
 }

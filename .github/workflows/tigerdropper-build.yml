@@ -18,10 +18,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.6.0'
-      - name: Compile with actual Minecraft 26.3 and Fabric dependencies
+      - name: Compile with Minecraft 26.3 and Fabric 0.166.2
         working-directory: tigerdropper-build
         run: gradle build --stacktrace --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: TigerDropperDemo-26.3-JAR
+          name: TigerDropperDemo-26.3-icons-JAR
           path: tigerdropper-build/build/libs/*.jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TigerDropperDemo-26.3-icons-source
+          path: |
+            tigerdropper-build/build.gradle
+            tigerdropper-build/settings.gradle
+            tigerdropper-build/gradle.properties
+            tigerdropper-build/src/main/**

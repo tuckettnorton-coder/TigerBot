@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "tigerdropperdemo",
-  "version": "1.3.0+26.3",
+  "version": "1.4.0+26.3",
   "name": "Tiger Dropper Visual Demo",
   "description": "Client-only, clearly labeled item and dropper visual simulator; no server outcomes are altered.",
   "authors": [
