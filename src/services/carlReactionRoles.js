@@ -13,6 +13,127 @@ function panelKey(guildId, messageId) {
   return 'guild:' + guildId + ':carl_reaction_roles:' + messageId;
 }
 
+
+function unwrapPanel(value) {
+  if (value && Array.isArray(value.entries)) return value;
+  if (value?.value && Array.isArray(value.value.entries)) return value.value;
+  return null;
+}
+
+function isCarlPanelMessage(message, client) {
+  return message?.author?.id === client.user?.id
+    && message.embeds?.[0]?.footer?.text ===
+      'React to add a role; remove your reaction to remove the role.';
+}
+
+/** Rebuild mappings from a previously posted panel if the database record is missing.
+ * Only bot-authored messages carrying our exact footer are trusted.
+ */
+export async function recoverCarlPanel(message, client) {
+  if (!isCarlPanelMessage(message, client)) return null;
+  const guild = message.guild;
+  if (!guild) return null;
+  const description = message.embeds[0].description || '';
+  const entries = [];
+  const seenEmoji = new Set();
+  for (const line of description.split(/\r?\n/)) {
+    const match = line.trim().match(/^(\S+)\s+<@&(\d{17,20})>$/u);
+    if (!match) continue;
+    const [, emoji, roleId] = match;
+    const role = guild.roles.cache.get(roleId)
+      || await guild.roles.fetch(roleId).catch(() => null);
+    if (!role) continue;
+    const emojiKey = normalizeCarlEmoji(emoji);
+    if (seenEmoji.has(emojiKey)) continue;
+    seenEmoji.add(emojiKey);
+    entries.push({ emoji, emojiKey, roleId, roleName: role.name });
+  }
+  if (entries.length === 0 || entries.length > MAX_ROLES) return null;
+  const data = {
+    guildId: guild.id,
+    channelId: message.channelId,
+    messageId: message.id,
+    entries,
+    recoveredAt: new Date().toISOString(),
+  };
+  const saved = await client.db.set(panelKey(guild.id, message.id), data);
+  if (saved === false) logger.warn('Reaction role panel recovered but DB save returned false for ' + message.id);
+  logger.info('Recovered Carl-style reaction-role panel ' + message.id + ' (' + entries.length + ' roles)');
+  return data;
+}
+
+async function loadCarlPanel(message, client) {
+  const guildId = message.guildId || message.guild?.id;
+  if (!guildId) return null;
+  const stored = unwrapPanel(await client.db.get(panelKey(guildId, message.id)));
+  if (stored) return stored;
+  // Discord retains the published embed, including all emoji-to-role mappings.
+  return recoverCarlPanel(message, client);
+}
+
+function checkCommandTarget(raw, guildId) {
+  const input = String(raw || '').trim();
+  const link = input.match(/(?:https?:\/\/)?(?:canary\.|ptb\.)?discord(?:app)?\.com\/channels\/(\d{17,20})\/(\d{17,20})\/(\d{17,20})/i);
+  if (link) return link[1] === guildId ? { channelId: link[2], messageId: link[3] } : null;
+  if (/^\d{17,20}$/.test(input)) return { channelId: null, messageId: input };
+  return null;
+}
+
+/** Admin diagnostics and recovery for an existing posted reaction-role panel. */
+async function checkPanel(message, client, raw) {
+  const target = checkCommandTarget(raw, message.guild.id);
+  if (!target) {
+    await say(message, 'Send a message link from this server: !rr check https://discord.com/channels/SERVER_ID/CHANNEL_ID/MESSAGE_ID');
+    return;
+  }
+  let data = unwrapPanel(await client.db.get(panelKey(message.guild.id, target.messageId)));
+  const channelId = target.channelId || data?.channelId;
+  if (!channelId) {
+    await say(message, 'I have no saved record for that ID. Use the FULL Discord message link so I can recover the original panel.');
+    return;
+  }
+  const channel = message.guild.channels.cache.get(channelId)
+    || await message.guild.channels.fetch(channelId).catch(() => null);
+  const panel = await channel?.messages?.fetch(target.messageId).catch(() => null);
+  if (!panel) {
+    await say(message, 'I cannot read that reaction-role message. Check its link and View Channel / Read Message History permissions.');
+    return;
+  }
+  if (!data) data = await recoverCarlPanel(panel, client);
+  if (!data) {
+    await say(message, 'This is not a recognized TigerBot emoji reaction-role panel. No changes were made.');
+    return;
+  }
+  const me = await message.guild.members.fetchMe().catch(() => null);
+  const missing = [];
+  if (!me?.permissions.has(PermissionFlagsBits.ManageRoles)) missing.push('Manage Roles permission');
+  if (!channel.permissionsFor(me)?.has(PermissionFlagsBits.ViewChannel)) missing.push('View Channel permission');
+  if (!channel.permissionsFor(me)?.has(PermissionFlagsBits.ReadMessageHistory)) missing.push('Read Message History permission');
+  if (!channel.permissionsFor(me)?.has(PermissionFlagsBits.AddReactions)) missing.push('Add Reactions permission');
+
+  const invalidRoles = [];
+  for (const entry of data.entries) {
+    const role = message.guild.roles.cache.get(entry.roleId)
+      || await message.guild.roles.fetch(entry.roleId).catch(() => null);
+    const problem = me ? roleError(role, message.guild, me) : 'Cannot fetch bot member';
+    if (problem) invalidRoles.push(entry.roleName + ': ' + problem);
+  }
+  const addListeners = client.listenerCount('messageReactionAdd');
+  const removeListeners = client.listenerCount('messageReactionRemove');
+  const result = [
+    'Reaction-role panel diagnostics:',
+    'Panel: ' + panel.url,
+    'Roles mapped: ' + data.entries.length,
+    'Reaction handlers: add=' + addListeners + ', remove=' + removeListeners,
+    'Missing permissions: ' + (missing.join(', ') || 'none'),
+    'Role problems: ' + (invalidRoles.join('; ') || 'none'),
+    !missing.length && !invalidRoles.length && addListeners && removeListeners
+      ? '✅ All checks passed. Try reacting again. If it still fails, inspect the host logs for "Carl-style reaction role".'
+      : '⚠️ Fix the issues above, restart the bot if reaction handlers are missing, and try again.',
+  ];
+  await say(message, result.join('\n').slice(0, 1950));
+}
+
 function sessionKey(message) {
   return message.guild.id + ':' + message.channelId + ':' + message.author.id;
 }
@@ -141,13 +262,14 @@ async function publish(message, client, key, session) {
     for (const entry of session.entries) {
       await posted.react(entry.emoji);
     }
-    await client.db.set(panelKey(guild.id, posted.id), {
+    const saved = await client.db.set(panelKey(guild.id, posted.id), {
       guildId: guild.id,
       channelId: channel.id,
       messageId: posted.id,
       entries: session.entries.map(entry => ({ ...entry })),
       createdAt: new Date().toISOString(),
     });
+    if (saved === false) throw new Error('Reaction-role data could not be saved to database');
   } catch (error) {
     if (posted) await posted.delete().catch(() => {});
     logger.error('Carl-style reaction roles could not be published:', error);
@@ -160,7 +282,7 @@ async function publish(message, client, key, session) {
 }
 
 async function removePanel(message, client, messageId) {
-  const data = await client.db.get(panelKey(message.guild.id, messageId));
+  const data = unwrapPanel(await client.db.get(panelKey(message.guild.id, messageId)));
   if (!data) {
     await say(message, 'No TigerBot emoji-reaction panel was found with that message ID.');
     return;
@@ -190,16 +312,21 @@ export async function handleCarlReactionRoleMessage(message, client) {
   const key = sessionKey(message);
   const starts = /^!rr\s+make$/i.test(content);
   const deletion = content.match(/^!rr\s+delete\s+(\d{17,20})$/i);
+  const diagnostic = content.match(/^!rr\s+check\s+(.+)$/i);
   let session = sessions.get(key);
 
-  if (!session && !starts && !deletion) return false;
+  if (!session && !starts && !deletion && !diagnostic) return false;
   if (!isAdmin(message)) {
-    if (starts || deletion) await say(message, 'Only server administrators can manage reaction-role panels.');
-    return Boolean(starts || deletion);
+    if (starts || deletion || diagnostic) await say(message, 'Only server administrators can manage reaction-role panels.');
+    return Boolean(starts || deletion || diagnostic);
   }
 
   if (deletion) {
     await removePanel(message, client, deletion[1]);
+    return true;
+  }
+  if (diagnostic) {
+    await checkPanel(message, client, diagnostic[1]);
     return true;
   }
   if (starts) {
@@ -326,26 +453,37 @@ export async function handleCarlReactionChange(reaction, user, client, adding) {
     const guildId = message.guildId || message.guild?.id;
     if (!guildId) return;
 
-    const data = await client.db.get(panelKey(guildId, message.id));
-    if (!data?.entries?.length) return;
+    const data = await loadCarlPanel(message, client);
+    if (!data?.entries?.length) {
+      logger.warn('No saved reaction-role mapping or recoverable panel for message ' + message.id);
+      return;
+    }
     const emojiKey = reaction.emoji.id || reaction.emoji.name;
     const entry = data.entries.find(item => item.emojiKey === emojiKey);
-    if (!entry) return;
+    if (!entry) {
+      logger.warn('Reaction emoji ' + emojiKey + ' is not mapped for panel ' + message.id);
+      return;
+    }
 
     const guild = message.guild || await client.guilds.fetch(guildId);
     const member = await guild.members.fetch(user.id).catch(() => null);
     const me = await guild.members.fetchMe().catch(() => null);
     const role = guild.roles.cache.get(entry.roleId)
       || await guild.roles.fetch(entry.roleId).catch(() => null);
-    if (!member || !me || !role || roleError(role, guild, me)
-      || !me.permissions.has(PermissionFlagsBits.ManageRoles)) return;
-
-    if (!adding) {
-      if (member.roles.cache.has(role.id)) await member.roles.remove(role);
+    const issue = !me ? 'Bot membership unavailable' : roleError(role, guild, me);
+    if (!member || issue || !me.permissions.has(PermissionFlagsBits.ManageRoles)) {
+      logger.warn('Reaction role assignment skipped for message ' + message.id + ': ' +
+        (!member ? 'Member not found' : issue || 'Missing Manage Roles permission'));
       return;
     }
 
-    const noPings = data.entries.find(item => item.roleName.toLowerCase() === 'no pings');
+    if (!adding) {
+      if (member.roles.cache.has(role.id)) await member.roles.remove(role);
+      logger.info('Reaction role removal processed: ' + entry.roleName + ' for ' + user.id);
+      return;
+    }
+
+    const noPings = data.entries.find(item => /^no\s+pings?$/i.test(item.roleName.trim()));
     if (noPings) {
       const conflicting = entry.roleId === noPings.roleId
         ? data.entries.filter(item => item.roleId !== noPings.roleId)
@@ -365,6 +503,7 @@ export async function handleCarlReactionChange(reaction, user, client, adding) {
     }
 
     if (!member.roles.cache.has(role.id)) await member.roles.add(role);
+    logger.info('Reaction role assignment processed: ' + entry.roleName + ' for ' + user.id);
   } catch (error) {
     logger.error('Carl-style reaction role update failed:', error);
   }
